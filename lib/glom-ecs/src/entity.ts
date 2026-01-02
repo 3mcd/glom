@@ -14,6 +14,8 @@ const EXTENT = 2 ** 31 - 1
 
 export const RESOURCE_ENTITY = EXTENT as Entity
 
+export const ENTITY = { entity: true } as const
+
 export function assert_valid(entity: number) {
   assert(entity >= 0)
   assert(entity <= EXTENT)

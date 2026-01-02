@@ -6,7 +6,7 @@ import {
   make_system_schedule,
   run_system_schedule,
 } from "./system_schedule"
-import { make_world, type World } from "./world"
+import { add_resource, make_world, type World } from "./world"
 
 describe("system_schedule sorting", () => {
   const A = define_component<number>(0)
@@ -32,11 +32,11 @@ describe("system_schedule sorting", () => {
     })
 
     const schedule = make_system_schedule()
-    // Adding read before write, but write should run first
     add_system(schedule, system_read)
     add_system(schedule, system_write)
 
-    const world = make_world()
+    const world = make_world(1)
+    add_resource(world, A(0))
     run_system_schedule(schedule, world as World)
 
     expect(order).toEqual(["write", "read"])
@@ -65,7 +65,8 @@ describe("system_schedule sorting", () => {
     add_system(schedule, w1)
     add_system(schedule, w2)
 
-    const world = make_world()
+    const world = make_world(1)
+    add_resource(world, A(0))
     run_system_schedule(schedule, world as World)
 
     expect(order).toEqual([1, 2])
@@ -73,11 +74,6 @@ describe("system_schedule sorting", () => {
 
   test("complex chain", () => {
     const order: string[] = []
-
-    // S1: Write A
-    // S2: Read A, Write B
-    // S3: Read B
-
     const s3 = () => {
       order.push("S3")
     }
@@ -108,7 +104,9 @@ describe("system_schedule sorting", () => {
     add_system(schedule, s2)
     add_system(schedule, s1)
 
-    const world = make_world()
+    const world = make_world(1)
+    add_resource(world, A(0))
+    add_resource(world, B(0))
     run_system_schedule(schedule, world as World)
 
     expect(order).toEqual(["S1", "S2", "S3"])
@@ -131,7 +129,7 @@ describe("system_schedule sorting", () => {
     add_system(schedule, s1)
     add_system(schedule, s2)
 
-    const world = make_world()
+    const world = make_world(1)
     expect(() => run_system_schedule(schedule, world as World)).toThrow(
       "Cycle detected in system dependencies",
     )
@@ -160,7 +158,9 @@ describe("system_schedule sorting", () => {
     add_system(schedule, s1)
     add_system(schedule, s2)
 
-    const world = make_world()
+    const world = make_world(1)
+    add_resource(world, A(0))
+    add_resource(world, B(0))
     run_system_schedule(schedule, world as World)
 
     expect(order).toEqual([1, 2])

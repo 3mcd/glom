@@ -1,6 +1,4 @@
 import type { ComponentLike } from "./component"
-import type { All } from "./query/all"
-import type { Read, Write } from "./query/term"
 import type { DefinedSystem } from "./system"
 import type { SystemArgument } from "./system_argument"
 import { system_descriptor_key } from "./system_descriptor"
@@ -23,27 +21,17 @@ export type SystemSchedule<Requirements extends ComponentLike = never> = {
   phase: SystemSchedulePhase
 }
 
-type ExtractComponent<T> =
-  T extends Read<infer C>
+type ExtractComponent<T> = T extends { readonly __read: infer C }
+  ? C
+  : T extends { readonly __write: infer C }
     ? C
-    : T extends Write<infer C>
-      ? C
-      : T extends ComponentLike
-        ? T
-        : never
+    : T extends ComponentLike
+      ? T
+      : never
 
 type SystemResources<T extends SystemArgument[]> = {
-  [K in keyof T]: T[K] extends All<
-    infer T0,
-    infer T1,
-    infer T2,
-    infer T3,
-    infer T4,
-    infer T5,
-    infer T6,
-    infer T7
-  >
-    ? ExtractComponent<T0 | T1 | T2 | T3 | T4 | T5 | T6 | T7>
+  [K in keyof T]: T[K] extends { readonly __all: true }
+    ? never
     : ExtractComponent<T[K]>
 }[number]
 
@@ -52,7 +40,7 @@ export function add_system<R extends ComponentLike, T extends SystemArgument[]>(
   system: DefinedSystem<T>,
 ): asserts schedule is SystemSchedule<R | SystemResources<T>> {
   const executor = make_system_executor(system, system[system_descriptor_key])
-  schedule.execs.push(executor as any)
+  schedule.execs.push(executor as unknown as SystemExecutor)
 }
 
 export function make_system_schedule(): SystemSchedule<never> {

@@ -11,6 +11,7 @@ export interface All<
   T6 extends Term = never,
   T7 extends Term = never,
 > {
+  readonly __all: true
   readonly desc: AllDescriptor<T0, T1, T2, T3, T4, T5, T6, T7>
   [Symbol.iterator](): Iterator<
     [

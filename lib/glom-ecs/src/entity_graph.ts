@@ -17,6 +17,7 @@ import {
   sparse_set_delete,
   sparse_set_for_each,
   sparse_set_has,
+  sparse_set_size,
   sparse_set_values,
 } from "./sparse_set"
 import {
@@ -31,12 +32,18 @@ import {
 const TRAVERSAL_STACK: (EntityGraphNode | undefined)[] = []
 let TRAVERSAL_VERSION = 0
 
-// biome-ignore lint/suspicious/noConfusingVoidType: reason
+// biome-ignore lint/suspicious/noConfusingVoidType: void is the most accurate return type here
 type EntityGraphNodeIteratee = (node: EntityGraphNode) => boolean | void
 export type EntityGraphNodeListener = {
   node_created?: (node: EntityGraphNode) => void
+  node_destroyed?: (node: EntityGraphNode) => void
   entities_in?: (entities: Entity[], node: EntityGraphNode) => void
   entities_out?: (entities: Entity[], node: EntityGraphNode) => void
+}
+
+export enum PruneStrategy {
+  None,
+  WhenEmpty,
 }
 
 export type EntityGraphNode = {
@@ -46,10 +53,15 @@ export type EntityGraphNode = {
   readonly next_nodes: SparseMap<EntityGraphNode>
   readonly prev_nodes: SparseMap<EntityGraphNode>
   readonly listeners: EntityGraphNodeListener[]
+  readonly strategy: PruneStrategy
   _version: number
 }
 
-export function make_entity_graph_node(id: number, vec: Vec): EntityGraphNode {
+export function make_entity_graph_node(
+  id: number,
+  vec: Vec,
+  strategy = PruneStrategy.None,
+): EntityGraphNode {
   return {
     id,
     vec,
@@ -57,6 +69,7 @@ export function make_entity_graph_node(id: number, vec: Vec): EntityGraphNode {
     next_nodes: make_sparse_map<EntityGraphNode>(),
     prev_nodes: make_sparse_map<EntityGraphNode>(),
     listeners: [],
+    strategy,
     _version: -1,
   }
 }
@@ -149,6 +162,16 @@ export function entity_graph_node_add_listener(
   }
 }
 
+export function entity_graph_node_remove_listener(
+  node: EntityGraphNode,
+  listener: EntityGraphNodeListener,
+): void {
+  const index = node.listeners.indexOf(listener)
+  if (index !== -1) {
+    node.listeners.splice(index, 1)
+  }
+}
+
 export function entity_graph_node_emit_node_created(
   target: EntityGraphNode,
   node: EntityGraphNode,
@@ -178,6 +201,15 @@ export function entity_graph_node_emit_entities_out(
   }
 }
 
+export function entity_graph_node_emit_node_destroyed(
+  target: EntityGraphNode,
+  node: EntityGraphNode,
+): void {
+  for (let i = 0; i < target.listeners.length; i++) {
+    target.listeners[i]?.node_destroyed?.(node)
+  }
+}
+
 export function entity_graph_node_has_entity(
   node: EntityGraphNode,
   entity: Entity,
@@ -199,6 +231,61 @@ export function entity_graph_node_remove_entity(
   sparse_set_delete(node.entities, entity)
 }
 
+export function entity_graph_node_prune(
+  graph: EntityGraph,
+  node: EntityGraphNode,
+): void {
+  if (node === graph.root) {
+    return
+  }
+
+  const parents: EntityGraphNode[] = []
+  sparse_map_for_each_value(node.prev_nodes, (parent) => {
+    parents.push(parent)
+  })
+
+  const children: EntityGraphNode[] = []
+  sparse_map_for_each_value(node.next_nodes, (child) => {
+    children.push(child)
+  })
+
+  // Notify listeners that this node is destroyed
+  entity_graph_node_traverse_left(node, (visitedNode) => {
+    entity_graph_node_emit_node_destroyed(visitedNode, node)
+  })
+
+  // Unlink from all parents
+  for (const parent of parents) {
+    entity_graph_node_unlink(node, parent)
+  }
+
+  // Unlink from all children
+  for (const child of children) {
+    entity_graph_node_unlink(child, node)
+  }
+
+  // For each child, potentially link to parents of the pruned node
+  for (const child of children) {
+    for (const parent of parents) {
+      if (vec_is_superset_of(child.vec, parent.vec)) {
+        // Check if any other next_nodes of parent are also subsets of child
+        let has_more_specific_subset = false
+        sparse_map_for_each_value(parent.next_nodes, (nextNode) => {
+          if (vec_is_superset_of(child.vec, nextNode.vec)) {
+            has_more_specific_subset = true
+          }
+        })
+
+        if (!has_more_specific_subset) {
+          entity_graph_node_link(child, parent)
+        }
+      }
+    }
+  }
+
+  graph.by_hash.delete(node.vec.hash)
+}
+
 export type EntityGraph = {
   next_id: number
   readonly by_hash: Map<number, EntityGraphNode>
@@ -207,11 +294,14 @@ export type EntityGraph = {
 }
 
 export function make_entity_graph(): EntityGraph {
+  const root = make_entity_graph_node(0, EMPTY_VEC)
+  const by_hash = new Map<number, EntityGraphNode>()
+  by_hash.set(EMPTY_VEC.hash, root)
   return {
     next_id: 1,
-    by_hash: new Map(),
+    by_hash,
     by_entity: [],
-    root: make_entity_graph_node(0, EMPTY_VEC),
+    root,
   }
 }
 
@@ -266,12 +356,13 @@ export function entity_graph_insert_node(
 export function entity_graph_find_or_create_node(
   graph: EntityGraph,
   vec: Vec,
+  strategy = PruneStrategy.None,
 ): EntityGraphNode {
   return (
     graph.by_hash.get(vec.hash) ??
     entity_graph_insert_node(
       graph,
-      make_entity_graph_node(graph.next_id++, vec),
+      make_entity_graph_node(graph.next_id++, vec, strategy),
     )
   )
 }
@@ -279,12 +370,13 @@ export function entity_graph_find_or_create_node(
 export function entity_graph_find_or_create_node_single(
   graph: EntityGraph,
   component: Component<unknown>,
+  strategy = PruneStrategy.None,
 ): EntityGraphNode {
   return (
     graph.by_hash.get(hash_word(undefined, component.id)) ??
     entity_graph_insert_node(
       graph,
-      make_entity_graph_node(graph.next_id++, make_vec([component])),
+      make_entity_graph_node(graph.next_id++, make_vec([component]), strategy),
     )
   )
 }
@@ -314,6 +406,12 @@ export function entity_graph_set_entity_node(
   }
   if (prev_node) {
     entity_graph_node_remove_entity(prev_node, entity)
+    if (
+      prev_node.strategy === PruneStrategy.WhenEmpty &&
+      sparse_set_size(prev_node.entities) === 0
+    ) {
+      entity_graph_node_prune(graph, prev_node)
+    }
   }
   entity_graph_node_add_entity(next_node, entity)
   graph.by_entity[entity as number] = next_node
