@@ -1,0 +1,19 @@
+{
+  "name": "@glom/ecs",
+  "module": "dist/glom-ecs.esm.js",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "main": "dist/glom-ecs.cjs.js",
+  "scripts": {
+    "bench": "bun run src/entity_graph.bench.ts"
+  }
+}

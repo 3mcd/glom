@@ -1,0 +1,44 @@
+{
+  "private": true,
+  "name": "glom",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "bun run dev.arpg",
+    "dev.arpg": "bun run --elide-lines=0 --filter=example dev",
+    "dev.share": "ngrok start --config ngrok.yml frontend backend",
+    "test": "bun run --elide-lines=0 --filter=* test",
+    "bench": "bun run --elide-lines=0 --filter=* bench"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "mitata": "^1.0.34"
+  },
+  "catalogs": {
+    "build": {
+      "typescript": "5.9.3"
+    }
+  },
+  "workspaces": [
+    "app/*",
+    "lib/*"
+  ],
+  "preconstruct": {
+    "packages": [
+      "lib/*"
+    ]
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@babel/preset-typescript": "^7.28.5",
+    "@biomejs/biome": "^2.3.10",
+    "@preconstruct/cli": "^2.8.12",
+    "typescript": "catalog:build"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

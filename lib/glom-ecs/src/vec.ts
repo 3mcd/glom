@@ -1,0 +1,234 @@
+import { assert_defined } from "./assert"
+import type { Component } from "./component"
+import { hash_word, hash_words } from "./lib/hash"
+
+export type Vec = {
+  readonly elements: Component<any>[]
+  readonly ids: number[]
+  readonly hash: number
+  readonly sparse: number[]
+  readonly sums: WeakMap<Vec, Vec>
+  readonly differences: WeakMap<Vec, Vec>
+  readonly intersections: WeakMap<Vec, Vec>
+}
+
+export function make_vec(components: Component<any>[]): Vec {
+  const elements = components.slice().sort((a, b) => a.id - b.id)
+  return make_vec_sorted(elements)
+}
+
+export function make_vec_sorted(elements: Component<any>[]): Vec {
+  const ids = elements.map((c) => c.id)
+  const sparse = new Array(ids.length).fill(0)
+  for (let i = 0; i < elements.length; i++) {
+    const component = elements[i]
+    assert_defined(component)
+    sparse[component.id] = i
+  }
+  return {
+    elements,
+    ids,
+    hash: hash_words(ids),
+    sparse,
+    sums: new WeakMap(),
+    differences: new WeakMap(),
+    intersections: new WeakMap(),
+  }
+}
+
+export const EMPTY_VEC = make_vec_sorted([])
+
+export function vec_has(vec: Vec, component: Component<any>): boolean {
+  return vec.ids.includes(component.id)
+}
+
+export function vec_xor_hash(a: Vec, b: Vec): number {
+  if (a.hash === b.hash) {
+    return 0
+  }
+  const a_len = a.ids.length
+  const b_len = b.ids.length
+  let a_idx = 0
+  let b_idx = 0
+  let xor = 0
+  while (a_idx < a_len && b_idx < b_len) {
+    const a_id = a.ids[a_idx]
+    const b_id = b.ids[b_idx]
+    assert_defined(a_id)
+    assert_defined(b_id)
+    if (a_id === b_id) {
+      a_idx++
+      b_idx++
+    } else if (a_id < b_id) {
+      xor = hash_word(xor, a_id)
+      a_idx++
+    } else {
+      xor = hash_word(xor, b_id)
+      b_idx++
+    }
+  }
+  while (a_idx < a_len) {
+    const a_id = a.ids[a_idx]
+    assert_defined(a_id)
+    xor = hash_word(xor, a_id)
+    a_idx++
+  }
+  while (b_idx < b_len) {
+    const b_id = b.ids[b_idx]
+    assert_defined(b_id)
+    xor = hash_word(xor, b_id)
+    b_idx++
+  }
+  return xor
+}
+
+export function vec_is_superset_of(a: Vec, b: Vec): boolean {
+  if (a.ids.length === 0 || a.hash === b.hash) {
+    return false
+  }
+  if (b.ids.length === 0) {
+    return true
+  }
+  const a_len = a.ids.length
+  const b_len = b.ids.length
+  let a_idx = 0
+  let b_idx = 0
+  while (a_idx < a_len && b_idx < b_len) {
+    const a_id = a.ids[a_idx]
+    const b_id = b.ids[b_idx]
+    assert_defined(a_id)
+    assert_defined(b_id)
+    if (a_id < b_id) {
+      a_idx++
+    } else if (a_id > b_id) {
+      return false
+    } else {
+      a_idx++
+      b_idx++
+    }
+  }
+  return b_idx === b.ids.length
+}
+
+export function vec_sum(a: Vec, b: Vec): Vec {
+  let cached = a.sums.get(b)
+  if (cached) {
+    return cached
+  }
+  const a_len = a.ids.length
+  const b_len = b.ids.length
+  const sum: Component<any>[] = []
+  let a_idx = 0
+  let b_idx = 0
+  while (a_idx < a_len && b_idx < b_len) {
+    const a_id = a.ids[a_idx]
+    const b_id = b.ids[b_idx]
+    assert_defined(a_id)
+    assert_defined(b_id)
+    if (a_id === b_id) {
+      const element = a.elements[a_idx]
+      assert_defined(element)
+      sum.push(element)
+      a_idx++
+      b_idx++
+    } else if (a_id < b_id) {
+      const element = a.elements[a_idx]
+      assert_defined(element)
+      sum.push(element)
+      a_idx++
+    } else {
+      const element = b.elements[b_idx]
+      assert_defined(element)
+      sum.push(element)
+      b_idx++
+    }
+  }
+  while (a_idx < a_len) {
+    const element = a.elements[a_idx]
+    assert_defined(element)
+    sum.push(element)
+    a_idx++
+  }
+  while (b_idx < b_len) {
+    const element = b.elements[b_idx]
+    assert_defined(element)
+    sum.push(element)
+    b_idx++
+  }
+  cached = make_vec_sorted(sum)
+  a.sums.set(b, cached)
+  b.sums.set(a, cached)
+  return cached
+}
+
+export function vec_difference(a: Vec, b: Vec): Vec {
+  let cached = a.differences.get(b)
+  if (cached) {
+    return cached
+  }
+  const a_len = a.ids.length
+  const b_len = b.ids.length
+  const difference: Component<any>[] = []
+  let a_idx = 0
+  let b_idx = 0
+  while (a_idx < a_len && b_idx < b_len) {
+    const a_id = a.ids[a_idx]
+    const b_id = b.ids[b_idx]
+    assert_defined(a_id)
+    assert_defined(b_id)
+    if (a_id === b_id) {
+      a_idx++
+      b_idx++
+    } else if (a_id < b_id) {
+      const element = a.elements[a_idx]
+      assert_defined(element)
+      difference.push(element)
+      a_idx++
+    } else {
+      b_idx++
+    }
+  }
+  while (a_idx < a_len) {
+    const element = a.elements[a_idx]
+    assert_defined(element)
+    difference.push(element)
+    a_idx++
+  }
+  cached = make_vec_sorted(difference)
+  a.differences.set(b, cached)
+  b.differences.set(a, cached)
+  return cached
+}
+
+export function vec_intersection(a: Vec, b: Vec): Vec {
+  let cached = a.intersections.get(b)
+  if (cached) {
+    return cached
+  }
+  const a_len = a.ids.length
+  const b_len = b.ids.length
+  const intersection: Component<any>[] = []
+  let a_idx = 0
+  let b_idx = 0
+  while (a_idx < a_len && b_idx < b_len) {
+    const a_id = a.ids[a_idx]
+    const b_id = b.ids[b_idx]
+    assert_defined(a_id)
+    assert_defined(b_id)
+    if (a_id === b_id) {
+      const element = a.elements[a_idx]
+      assert_defined(element)
+      intersection.push(element)
+      a_idx++
+      b_idx++
+    } else if (a_id < b_id) {
+      a_idx++
+    } else {
+      b_idx++
+    }
+  }
+  cached = make_vec_sorted(intersection)
+  a.intersections.set(b, cached)
+  b.intersections.set(a, cached)
+  return cached
+}

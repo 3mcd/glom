@@ -1,0 +1,19 @@
+# Glossary
+
+- **Archetype**: A unique combination of component types. In Glom ECS, entities with identical component sets belong to the same archetype, which is represented by a node in the [Entity Graph](./entity_graph.md).
+- **Component**: A data structure that represents a specific property or behavior of an entity. Components are defined using `define_component`.
+- **Continuous Predicted Simulation with Asynchronous Correction**: A networking model where logical systems run isomorphically on both client and server. Clients predict local actions instantly and asynchronously correct their state when authoritative server data arrives.
+- **DAG (Directed Acyclic Graph)**: A graph with no directed cycles. Used in Glom for [System Ordering](./system_ordering.md) and for organizing archetypes in the [Entity Graph](./entity_graph.md).
+- **Dual-world**: A pattern where two separate ECS worlds are maintained (e.g., a "Logical World" for simulation and a "Render World" for display), often synchronized via interpolation.
+- **Entity**: A unique 31-bit integer representing an object in the world. It is composed of a 20-bit **ID** and an 11-bit **Provenance**.
+- **Entity Graph**: A Directed Acyclic Graph where each node represents an archetype. It enables reactive, event-based entity resolution for queries.
+- **Entity Registry**: The system responsible for allocating and tracking entities across multiple distributed [Provenance Domains](./entity_registry.md).
+- **Hi Bits (Provenance)**: The upper 11 bits of an `Entity` integer, used to identify the agent or server that originally created the entity.
+- **Lo Bits (ID)**: The lower 20 bits of an `Entity` integer, representing a unique, auto-incrementing, and recycled identifier within a provenance domain.
+- **Producer-Consumer**: A scheduling rule where systems that **Write** to a component are always executed before systems that **Read** from the same component.
+- **Provenance**: The origin or source of an entity in a multi-agent system, encoded in the entity's high bits to avoid ID collisions in distributed environments.
+- **SMI (Small Integer)**: An optimization in JavaScript engines (like V8) where 31-bit integers are stack-allocated and stored directly in pointers, avoiding heap allocation and garbage collection.
+- **Sparse Map / Sparse Set**: High-performance data structures used for O(1) lookups and efficient iteration over entities and components.
+- **System**: A function containing the logic of the application. Systems are registered in a **Schedule** and operate on data requested through their arguments.
+- **Vec**: An ordered set of component IDs that uniquely identifies an archetype.
+- **World**: The primary container for all entities, components, and resources in a simulation instance.

@@ -1,0 +1,13 @@
+# ngrok http https://localhost:3000 --domain tunnel.javelin.dev
+# ngrok start --config ngrok.yml frontend backend
+version: 2
+authtoken: 2jfUfnDw9EG5bxf2y5KOCCCbBGM_7PmLvkvasjJfRSVy4T8P8
+tunnels:
+  frontend:
+    proto: http
+    addr: https://localhost:5173
+    domain: tunnel.javelin.dev
+  backend:
+    proto: http
+    addr: https://localhost:3000
+    domain: lynwood-pseudooccidental-revolvingly.ngrok-free.dev
