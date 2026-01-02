@@ -13,7 +13,8 @@ export type World<R extends ComponentLike = never> = {
   readonly __resources: (val: R) => void
   readonly registry: EntityRegistry
   readonly entity_graph: EntityGraph
-  readonly storage: (any[] | undefined)[]
+  readonly storage: Map<number, any[]>
+  readonly resource_tags: Set<number>
   readonly entity_to_index: SparseMap<number>
   readonly index_to_entity: number[]
   next_index: number
@@ -23,7 +24,8 @@ export function make_world(hi: number): World<never> {
   const world = {
     registry: make_entity_registry(hi),
     entity_graph: make_entity_graph(),
-    storage: [],
+    storage: new Map<number, any[]>(),
+    resource_tags: new Set<number>(),
     entity_to_index: make_sparse_map<number>(),
     index_to_entity: [],
     next_index: 1, // Start at 1 to reserve index 0 for RESOURCE_ENTITY
@@ -51,8 +53,16 @@ export function world_get_or_create_index(
 export function get_component_store<T>(
   world: World,
   component: Component<T>,
-): (T | undefined)[] {
-  return (world.storage[component.id] ??= [])
+): (T | undefined)[] | undefined {
+  if (component.is_tag) {
+    return undefined
+  }
+  let store = world.storage.get(component.id)
+  if (!store) {
+    store = []
+    world.storage.set(component.id, store)
+  }
+  return store
 }
 
 export function set_component_value<T>(
@@ -61,9 +71,15 @@ export function set_component_value<T>(
   component: Component<T>,
   value: T,
 ): void {
+  if (component.is_tag && entity === RESOURCE_ENTITY) {
+    world.resource_tags.add(component.id)
+    return
+  }
   const index = world_get_or_create_index(world, entity)
   const store = get_component_store(world, component)
-  store[index] = value
+  if (store) {
+    store[index] = value
+  }
 }
 
 export function get_component_value<T>(
@@ -71,6 +87,15 @@ export function get_component_value<T>(
   entity: number,
   component: Component<T>,
 ): T | undefined {
+  if (component.is_tag) {
+    if (entity === RESOURCE_ENTITY) {
+      return world.resource_tags.has(component.id)
+        ? (undefined as T)
+        : undefined
+    }
+    // For regular entities, we don't have a way to check tags without graph logic yet.
+    return undefined
+  }
   const index =
     entity === RESOURCE_ENTITY
       ? 0
@@ -78,7 +103,7 @@ export function get_component_value<T>(
   if (index === undefined) {
     return undefined
   }
-  const store = world.storage[component.id]
+  const store = world.storage.get(component.id)
   if (!store) {
     return undefined
   }
@@ -90,12 +115,16 @@ export function delete_component_value(
   entity: number,
   component: Component<any>,
 ): void {
+  if (component.is_tag && entity === RESOURCE_ENTITY) {
+    world.resource_tags.delete(component.id)
+    return
+  }
   const index =
     entity === RESOURCE_ENTITY
       ? 0
       : sparse_map_get(world.entity_to_index, entity)
   if (index !== undefined) {
-    const store = world.storage[component.id]
+    const store = get_component_store(world, component)
     if (store) {
       store[index] = undefined
     }

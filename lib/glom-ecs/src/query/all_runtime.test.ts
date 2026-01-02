@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { define_component } from "../component"
+import { define_component, define_tag } from "../component"
 import { ENTITY, make_entity } from "../entity"
 import {
   entity_graph_set_entity_node,
   make_entity_graph,
 } from "../entity_graph"
 import type { AllDescriptor } from "../system_descriptor"
-import { make_world, set_component_value } from "../world"
+import { make_world, set_component_value, type World } from "../world"
 import { AllRuntime, make_all, setup_all, teardown_all } from "./all_runtime"
 
 describe("all_runtime", () => {
@@ -114,10 +114,30 @@ describe("all_runtime", () => {
     expect(results[0]).toEqual([e1, { val: 50 }])
   })
 
-  test("teardown_all removes listener and clears nodes", () => {
-    const world: World = {
-      entity_graph: make_entity_graph(),
+  test("iterator with tags (ZSTs)", () => {
+    const t1 = define_tag(10)
+    const descWithTag: AllDescriptor<any, any, any, any, any, any, any, any> = {
+      all: [ENTITY, { read: t1 }, { read: c1 }],
     } as any
+    const world = make_world(0)
+    const all = make_all(descWithTag) as AllRuntime
+    setup_all(all, world)
+
+    const e1 = make_entity(7, 0)
+    set_component_value(world, e1, c1, { val: 70 })
+
+    const node = (all as any)._anchor_node
+    entity_graph_set_entity_node(world.entity_graph, e1, node)
+
+    const results = Array.from(all)
+    expect(results).toHaveLength(1)
+    expect(results[0]).toEqual([e1, undefined, { val: 70 }])
+  })
+
+  test("teardown_all removes listener and clears nodes", () => {
+    const world = {
+      entity_graph: make_entity_graph(),
+    } as World
     const all = make_all(desc) as AllRuntime
 
     setup_all(all, world)

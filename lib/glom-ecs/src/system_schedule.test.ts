@@ -4,7 +4,7 @@ import { define_system } from "./system"
 import {
   add_system,
   make_system_schedule,
-  run_system_schedule,
+  run_schedule,
 } from "./system_schedule"
 import { add_resource, make_world, type World } from "./world"
 
@@ -37,7 +37,7 @@ describe("system_schedule sorting", () => {
 
     const world = make_world(1)
     add_resource(world, A(0))
-    run_system_schedule(schedule, world as World)
+    run_schedule(schedule, world as World)
 
     expect(order).toEqual(["write", "read"])
   })
@@ -67,7 +67,7 @@ describe("system_schedule sorting", () => {
 
     const world = make_world(1)
     add_resource(world, A(0))
-    run_system_schedule(schedule, world as World)
+    run_schedule(schedule, world as World)
 
     expect(order).toEqual([1, 2])
   })
@@ -107,7 +107,7 @@ describe("system_schedule sorting", () => {
     const world = make_world(1)
     add_resource(world, A(0))
     add_resource(world, B(0))
-    run_system_schedule(schedule, world as World)
+    run_schedule(schedule, world as World)
 
     expect(order).toEqual(["S1", "S2", "S3"])
   })
@@ -130,7 +130,7 @@ describe("system_schedule sorting", () => {
     add_system(schedule, s2)
 
     const world = make_world(1)
-    expect(() => run_system_schedule(schedule, world as World)).toThrow(
+    expect(() => run_schedule(schedule, world as World)).toThrow(
       "Cycle detected in system dependencies",
     )
   })
@@ -161,7 +161,7 @@ describe("system_schedule sorting", () => {
     const world = make_world(1)
     add_resource(world, A(0))
     add_resource(world, B(0))
-    run_system_schedule(schedule, world as World)
+    run_schedule(schedule, world as World)
 
     expect(order).toEqual([1, 2])
   })

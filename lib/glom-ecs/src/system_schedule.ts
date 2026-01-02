@@ -176,10 +176,7 @@ function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
   return sorted_indices.map((i) => execs[i]!)
 }
 
-export function run_system_schedule<
-  T extends ComponentLike,
-  U extends ComponentLike,
->(
+export function run_schedule<T extends ComponentLike, U extends ComponentLike>(
   schedule: SystemSchedule<T>,
   world: World<U> & ([T] extends [NoInfer<U>] ? unknown : never),
 ): void {

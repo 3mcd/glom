@@ -1,7 +1,5 @@
-import type { ComponentLike } from "./component"
-import type { Entity } from "./entity"
 import type { All } from "./query/all"
-import type { EntityTerm, Read, Term, Write } from "./query/term"
+import type { Read, Write } from "./query/term"
 import type { SystemArgument } from "./system_argument"
 
 type TermDescriptor<T> = T extends { readonly __read: infer U }

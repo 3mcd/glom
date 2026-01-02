@@ -27,6 +27,7 @@ export type Component<T> = ComponentLike & {
   (value: T): ComponentInstance<T>
   id: number
   serde?: ComponentSerde<T>
+  is_tag?: boolean
 }
 
 export type SerializedComponent<T> = Component<T> & {
@@ -51,4 +52,17 @@ export function define_component<T>(
   component.__component_brand = true
 
   return component as Component<T>
+}
+
+export function define_tag(id: number): Component<void> {
+  const component = ((value: void): ComponentInstance<void> => ({
+    component: component as Component<void>,
+    value,
+  })) as EditableComponent<void>
+
+  component.id = id
+  component.is_tag = true
+  component.__component_brand = true
+
+  return component as Component<void>
 }

@@ -53,7 +53,7 @@ describe("vec", () => {
 
     expect(vec_is_superset_of(v12, v123)).toBe(false)
     expect(vec_is_superset_of(v12, v3)).toBe(false)
-    expect(vec_is_superset_of(v12, v12)).toBe(false) // Not a proper superset check in implementation
+    expect(vec_is_superset_of(v12, v12)).toBe(true)
     expect(vec_is_superset_of(EMPTY_VEC, v1)).toBe(false)
   })
 
@@ -105,9 +105,9 @@ describe("vec", () => {
 
   test("make_vec_sorted with custom id map", () => {
     const vec = make_vec_sorted([c1, c2, c3])
-    expect(vec.sparse[1]).toBe(0)
-    expect(vec.sparse[2]).toBe(1)
-    expect(vec.sparse[3]).toBe(2)
+    expect(vec.sparse.get(1)).toBe(0)
+    expect(vec.sparse.get(2)).toBe(1)
+    expect(vec.sparse.get(3)).toBe(2)
   })
 
   test("vec_sum caching is symmetric", () => {

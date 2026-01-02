@@ -310,6 +310,9 @@ export function entity_graph_link_nodes_traverse(
   node: EntityGraphNode,
 ): void {
   entity_graph_node_traverse_right(graph.root, (visited) => {
+    if (node === visited) {
+      return true
+    }
     const is_subset = vec_is_superset_of(node.vec, visited.vec)
     const is_superset = vec_is_superset_of(visited.vec, node.vec)
     if (is_subset) {
@@ -393,6 +396,15 @@ export function entity_graph_get_entity_node(
   entity: Entity,
 ): EntityGraphNode | undefined {
   return graph.by_entity[entity as number]
+}
+
+export function entity_graph_for_each_node(
+  graph: EntityGraph,
+  callback: (node: EntityGraphNode) => void,
+): void {
+  for (const node of graph.by_hash.values()) {
+    callback(node)
+  }
 }
 
 export function entity_graph_set_entity_node(

@@ -14,7 +14,7 @@ import {
   sparse_map_set,
 } from "../sparse_map"
 import type { AllDescriptor } from "../system_descriptor"
-import { make_vec } from "../vec"
+import { make_vec, type Vec, vec_is_superset_of } from "../vec"
 import { get_component_store, type World } from "../world"
 import type { All } from "./all"
 
@@ -27,6 +27,7 @@ export class AllRuntime
   readonly nodes = make_sparse_map<EntityGraphNode>()
   private _anchor_node?: EntityGraphNode
   private _world?: World
+  private _required_vec?: Vec
 
   constructor(
     readonly desc: AllDescriptor<any, any, any, any, any, any, any, any>,
@@ -38,12 +39,17 @@ export class AllRuntime
       return
     }
 
-    const stores = this.desc.all.map((term) => {
+    const termInfos = this.desc.all.map((term) => {
       if ("entity" in term) {
-        return null
+        return { type: "entity" as const }
       }
-      const component = "read" in term ? term.read : term.write
-      return get_component_store(world, component)
+      const component =
+        "read" in term ? (term as any).read : (term as any).write
+      return {
+        type: "component" as const,
+        component,
+        store: get_component_store(world, component),
+      }
     })
 
     const nodes = this.nodes.dense
@@ -54,21 +60,31 @@ export class AllRuntime
       for (let j = 0; j < entities.length; j++) {
         const entity = entities[j]!
         const index = sparse_map_get(world.entity_to_index, entity)!
-        const values = new Array(stores.length)
-        for (let k = 0; k < stores.length; k++) {
-          const store = stores[k]
-          if (store === null) {
-            values[k] = entity
-          } else {
-            values[k] = store[index]
+
+        const result = new Array(termInfos.length)
+
+        for (let k = 0; k < termInfos.length; k++) {
+          const info = termInfos[k]!
+          if (info.type === "entity") {
+            result[k] = entity
+          } else if (info.type === "component") {
+            result[k] = info.store ? info.store[index] : undefined
           }
         }
-        yield values
+
+        yield result
       }
     }
   }
 
   node_created(node: EntityGraphNode): void {
+    if (
+      this._required_vec &&
+      !vec_is_superset_of(node.vec, this._required_vec)
+    ) {
+      return
+    }
+
     sparse_map_set(this.nodes, node.id, node)
   }
 
@@ -78,10 +94,12 @@ export class AllRuntime
 
   setup(world: World): void {
     this._world = world
-    const vec = make_vec(collect_components(this.desc))
+    const components = collect_components(this.desc)
+    this._required_vec = make_vec(components)
+
     this._anchor_node = entity_graph_find_or_create_node(
       world.entity_graph,
-      vec,
+      this._required_vec,
     )
     entity_graph_node_add_listener(this._anchor_node, this, true)
   }
@@ -92,6 +110,7 @@ export class AllRuntime
       this._anchor_node = undefined
     }
     this._world = undefined
+    this._required_vec = undefined
     sparse_map_clear(this.nodes)
   }
 }

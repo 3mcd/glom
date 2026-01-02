@@ -6,7 +6,7 @@ export type Vec = {
   readonly elements: Component<any>[]
   readonly ids: number[]
   readonly hash: number
-  readonly sparse: number[]
+  readonly sparse: Map<number, number>
   readonly sums: WeakMap<Vec, Vec>
   readonly differences: WeakMap<Vec, Vec>
   readonly intersections: WeakMap<Vec, Vec>
@@ -19,11 +19,11 @@ export function make_vec(components: Component<any>[]): Vec {
 
 export function make_vec_sorted(elements: Component<any>[]): Vec {
   const ids = elements.map((c) => c.id)
-  const sparse = new Array(ids.length).fill(0)
+  const sparse = new Map<number, number>()
   for (let i = 0; i < elements.length; i++) {
     const component = elements[i]
     assert_defined(component)
-    sparse[component.id] = i
+    sparse.set(component.id, i)
   }
   return {
     elements,
@@ -83,11 +83,14 @@ export function vec_xor_hash(a: Vec, b: Vec): number {
 }
 
 export function vec_is_superset_of(a: Vec, b: Vec): boolean {
-  if (a.ids.length === 0 || a.hash === b.hash) {
-    return false
+  if (a.hash === b.hash) {
+    return true
   }
   if (b.ids.length === 0) {
     return true
+  }
+  if (a.ids.length < b.ids.length) {
+    return false
   }
   const a_len = a.ids.length
   const b_len = b.ids.length

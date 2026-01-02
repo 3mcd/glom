@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { define_component } from "./component"
-import { make_entity } from "./entity"
+import { define_component, define_tag } from "./component"
+import { make_entity, RESOURCE_ENTITY } from "./entity"
 import {
+  add_resource,
   delete_component_value,
   get_component_store,
   get_component_value,
+  get_resource,
   make_world,
   set_component_value,
   world_get_or_create_index,
@@ -69,5 +71,28 @@ describe("world_storage", () => {
 
     expect(get_component_value(world, entity, Position)).toEqual({ x: 1, y: 2 })
     expect(get_component_value(world, entity, Velocity)).toEqual({ x: 5, y: 0 })
+  })
+
+  test("tag components as resources", () => {
+    const world = make_world(0)
+    const IsRunning = define_tag(100)
+
+    add_resource(world, IsRunning())
+    expect(get_resource(world, IsRunning)).toBeUndefined() // void value is undefined
+    expect(world.resource_tags.has(IsRunning.id)).toBe(true)
+
+    delete_component_value(world, RESOURCE_ENTITY, IsRunning)
+    expect(world.resource_tags.has(IsRunning.id)).toBe(false)
+  })
+
+  test("regular components as resources", () => {
+    const world = make_world(0)
+    const Config = define_component<{ api: string }>(101)
+
+    add_resource(world, Config({ api: "localhost" }))
+    expect(get_resource(world, Config)).toEqual({ api: "localhost" })
+
+    delete_component_value(world, RESOURCE_ENTITY, Config)
+    expect(get_resource(world, Config)).toBeUndefined()
   })
 })
