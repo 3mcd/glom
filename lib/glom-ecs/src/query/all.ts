@@ -1,5 +1,11 @@
-import type { AllDescriptor } from "../system_descriptor"
+import type { AllDescriptor } from "../descriptors"
 import type { Term, TermValue } from "./term"
+
+export interface AnyAll {
+  readonly __all: true
+  readonly desc: AllDescriptor
+  [Symbol.iterator](): Iterator<unknown[]>
+}
 
 export interface All<
   T0 extends Term = never,
@@ -10,8 +16,7 @@ export interface All<
   T5 extends Term = never,
   T6 extends Term = never,
   T7 extends Term = never,
-> {
-  readonly __all: true
+> extends AnyAll {
   readonly desc: AllDescriptor<T0, T1, T2, T3, T4, T5, T6, T7>
   [Symbol.iterator](): Iterator<
     [
@@ -25,4 +30,12 @@ export interface All<
       TermValue<T7>,
     ]
   >
+}
+
+export function All<T extends unknown[]>(...terms: T): { all: T } {
+  return { all: terms }
+}
+
+export function is_all(val: unknown): val is AnyAll {
+  return typeof val === "object" && val !== null && "__all" in val
 }

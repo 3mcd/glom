@@ -14,7 +14,7 @@ import {
 } from "./sparse_map"
 
 export type ComponentStore = {
-  readonly storage: Map<number, any[]>
+  readonly storage: Map<number, unknown[]>
   readonly resource_tags: Set<number>
 }
 
@@ -78,7 +78,7 @@ export function world_get_or_create_index(
 
 export function get_component_store<T>(
   world: World,
-  component: Component<T>,
+  component: ComponentLike,
 ): (T | undefined)[] | undefined {
   if (component.is_tag) {
     return undefined
@@ -88,13 +88,13 @@ export function get_component_store<T>(
     store = []
     world.components.storage.set(component.id, store)
   }
-  return store
+  return store as (T | undefined)[]
 }
 
 export function set_component_value<T>(
   world: World,
   entity: number,
-  component: Component<T>,
+  component: Component<T> | ComponentLike,
   value: T,
 ): void {
   if (component.is_tag && entity === RESOURCE_ENTITY) {
@@ -102,7 +102,7 @@ export function set_component_value<T>(
     return
   }
   const index = world_get_or_create_index(world, entity)
-  const store = get_component_store(world, component)
+  const store = get_component_store<T>(world, component)
   if (store) {
     store[index] = value
   }
@@ -111,7 +111,7 @@ export function set_component_value<T>(
 export function get_component_value<T>(
   world: World,
   entity: number,
-  component: Component<T>,
+  component: Component<T> | ComponentLike,
 ): T | undefined {
   if (component.is_tag) {
     if (entity === RESOURCE_ENTITY) {
@@ -133,13 +133,13 @@ export function get_component_value<T>(
   if (!store) {
     return undefined
   }
-  return store[index]
+  return store[index] as T | undefined
 }
 
-export function delete_component_value(
+export function delete_component_value<T>(
   world: World,
   entity: number,
-  component: Component<any>,
+  component: ComponentLike,
 ): void {
   if (component.is_tag && entity === RESOURCE_ENTITY) {
     world.components.resource_tags.delete(component.id)
@@ -150,7 +150,7 @@ export function delete_component_value(
       ? 0
       : sparse_map_get(world.index.entity_to_index, entity)
   if (index !== undefined) {
-    const store = get_component_store(world, component)
+    const store = get_component_store<T>(world, component)
     if (store) {
       store[index] = undefined
     }
@@ -174,4 +174,18 @@ export function get_resource<T extends ComponentLike, V>(
   resource: Component<V>,
 ): V | undefined {
   return get_component_value(world, RESOURCE_ENTITY, resource)
+}
+
+export function has_resource<T extends ComponentLike>(
+  world: World<T>,
+  resource: ComponentLike,
+): boolean {
+  const component = resource as Component<unknown>
+  if (component.is_tag) {
+    return world.components.resource_tags.has(component.id)
+  }
+  const index = sparse_map_get(world.index.entity_to_index, RESOURCE_ENTITY)
+  if (index === undefined) return false
+  const store = world.components.storage.get(component.id)
+  return store !== undefined && store[index] !== undefined
 }

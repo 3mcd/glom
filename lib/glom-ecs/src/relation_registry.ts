@@ -1,6 +1,6 @@
 import { type Component, define_tag } from "./component"
 import type { Entity } from "./entity"
-import type { Relationship } from "./relation"
+import type { Relation } from "./relation"
 import type { World } from "./world"
 
 export type RelationRegistry = {
@@ -26,14 +26,14 @@ export function make_relation_registry(): RelationRegistry {
 
 export function get_or_create_virtual_id(
   world: World,
-  relationship: Relationship,
+  relation: Relation,
   target: Entity,
 ): number {
   const registry = world.relations
-  let targets = registry.relation_to_virtual.get(relationship.id)
+  let targets = registry.relation_to_virtual.get(relation.id)
   if (!targets) {
     targets = new Map()
-    registry.relation_to_virtual.set(relationship.id, targets)
+    registry.relation_to_virtual.set(relation.id, targets)
   }
 
   let virtual_id = targets.get(target)
@@ -41,7 +41,7 @@ export function get_or_create_virtual_id(
     virtual_id = registry.next_virtual_id++
     targets.set(target, virtual_id)
     registry.virtual_to_relation.set(virtual_id, {
-      rel_id: relationship.id,
+      rel_id: relation.id,
       target,
     })
   }

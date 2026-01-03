@@ -17,17 +17,19 @@ export type ComponentSerde<T> = {
 }
 
 export type ComponentInstance<T> = {
-  component: Component<T>
-  value: T
+  readonly component: ComponentLike
+  readonly value: T
 }
 
-export type ComponentLike = { readonly __component_brand: true }
+export type ComponentLike = {
+  readonly __component_brand: true
+  readonly id: number
+  readonly is_tag?: boolean
+}
 
 export type Component<T> = ComponentLike & {
   (value: T): ComponentInstance<T>
-  id: number
   serde?: ComponentSerde<T>
-  is_tag?: boolean
 }
 
 export type SerializedComponent<T> = Component<T> & {
@@ -43,26 +45,26 @@ export function define_component<T>(
   serde?: ComponentSerde<T>,
 ): Component<T> {
   const component = ((value: T): ComponentInstance<T> => ({
-    component: component as Component<T>,
+    component: component as unknown as ComponentLike,
     value,
-  })) as EditableComponent<T>
+  })) as unknown as Record<string, unknown>
 
-  component.id = id
-  component.serde = serde
-  component.__component_brand = true
+  component["id"] = id
+  component["serde"] = serde
+  component["__component_brand"] = true
 
-  return component as Component<T>
+  return component as unknown as Component<T>
 }
 
 export function define_tag(id: number): Component<void> {
   const component = ((value: void): ComponentInstance<void> => ({
-    component: component as Component<void>,
+    component: component as unknown as ComponentLike,
     value,
-  })) as EditableComponent<void>
+  })) as unknown as Record<string, unknown>
 
-  component.id = id
-  component.is_tag = true
-  component.__component_brand = true
+  component["id"] = id
+  component["is_tag"] = true
+  component["__component_brand"] = true
 
-  return component as Component<void>
+  return component as unknown as Component<void>
 }

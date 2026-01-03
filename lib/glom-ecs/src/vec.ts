@@ -1,9 +1,9 @@
 import { assert_defined } from "./assert"
-import type { Component } from "./component"
+import type { ComponentLike } from "./component"
 import { hash_word, hash_words } from "./lib/hash"
 
 export type Vec = {
-  readonly elements: Component<any>[]
+  readonly elements: ComponentLike[]
   readonly ids: number[]
   readonly hash: number
   readonly sparse: Map<number, number>
@@ -12,11 +12,12 @@ export type Vec = {
   readonly intersections: WeakMap<Vec, Vec>
 }
 
-export function make_vec(components: Component<any>[]): Vec {
-  const elements: Component<any>[] = []
+export function make_vec(components: ComponentLike[]): Vec {
+  const elements: ComponentLike[] = []
   const seen = new Set<number>()
   for (let i = 0; i < components.length; i++) {
-    const c = components[i]!
+    const c = components[i]
+    assert_defined(c)
     if (!seen.has(c.id)) {
       elements.push(c)
       seen.add(c.id)
@@ -26,7 +27,7 @@ export function make_vec(components: Component<any>[]): Vec {
   return make_vec_sorted(elements)
 }
 
-export function make_vec_sorted(elements: Component<any>[]): Vec {
+export function make_vec_sorted(elements: ComponentLike[]): Vec {
   const ids = elements.map((c) => c.id)
   const sparse = new Map<number, number>()
   for (let i = 0; i < elements.length; i++) {
@@ -47,7 +48,7 @@ export function make_vec_sorted(elements: Component<any>[]): Vec {
 
 export const EMPTY_VEC = make_vec_sorted([])
 
-export function vec_has(vec: Vec, component: Component<any>): boolean {
+export function vec_has(vec: Vec, component: ComponentLike): boolean {
   return vec.ids.includes(component.id)
 }
 
@@ -129,7 +130,7 @@ export function vec_sum(a: Vec, b: Vec): Vec {
   }
   const a_len = a.ids.length
   const b_len = b.ids.length
-  const sum: Component<any>[] = []
+  const sum: ComponentLike[] = []
   let a_idx = 0
   let b_idx = 0
   while (a_idx < a_len && b_idx < b_len) {
@@ -180,7 +181,7 @@ export function vec_difference(a: Vec, b: Vec): Vec {
   }
   const a_len = a.ids.length
   const b_len = b.ids.length
-  const difference: Component<any>[] = []
+  const difference: ComponentLike[] = []
   let a_idx = 0
   let b_idx = 0
   while (a_idx < a_len && b_idx < b_len) {
@@ -219,7 +220,7 @@ export function vec_intersection(a: Vec, b: Vec): Vec {
   }
   const a_len = a.ids.length
   const b_len = b.ids.length
-  const intersection: Component<any>[] = []
+  const intersection: ComponentLike[] = []
   let a_idx = 0
   let b_idx = 0
   while (a_idx < a_len && b_idx < b_len) {

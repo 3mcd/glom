@@ -5,14 +5,15 @@ export {
   define_component,
   define_tag,
 } from "./component"
-export { ENTITY, type Entity } from "./entity"
-export type { All } from "./query/all"
-export type { Read, Rel, Write } from "./query/term"
+export { ENTITY, Entity } from "./entity"
+export { All } from "./query/all"
+export { Has, Read, Rel, Write } from "./query/term"
 export {
-  define_relationship,
+  define_relation,
+  type Relation,
   type Relationship,
-  type RelationshipInstance,
 } from "./relation"
+export type { System } from "./system"
 export { define_system } from "./system"
 export {
   add_system,

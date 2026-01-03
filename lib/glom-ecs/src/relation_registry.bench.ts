@@ -1,7 +1,7 @@
 // biome-ignore-all lint/style/noNonNullAssertion: tests
 import { bench, group, run } from "mitata"
 import type { Entity } from "./entity"
-import { define_relationship } from "./relation"
+import { define_relation } from "./relation"
 import {
   get_or_create_virtual_id,
   register_incoming_relation,
@@ -11,7 +11,7 @@ import { make_world } from "./world"
 
 const relation_count = 100
 const relations = Array.from({ length: relation_count }, (_, i) =>
-  define_relationship(i),
+  define_relation(i),
 )
 const entity_count = 1000
 const entities = Array.from({ length: entity_count }, (_, i) => i as Entity)

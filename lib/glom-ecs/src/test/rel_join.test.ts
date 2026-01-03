@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import * as g from "../index"
 
-describe("Relationship Join", () => {
+describe("Relation Join", () => {
   const Position = g.define_component<{ x: number }>(1000)
-  const ChildOf = g.define_relationship(1001)
+  const ChildOf = g.define_relation(1001)
 
   test("simple rel join", () => {
     const world = g.make_world(0)
@@ -42,7 +42,7 @@ describe("Relationship Join", () => {
     const parent = g.spawn(world, []) // Parent has NO Position
     g.spawn(world, [Position({ x: 1 }), ChildOf(parent)]) // child
 
-    const results: any[] = []
+    const results: unknown[][] = []
     const system = (
       query: g.All<
         g.Read<typeof Position>,
@@ -141,4 +141,3 @@ describe("Relationship Join", () => {
     expect(results[0]![1]).toBe("Grandparent")
   })
 })
-

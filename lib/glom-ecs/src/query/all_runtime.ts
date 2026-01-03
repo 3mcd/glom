@@ -1,4 +1,4 @@
-import type { Component } from "../component"
+import type { Component, ComponentLike } from "../component"
 import {
   type EntityGraphNode,
   type EntityGraphNodeListener,
@@ -6,7 +6,7 @@ import {
   entity_graph_node_add_listener,
   entity_graph_node_remove_listener,
 } from "../entity_graph"
-import { type Relationship, is_relationship_instance } from "../relation"
+import { type Relation, is_relation, is_relationship } from "../relation"
 import {
   get_or_create_virtual_id,
   get_virtual_component,
@@ -21,17 +21,19 @@ import {
 import type { AllDescriptor } from "../system_descriptor"
 import { make_vec, type Vec, vec_is_superset_of } from "../vec"
 import { get_component_store, type World } from "../world"
-import type { All } from "./all"
+import type { All, AnyAll } from "./all"
 import type { Entity } from "../entity"
+import type { Term } from "./term"
 
 type TermInfo =
   | { type: "entity" }
-  | { type: "component"; store: any[] }
-  | { type: "rel"; relationship: Relationship; target_term: TermInfo }
+  | { type: "component"; store: unknown[] | undefined }
+  | { type: "has"; component: ComponentLike }
+  | { type: "rel"; relation: Relation; target_term: TermInfo }
 
 export class AllRuntime
   implements
-    All<any, any, any, any, any, any, any, any>,
+    AnyAll,
     EntityGraphNodeListener
 {
   readonly __all = true
@@ -42,10 +44,10 @@ export class AllRuntime
   private _term_infos: TermInfo[] = []
 
   constructor(
-    readonly desc: AllDescriptor<any, any, any, any, any, any, any, any>,
+    readonly desc: AllDescriptor,
   ) {}
 
-  *[Symbol.iterator](): Iterator<any> {
+  *[Symbol.iterator](): Iterator<unknown[]> {
     const world = this._world
     if (!world) {
       return
@@ -72,8 +74,8 @@ export class AllRuntime
     entity: Entity,
     node: EntityGraphNode,
     term_idx: number,
-    current_result: any[],
-  ): IterableIterator<any[]> {
+    current_result: unknown[],
+  ): IterableIterator<unknown[]> {
     if (term_idx === this._term_infos.length) {
       yield [...current_result]
       return
@@ -92,7 +94,7 @@ export class AllRuntime
     entity: Entity,
     info: TermInfo,
     node?: EntityGraphNode,
-  ): any[] {
+  ): unknown[] {
     if (info.type === "entity") return [entity]
     if (info.type === "component") {
       if (!info.store) return [undefined]
@@ -101,14 +103,17 @@ export class AllRuntime
       const val = info.store[index]
       return val === undefined ? [] : [val]
     }
+    if (info.type === "has") {
+      return [undefined]
+    }
     if (info.type === "rel") {
       const world = this._world!
       const actual_node =
         node ?? world.entity_graph.by_entity[entity as number]
       if (!actual_node) return []
 
-      const targets = this._get_rel_targets(entity, actual_node, info.relationship)
-      const results: any[] = []
+      const targets = this._get_rel_targets(entity, actual_node, info.relation)
+      const results: unknown[] = []
       for (const target of targets) {
         results.push(...this._get_term_values(target, info.target_term))
       }
@@ -120,11 +125,11 @@ export class AllRuntime
   private _get_rel_targets(
     _entity: Entity,
     node: EntityGraphNode,
-    relationship: Relationship,
+    relation: Relation,
   ): Entity[] {
     const world = this._world!
     const targets: Entity[] = []
-    const rel_id = relationship.id
+    const rel_id = relation.id
 
     for (const comp of node.vec.elements) {
       const rel_info = world.relations.virtual_to_relation.get(comp.id)
@@ -168,31 +173,39 @@ export class AllRuntime
     entity_graph_node_add_listener(this._anchor_node, this, true)
   }
 
-  private _resolve_term_info(term: any, world: World): TermInfo {
-    if ("entity" in term) {
+  private _resolve_term_info(term: unknown, world: World): TermInfo {
+    if (typeof term !== "object" || term === null) {
+      throw new Error("Invalid term descriptor")
+    }
+    const t = term as Record<string, unknown>
+
+    if ("entity" in t) {
       return { type: "entity" }
     }
-    if ("rel" in term) {
-      const [rel, target_desc] = term.rel
+    if ("rel" in t) {
+      const rel_tuple = t.rel as [Relation, unknown]
       return {
         type: "rel",
-        relationship: rel,
-        target_term: this._resolve_term_info(target_desc, world),
+        relation: rel_tuple[0],
+        target_term: this._resolve_term_info(rel_tuple[1], world),
       }
     }
-    let component: any
-    if ("read" in term) {
-      component = term.read
-    } else if ("write" in term) {
-      component = term.write
+    if ("has" in t) {
+      return { type: "has", component: t.has as ComponentLike }
+    }
+    let component: ComponentLike
+    if ("read" in t) {
+      component = t.read as ComponentLike
+    } else if ("write" in t) {
+      component = t.write as ComponentLike
     } else {
-      component = term
+      component = term as ComponentLike
     }
 
-    if (is_relationship_instance(component)) {
+    if (is_relationship(component)) {
       const vid = get_or_create_virtual_id(
         world,
-        component.relationship,
+        component.relation,
         component.target,
       )
       component = get_virtual_component(world.relations, vid)
@@ -217,16 +230,16 @@ export class AllRuntime
 }
 
 export function make_all(
-  desc: AllDescriptor<any, any, any, any, any, any, any, any>,
+  desc: AllDescriptor,
 ): All {
-  return new AllRuntime(desc) as any
+  return new AllRuntime(desc) as unknown as All
 }
 
 function collect_components(
-  desc: AllDescriptor<any, any, any, any, any, any, any, any>,
+  desc: AllDescriptor,
   world: World,
-): Component<unknown>[] {
-  const components: Component<unknown>[] = []
+): ComponentLike[] {
+  const components: ComponentLike[] = []
   for (let i = 0; i < desc.all.length; i++) {
     const term = desc.all[i]!
     add_term_components(term, components, world)
@@ -235,31 +248,37 @@ function collect_components(
 }
 
 function add_term_components(
-  term: any,
-  components: Component<any>[],
+  term: unknown,
+  components: ComponentLike[],
   world: World,
 ) {
-  if ("rel" in term) {
-    components.push(term.rel[0])
+  if (typeof term !== "object" || term === null) return
+  const t = term as Record<string, unknown>
+
+  if ("rel" in t) {
+    const rel_tuple = t.rel as [Relation, unknown]
+    components.push(rel_tuple[0])
     return
   }
-  if ("entity" in term) {
+  if ("entity" in t) {
     return
   }
 
-  let component: any
-  if ("read" in term) {
-    component = term.read
-  } else if ("write" in term) {
-    component = term.write
+  let component: ComponentLike
+  if ("read" in t) {
+    component = t.read as ComponentLike
+  } else if ("write" in t) {
+    component = t.write as ComponentLike
+  } else if ("has" in t) {
+    component = t.has as ComponentLike
   } else {
-    component = term
+    component = term as ComponentLike
   }
 
-  if (is_relationship_instance(component)) {
+  if (is_relationship(component)) {
     const vid = get_or_create_virtual_id(
       world,
-      component.relationship,
+      component.relation,
       component.target,
     )
     components.push(get_virtual_component(world.relations, vid))
@@ -272,13 +291,13 @@ function add_term_components(
   }
 }
 
-export function setup_all(all: All, world: World) {
+export function setup_all(all: AnyAll, world: World) {
   if (all instanceof AllRuntime) {
     all.setup(world)
   }
 }
 
-export function teardown_all(all: All) {
+export function teardown_all(all: AnyAll) {
   if (all instanceof AllRuntime) {
     all.teardown()
   }

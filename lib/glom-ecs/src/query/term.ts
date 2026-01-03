@@ -1,19 +1,35 @@
 import type { Component, ComponentLike } from "../component"
+import type {
+  HasDescriptor,
+  ReadDescriptor,
+  RelDescriptor,
+  WriteDescriptor,
+} from "../descriptors"
 import type { Entity } from "../entity"
-import type { Relationship } from "../relation"
+import type { Relation } from "../relation"
 export type { ComponentLike }
 
 export type EntityTerm = { readonly entity: true }
 
-export type Read<T extends ComponentLike> = (T extends Component<infer V>
-  ? Readonly<V>
-  : unknown) & { readonly __read: T }
+export type Read<T extends ComponentLike> =
+  T extends Component<void>
+    ? never
+    : (T extends Component<infer V> ? Readonly<V> : unknown) & {
+        readonly __read: T
+      }
 
-export type Write<T extends ComponentLike> = (T extends Component<infer V>
-  ? V
-  : unknown) & { readonly __write: T }
+export type Write<T extends ComponentLike> =
+  T extends Component<infer V>
+    ? V extends object
+      ? V & { readonly __write: T }
+      : never
+    : unknown & { readonly __write: T }
 
-export interface Rel<R extends Relationship, T extends Term> {
+export interface Has<T extends ComponentLike> {
+  readonly __has: T
+}
+
+export interface Rel<R extends Relation, T extends Term> {
   readonly __rel: [R, T]
 }
 
@@ -26,20 +42,58 @@ export type TermValue<T extends Term> =
       ? U extends Component<infer V>
         ? V
         : never
-      : T extends Rel<Relationship, infer U>
-        ? TermValue<U>
-        : T extends Component<infer V>
-          ? V
-          : T extends EntityTerm
-            ? Entity
-            : T extends Entity
+      : T extends Has<ComponentLike>
+        ? void
+        : T extends Rel<Relation, infer U>
+          ? TermValue<U>
+          : T extends Component<infer V>
+            ? V
+            : T extends EntityTerm
               ? Entity
-              : never
+              : T extends Entity
+                ? Entity
+                : never
 
 export type Term =
   | ComponentLike
-  | Read<ComponentLike>
-  | Write<ComponentLike>
-  | Rel<Relationship, unknown>
+  | { readonly __read: ComponentLike }
+  | { readonly __write: ComponentLike }
+  | { readonly __has: ComponentLike }
+  | { readonly __rel: [Relation, unknown] }
   | EntityTerm
   | Entity
+
+export function Read<T extends ComponentLike>(
+  component: T,
+): ReadDescriptor<T extends Component<infer V> ? V : unknown> {
+  return { read: component } as unknown as ReadDescriptor<
+    T extends Component<infer V> ? V : unknown
+  >
+}
+
+export function Write<T extends ComponentLike>(
+  component: T,
+): WriteDescriptor<T extends Component<infer V> ? V : unknown> {
+  return { write: component } as unknown as WriteDescriptor<
+    T extends Component<infer V> ? V : unknown
+  >
+}
+
+export function Has<T extends ComponentLike>(component: T): HasDescriptor<T> {
+  return { has: component } as unknown as HasDescriptor<T>
+}
+
+export function Rel<R extends Relation, T>(
+  relation: R,
+  target: T,
+): RelDescriptor<R, T>
+export function Rel<R extends Relation>(relation: R): RelDescriptor<R, R>
+export function Rel<R extends Relation, T>(
+  relation: R,
+  target?: T,
+): RelDescriptor<R, T | R> {
+  return { rel: [relation, target ?? relation] } as unknown as RelDescriptor<
+    R,
+    T | R
+  >
+}

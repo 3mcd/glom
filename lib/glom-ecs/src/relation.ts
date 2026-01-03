@@ -1,40 +1,41 @@
 import type { Component, ComponentLike } from "./component"
 import type { Entity } from "./entity"
 
-export type Relationship = Component<void> & {
-  (target: Entity): RelationshipInstance
-  __relationship_brand: true
-}
+export type Relation = Component<void> & ((target: Entity) => Relationship)
 
-export type RelationshipInstance = ComponentLike & {
-  relationship: Relationship
+export type Relationship = ComponentLike & {
+  relation: Relation
   target: Entity
 }
 
-export function define_relationship(id: number): Relationship {
-  const rel = ((target: Entity): RelationshipInstance => {
+export function define_relation(id: number): Relation {
+  const rel = ((target: Entity): Relationship => {
     return {
-      relationship: rel as Relationship,
+      relation: rel as unknown as Relation,
       target,
-      __component_brand: true,
-    } as RelationshipInstance
-  }) as any
-
-  rel.id = id
-  rel.is_tag = true
-  rel.__component_brand = true
-  rel.__relationship_brand = true
-
-  return rel as Relationship
+    } as Relationship
+  }) as unknown as Record<string, unknown>
+  rel["id"] = id
+  rel["is_tag"] = true
+  rel["__component_brand"] = true
+  return rel as unknown as Relation
 }
 
-export function is_relationship(component: any): component is Relationship {
-  return !!component?.__relationship_brand
+export function is_relation(component: ComponentLike): component is Relation {
+  return (
+    typeof component === "function" &&
+    "id" in component &&
+    Reflect.get(component, "id") !== undefined
+  )
 }
 
-export function is_relationship_instance(
-  component: any,
-): component is RelationshipInstance {
-  return !!component?.relationship && is_relationship(component.relationship)
+export function is_relationship(
+  component: ComponentLike,
+): component is Relationship {
+  return (
+    typeof component === "object" &&
+    component !== null &&
+    "relation" in component &&
+    is_relation((component as Relationship).relation)
+  )
 }
-

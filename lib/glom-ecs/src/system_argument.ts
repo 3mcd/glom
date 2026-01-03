@@ -1,7 +1,9 @@
-import type { All } from "./query/all"
-import type { ComponentLike, Read, Term, Write } from "./query/term"
+import type { ComponentLike } from "./component"
+import type { AnyAll } from "./query/all"
+import type { Has, Read, Write } from "./query/term"
 
 export type SystemArgument =
-  | All<Term, Term, Term, Term, Term, Term, Term, Term>
+  | AnyAll
   | Read<ComponentLike>
   | Write<ComponentLike>
+  | Has<ComponentLike>

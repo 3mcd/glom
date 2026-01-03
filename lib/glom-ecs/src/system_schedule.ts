@@ -1,7 +1,15 @@
-import type { ComponentLike } from "./component"
+import { assert_defined } from "./assert"
+import type { Component, ComponentLike } from "./component"
 import type { DefinedSystem } from "./system"
 import type { SystemArgument } from "./system_argument"
-import { system_descriptor_key } from "./system_descriptor"
+import {
+  is_all_descriptor,
+  is_has_descriptor,
+  is_read_descriptor,
+  is_rel_descriptor,
+  is_write_descriptor,
+  system_descriptor_key,
+} from "./system_descriptor"
 import {
   make_system_executor,
   run_system_executor,
@@ -25,9 +33,11 @@ type ExtractComponent<T> = T extends { readonly __read: infer C }
   ? C
   : T extends { readonly __write: infer C }
     ? C
-    : T extends ComponentLike
-      ? T
-      : never
+    : T extends { readonly __has: infer C }
+      ? C
+      : T extends ComponentLike
+        ? T
+        : never
 
 type SystemResources<T extends SystemArgument[]> = {
   [K in keyof T]: T[K] extends { readonly __all: true }
@@ -61,20 +71,33 @@ function extract_system_deps(exec: SystemExecutor): SystemDeps {
   const reads = new Set<number>()
   const writes = new Set<number>()
 
+  function add_term_deps(term: unknown) {
+    if (!term || typeof term !== "object") return
+
+    if (is_read_descriptor(term)) {
+      const c = term.read
+      if (c && typeof c.id === "number") reads.add(c.id)
+    } else if (is_write_descriptor(term)) {
+      const c = term.write
+      if (c && typeof c.id === "number") writes.add(c.id)
+    } else if (is_has_descriptor(term)) {
+      const c = term.has as Component<unknown>
+      if (c && typeof c.id === "number") reads.add(c.id)
+    } else if (is_rel_descriptor(term)) {
+      const [rel, target] = term.rel
+      if (rel && typeof rel.id === "number") reads.add(rel.id)
+      add_term_deps(target)
+    }
+  }
+
   for (const param of exec.desc.params) {
     if (!param) continue
-    if ("read" in param) {
-      reads.add((param.read as any).id)
-    } else if ("write" in param) {
-      writes.add((param.write as any).id)
-    } else if ("all" in param) {
+    if (is_all_descriptor(param)) {
       for (const term of param.all) {
-        if ("read" in term) {
-          reads.add((term.read as any).id)
-        } else if ("write" in term) {
-          writes.add((term.write as any).id)
-        }
+        add_term_deps(term)
       }
+    } else {
+      add_term_deps(param)
     }
   }
 
@@ -89,15 +112,13 @@ function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
   const adj: number[][] = Array.from({ length: n }, () => [])
   const in_degree = new Array(n).fill(0)
 
-  // Dependency rules:
-  // 1. For each component, writers run in registration order (W_i -> W_{i+1})
-  // 2. All writers run before all readers (W_all -> R_all)
-
   const component_writers: Map<number, number[]> = new Map()
   const component_readers: Map<number, number[]> = new Map()
 
   for (let i = 0; i < n; i++) {
-    for (const write_id of deps[i]!.writes) {
+    const d = deps[i]
+    assert_defined(d)
+    for (const write_id of d.writes) {
       let writers = component_writers.get(write_id)
       if (!writers) {
         writers = []
@@ -105,7 +126,7 @@ function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
       }
       writers.push(i)
     }
-    for (const read_id of deps[i]!.reads) {
+    for (const read_id of d.reads) {
       let readers = component_readers.get(read_id)
       if (!readers) {
         readers = []
@@ -116,22 +137,25 @@ function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
   }
 
   function add_edge(u: number, v: number) {
-    if (!adj[u]!.includes(v)) {
-      adj[u]!.push(v)
+    const neighbors = adj[u]
+    assert_defined(neighbors)
+    if (!neighbors.includes(v)) {
+      neighbors.push(v)
       in_degree[v]++
     }
   }
 
-  for (const writers of component_writers.values()) {
+  for (const [component_id, writers] of component_writers.entries()) {
     // Rule 1: Writers in registration order
     for (let j = 0; j < writers.length - 1; j++) {
-      add_edge(writers[j]!, writers[j + 1]!)
+      const u = writers[j]
+      const v = writers[j + 1]
+      assert_defined(u)
+      assert_defined(v)
+      add_edge(u, v)
     }
 
     // Rule 2: All writers before all readers
-    const component_id = [...component_writers.entries()].find(
-      ([_, w]) => w === writers,
-    )![0]
     const readers = component_readers.get(component_id)
     if (readers) {
       for (const writer of writers) {
@@ -150,17 +174,17 @@ function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
     }
   }
 
-  // To preserve registration order for independent systems, we could use a priority queue
-  // or just sort the queue. Since we want stability, we keep it simple.
   queue.sort((a, b) => a - b)
 
   const sorted_indices: number[] = []
   while (queue.length > 0) {
-    // Shift is O(n), but n is small. For better performance use a proper queue.
-    const u = queue.shift()!
+    const u = queue.shift()
+    assert_defined(u)
     sorted_indices.push(u)
 
-    for (const v of adj[u]!) {
+    const neighbors = adj[u]
+    assert_defined(neighbors)
+    for (const v of neighbors) {
       in_degree[v]--
       if (in_degree[v] === 0) {
         queue.push(v)
@@ -173,7 +197,11 @@ function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
     throw new Error("Cycle detected in system dependencies")
   }
 
-  return sorted_indices.map((i) => execs[i]!)
+  return sorted_indices.map((i) => {
+    const exec = execs[i]
+    assert_defined(exec)
+    return exec
+  })
 }
 
 export function run_schedule<T extends ComponentLike, U extends ComponentLike>(

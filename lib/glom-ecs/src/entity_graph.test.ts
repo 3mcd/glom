@@ -163,7 +163,8 @@ describe("entity_graph", () => {
   test("root node is never pruned", () => {
     const graph = make_entity_graph()
     // Root doesn't have entities normally but let's test the strategy if it were set
-    ;(graph.root as any).strategy = PruneStrategy.WhenEmpty
+    // @ts-ignore: private access for test
+    graph.root.strategy = PruneStrategy.WhenEmpty
 
     const entity = 1 as Entity
     entity_graph_set_entity_node(graph, entity, graph.root)
@@ -181,7 +182,7 @@ describe("entity_graph", () => {
     )
     const entity = 1 as Entity
 
-    let destroyed_node: any = null
+    let destroyed_node: EntityGraphNode | null = null
     entity_graph_node_add_listener(graph.root, {
       node_destroyed: (node) => {
         destroyed_node = node

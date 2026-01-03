@@ -11,7 +11,7 @@ import {
   entity_graph_set_entity_node,
 } from "./entity_graph"
 import { alloc_entity, remove_entity } from "./entity_registry"
-import { is_relationship_instance } from "./relation"
+import { is_relationship } from "./relation"
 import {
   get_or_create_virtual_id,
   get_virtual_component,
@@ -29,33 +29,31 @@ import {
 
 export function spawn(
   world: World,
-  components: (ComponentInstance<any> | ComponentLike)[],
+  components: (ComponentInstance<unknown> | ComponentLike)[],
   hi = 0,
 ): Entity {
   const entity = alloc_entity(world.registry, hi)
-  const resolved_components: Component<any>[] = []
+  const resolved_components: ComponentLike[] = []
 
   for (const item of components) {
-    if (is_relationship_instance(item)) {
-      const vid = get_or_create_virtual_id(
-        world,
-        item.relationship,
-        item.target,
-      )
-      resolved_components.push(get_virtual_component(world.relations, vid))
-      resolved_components.push(item.relationship) // Wildcard tag
-      register_incoming_relation(
+    if (item && typeof item === "object" && "component" in item) {
+      const inst = item as ComponentInstance<unknown>
+      resolved_components.push(inst.component)
+      set_component_value(
         world,
         entity,
-        item.relationship.id,
-        item.target,
+        inst.component as Component<unknown>,
+        inst.value,
       )
-    } else if (item && typeof item === "object" && "component" in item) {
-      const inst = item as ComponentInstance<any>
-      resolved_components.push(inst.component)
-      set_component_value(world, entity, inst.component, inst.value)
     } else if (item) {
-      resolved_components.push(item as Component<any>)
+      if (is_relationship(item)) {
+        const vid = get_or_create_virtual_id(world, item.relation, item.target)
+        resolved_components.push(get_virtual_component(world.relations, vid))
+        resolved_components.push(item.relation) // Wildcard tag
+        register_incoming_relation(world, entity, item.relation.id, item.target)
+      } else {
+        resolved_components.push(item)
+      }
     }
   }
 
@@ -77,7 +75,7 @@ export function despawn(world: World, entity: Entity): void {
   if (incoming) {
     const to_remove = Array.from(incoming)
     for (const { source, rel_id } of to_remove) {
-      remove_relation(world, source, rel_id, entity)
+      remove_relation(world, source as Entity, rel_id, entity)
     }
     world.relations.target_to_incoming.delete(entity)
   }
@@ -86,7 +84,12 @@ export function despawn(world: World, entity: Entity): void {
   for (const comp of node.vec.elements) {
     const rel = world.relations.virtual_to_relation.get(comp.id)
     if (rel) {
-      unregister_incoming_relation(world, entity, rel.rel_id, rel.target)
+      unregister_incoming_relation(
+        world,
+        entity,
+        rel.rel_id,
+        rel.target as Entity,
+      )
     }
   }
 
@@ -124,7 +127,10 @@ function remove_relation(
   if (virtual_id === undefined) return
 
   const vid_comp = get_virtual_component(world.relations, virtual_id)
-  let next_vec = vec_difference(node.vec, make_vec([vid_comp]))
+  let next_vec = vec_difference(
+    node.vec,
+    make_vec([vid_comp as Component<unknown>]),
+  )
 
   // Check if we should also remove the wildcard tag
   let has_other_relations = false
@@ -138,7 +144,10 @@ function remove_relation(
 
   if (!has_other_relations) {
     const rel_tag = define_tag(rel_id) // We need the component object for the ID
-    next_vec = vec_difference(next_vec, make_vec([rel_tag]))
+    next_vec = vec_difference(
+      next_vec,
+      make_vec([rel_tag as Component<unknown>]),
+    )
   }
 
   const next_node = entity_graph_find_or_create_node(
@@ -151,23 +160,30 @@ function remove_relation(
 export function add_component(
   world: World,
   entity: Entity,
-  item: ComponentInstance<any> | ComponentLike,
+  item: ComponentInstance<unknown> | ComponentLike,
 ): void {
   const node = entity_graph_get_entity_node(world.entity_graph, entity)
   if (!node) return
 
-  const to_add: Component<any>[] = []
-  if (is_relationship_instance(item)) {
-    const vid = get_or_create_virtual_id(world, item.relationship, item.target)
-    to_add.push(get_virtual_component(world.relations, vid))
-    to_add.push(item.relationship) // Wildcard tag
-    register_incoming_relation(world, entity, item.relationship.id, item.target)
-  } else if (item && typeof item === "object" && "component" in item) {
-    const inst = item as ComponentInstance<any>
+  const to_add: ComponentLike[] = []
+  if (item && typeof item === "object" && "component" in item) {
+    const inst = item as ComponentInstance<unknown>
     to_add.push(inst.component)
-    set_component_value(world, entity, inst.component, inst.value)
+    set_component_value(
+      world,
+      entity,
+      inst.component as Component<unknown>,
+      inst.value,
+    )
   } else if (item) {
-    to_add.push(item as Component<any>)
+    if (is_relationship(item)) {
+      const vid = get_or_create_virtual_id(world, item.relation, item.target)
+      to_add.push(get_virtual_component(world.relations, vid))
+      to_add.push(item.relation) // Wildcard tag
+      register_incoming_relation(world, entity, item.relation.id, item.target)
+    } else {
+      to_add.push(item)
+    }
   }
 
   if (to_add.length > 0) {
