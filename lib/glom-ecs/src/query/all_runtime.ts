@@ -11,7 +11,6 @@ import {
 import { is_relationship, type Relation } from "../relation"
 import {
   get_or_create_virtual_id,
-  get_virtual_component,
 } from "../relation_registry"
 import {
   make_sparse_map,
@@ -24,9 +23,13 @@ import { make_vec, type Vec, vec_is_superset_of } from "../vec"
 import { get_component_store, type World } from "../world"
 import type { AnyAll } from "./all"
 
-type TermInfo =
+export type TermInfo =
   | { type: "entity" }
-  | { type: "component"; store: unknown[] | undefined }
+  | {
+      type: "component"
+      component: ComponentLike
+      store: unknown[] | undefined
+    }
   | { type: "has"; component: ComponentLike }
   | { type: "not"; component: ComponentLike }
   | { type: "rel"; relation: Relation; object_term: TermInfo }
@@ -34,11 +37,11 @@ type TermInfo =
 export class AllRuntime implements AnyAll, EntityGraphNodeListener {
   readonly __all = true
   readonly nodes = make_sparse_map<EntityGraphNode>()
-  private _anchor_node?: EntityGraphNode
-  private _world?: World
-  private _required_vec?: Vec
-  private _excluded_vecs: Vec[] = []
-  private _term_infos: TermInfo[] = []
+  protected _anchor_node?: EntityGraphNode
+  protected _world?: World
+  protected _required_vec?: Vec
+  protected _excluded_vecs: Vec[] = []
+  protected _term_infos: TermInfo[] = []
 
   constructor(readonly desc: RawAllDescriptor) {}
 
@@ -49,18 +52,22 @@ export class AllRuntime implements AnyAll, EntityGraphNodeListener {
     }
 
     const nodes = this.nodes.dense
+    const results = new Array(this._term_infos.length)
 
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i]!
       const entities = node.entities.dense
+
+      if (this._world?.registry.hi !== 0 && nodes.length > 0) {
+        // console.log(`AllRuntime iterator: node ${node.id} has ${entities.length} entities`);
+      }
+
       for (let j = 0; j < entities.length; j++) {
         const entity = entities[j]!
-        yield* this._yield_entity(
-          entity,
-          node,
-          0,
-          new Array(this._term_infos.length),
-        )
+        if (this._world?.registry.hi !== 0 && entity > 1000000) {
+          // console.log(`AllRuntime iterating entity ${entity} in node ${node.id}`);
+        }
+        yield* this._yield_entity(entity, node, 0, results)
       }
     }
   }
@@ -72,7 +79,7 @@ export class AllRuntime implements AnyAll, EntityGraphNodeListener {
     current_result: unknown[],
   ): IterableIterator<unknown[]> {
     if (term_idx === this._term_infos.length) {
-      yield [...current_result]
+      yield current_result
       return
     }
 
@@ -92,15 +99,35 @@ export class AllRuntime implements AnyAll, EntityGraphNodeListener {
   ): unknown[] {
     if (info.type === "entity") return [entity]
     if (info.type === "component") {
+      const world = this._world!
+      const actual_node =
+        node ?? sparse_map_get(world.entity_graph.by_entity, entity as number)
+      if (!actual_node) return []
+
+      const component_id = info.component.id
+      let has_component = false
+      for (let i = 0; i < actual_node.vec.elements.length; i++) {
+        if (actual_node.vec.elements[i]!.id === component_id) {
+          has_component = true
+          break
+        }
+      }
+
+      if (!has_component) return []
+
       if (!info.store) return [undefined]
-      const index = sparse_map_get(this._world!.index.entity_to_index, entity)
+      const index = sparse_map_get(world.index.entity_to_index, entity)
       if (index === undefined) return []
       const val = info.store[index]
+      if (world.registry.hi !== 0 && entity > 1000000 && val === undefined) {
+        // console.warn(`AllRuntime: entity ${entity} missing data for component in store`);
+      }
       return val === undefined ? [] : [val]
     }
     if (info.type === "has" || info.type === "not") {
       const world = this._world!
-      const actual_node = node ?? world.entity_graph.by_entity[entity as number]
+      const actual_node =
+        node ?? sparse_map_get(world.entity_graph.by_entity, entity as number)
       if (!actual_node) return info.type === "not" ? [undefined] : []
 
       const component_id = info.component.id
@@ -120,12 +147,14 @@ export class AllRuntime implements AnyAll, EntityGraphNodeListener {
     }
     if (info.type === "rel") {
       const world = this._world!
-      const actual_node = node ?? world.entity_graph.by_entity[entity as number]
+      const actual_node =
+        node ?? sparse_map_get(world.entity_graph.by_entity, entity as number)
       if (!actual_node) return []
 
       const objects = this._get_rel_objects(entity, actual_node, info.relation)
       const results: unknown[] = []
-      for (const object of objects) {
+      for (let i = 0; i < objects.length; i++) {
+        const object = objects[i]!
         results.push(...this._get_term_values(object, info.object_term))
       }
       return results
@@ -133,7 +162,7 @@ export class AllRuntime implements AnyAll, EntityGraphNodeListener {
     return []
   }
 
-  private _get_rel_objects(
+  protected _get_rel_objects(
     _entity: Entity,
     node: EntityGraphNode,
     relation: Relation,
@@ -142,7 +171,9 @@ export class AllRuntime implements AnyAll, EntityGraphNodeListener {
     const objects: Entity[] = []
     const relation_id = relation.id
 
-    for (const comp of node.vec.elements) {
+    const elements = node.vec.elements
+    for (let i = 0; i < elements.length; i++) {
+      const comp = elements[i]!
       const rel_info = world.relations.virtual_to_rel.get(comp.id)
       if (rel_info && rel_info.relation_id === relation_id) {
         objects.push(rel_info.object as Entity)
@@ -188,6 +219,9 @@ export class AllRuntime implements AnyAll, EntityGraphNodeListener {
       world.entity_graph,
       this._required_vec,
     )
+    console.log(
+      `[QUERY SETUP] Required IDs: [${this._required_vec.ids.join(", ")}] -> Anchor Node: ${this._anchor_node.id}`,
+    )
     entity_graph_node_add_listener(this._anchor_node, this, true)
   }
 
@@ -232,7 +266,7 @@ export class AllRuntime implements AnyAll, EntityGraphNodeListener {
         component.relation,
         component.object,
       )
-      component = get_virtual_component(world.relations, vid)
+      component = world.component_registry.get_virtual_component(vid)
     }
 
     if (type === "has") {
@@ -242,9 +276,11 @@ export class AllRuntime implements AnyAll, EntityGraphNodeListener {
       return { type: "not", component }
     }
 
+    const store = get_component_store(world, component)
     return {
       type: "component",
-      store: get_component_store(world, component),
+      component,
+      store,
     }
   }
 
@@ -319,7 +355,7 @@ function add_term_components(
       component.relation,
       component.object,
     )
-    target.push(get_virtual_component(world.relations, vid))
+    target.push(world.component_registry.get_virtual_component(vid))
   } else if (
     component &&
     (typeof component === "object" || typeof component === "function") &&

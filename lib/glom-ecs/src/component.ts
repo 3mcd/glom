@@ -36,8 +36,9 @@ export type SerializedComponent<T> = Component<T> & {
   serde: ComponentSerde<T>
 }
 
-type EditableComponent<T> = Component<T> & {
-  __component_brand: true
+export interface ComponentResolver {
+  get_serde(component_id: number): ComponentSerde<unknown> | undefined
+  is_tag(component_id: number): boolean
 }
 
 export function define_component<T>(

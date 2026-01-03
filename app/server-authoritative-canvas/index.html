@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Glom Server-Authoritative Canvas</title>
+    <style>
+        body {
+            background: #1a1a1a;
+            color: #eee;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .canvases {
+            display: flex;
+            gap: 20px;
+        }
+        canvas {
+            background: #000;
+            border: 2px solid #444;
+            border-radius: 4px;
+        }
+        .label {
+            text-align: center;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .controls {
+            margin-top: 20px;
+            font-size: 0.9em;
+            color: #888;
+            max-width: 600px;
+            text-align: center;
+        }
+        .status {
+            margin-top: 10px;
+            color: #61dafb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Glom Server-Authoritative Replication</h1>
+    <div class="canvases">
+        <div>
+            <div class="label">Server (Authority)</div>
+            <canvas id="canvasServer" width="400" height="400"></canvas>
+        </div>
+        <div>
+            <div class="label">Client (Prediction & Reconciliation)</div>
+            <canvas id="canvasClient" width="400" height="400"></canvas>
+        </div>
+    </div>
+    <div id="status" class="status">Latency: 0ms</div>
+    <div class="controls">
+        Move with WASD. The client predicts movement locally. The server validates and sends back authoritative state with artificial latency.
+    </div>
+    <script type="module" src="./src/index.ts"></script>
+</body>
+</html>
+

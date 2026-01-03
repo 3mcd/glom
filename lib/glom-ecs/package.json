@@ -1,6 +1,13 @@
 {
   "name": "@glom/ecs",
   "module": "dist/glom-ecs.esm.js",
+  "exports": {
+    ".": {
+      "module": "./dist/glom-ecs.esm.js",
+      "default": "./dist/glom-ecs.cjs.js"
+    },
+    "./package.json": "./package.json"
+  },
   "type": "module",
   "files": [
     "dist"

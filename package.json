@@ -27,6 +27,7 @@
     "lib/*"
   ],
   "preconstruct": {
+    "exports": true,
     "packages": [
       "lib/*"
     ]

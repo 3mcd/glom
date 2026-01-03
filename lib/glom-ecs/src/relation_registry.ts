@@ -10,8 +10,6 @@ export type RelationRegistry = {
     number,
     Set<{ subject: number; relation_id: number }>
   >
-  readonly component_cache: Map<number, Component<void>>
-  next_virtual_id: number
 }
 
 export function make_relation_registry(): RelationRegistry {
@@ -19,8 +17,6 @@ export function make_relation_registry(): RelationRegistry {
     rel_to_virtual: new Map(),
     virtual_to_rel: new Map(),
     object_to_subjects: new Map(),
-    component_cache: new Map(),
-    next_virtual_id: 1000000,
   }
 }
 
@@ -38,7 +34,7 @@ export function get_or_create_virtual_id(
 
   let virtual_id = objects.get(object)
   if (virtual_id === undefined) {
-    virtual_id = registry.next_virtual_id++
+    virtual_id = world.component_registry.alloc_virtual_id()
     objects.set(object, virtual_id)
     registry.virtual_to_rel.set(virtual_id, {
       relation_id: relation.id,
@@ -55,11 +51,10 @@ export function register_incoming_relation(
   relation_id: number,
   object: Entity,
 ): void {
-  const registry = world.relations
-  let incoming = registry.object_to_subjects.get(object)
+  let incoming = world.relations.object_to_subjects.get(object)
   if (!incoming) {
     incoming = new Set()
-    registry.object_to_subjects.set(object, incoming)
+    world.relations.object_to_subjects.set(object, incoming)
   }
   incoming.add({ subject, relation_id })
 }
@@ -91,16 +86,4 @@ export function get_virtual_id(
   object: number,
 ): number | undefined {
   return registry.rel_to_virtual.get(relation_id)?.get(object)
-}
-
-export function get_virtual_component(
-  registry: RelationRegistry,
-  id: number,
-): Component<void> {
-  let comp = registry.component_cache.get(id)
-  if (!comp) {
-    comp = define_tag(id)
-    registry.component_cache.set(id, comp)
-  }
-  return comp
 }

@@ -1,11 +1,29 @@
+import { type ClockSyncManager, make_clocksync_manager } from "./clocksync"
+import { CommandEntity, CommandOf, IntentTick } from "./command"
 import type { Component, ComponentInstance, ComponentLike } from "./component"
-import { RESOURCE_ENTITY } from "./entity"
-import { type EntityGraph, make_entity_graph } from "./entity_graph"
+import { type Entity, RESOURCE_ENTITY } from "./entity"
+import {
+  type EntityGraph,
+  type EntityGraphNode,
+  make_entity_graph,
+} from "./entity_graph"
 import { type EntityRegistry, make_entity_registry } from "./entity_registry"
+import type { HistoryBuffer } from "./history"
+import type { SnapshotMessage } from "./net_types"
+import { type ComponentRegistry, make_component_registry } from "./registry"
 import {
   make_relation_registry,
   type RelationRegistry,
 } from "./relation_registry"
+import type {
+  ReplicationOp,
+  ReplicationRecorder,
+  Transaction,
+} from "./replication"
+import { Replicated } from "./replication"
+
+export type SnapshotEmitter = (message: SnapshotMessage) => void
+
 import {
   make_sparse_map,
   type SparseMap,
@@ -15,12 +33,14 @@ import {
 
 export type ComponentStore = {
   readonly storage: Map<number, unknown[]>
+  readonly versions: Map<number, Uint32Array>
   readonly resource_tags: Set<number>
 }
 
 export function make_component_store(): ComponentStore {
   return {
     storage: new Map(),
+    versions: new Map(),
     resource_tags: new Set(),
   }
 }
@@ -28,6 +48,7 @@ export function make_component_store(): ComponentStore {
 export type EntityIndex = {
   readonly entity_to_index: SparseMap<number>
   readonly index_to_entity: number[]
+  readonly free_indices: number[]
   next_index: number
 }
 
@@ -35,26 +56,92 @@ export function make_entity_index(): EntityIndex {
   return {
     entity_to_index: make_sparse_map<number>(),
     index_to_entity: [],
+    free_indices: [],
     next_index: 1, // Start at 1 to reserve index 0 for RESOURCE_ENTITY
   }
+}
+
+export type GraphMove = {
+  entity: Entity
+  from?: EntityGraphNode
+  to?: EntityGraphNode
 }
 
 export type World<R extends ComponentLike = never> = {
   readonly __resources: (val: R) => void
   readonly registry: EntityRegistry
+  readonly component_registry: ComponentRegistry
   readonly entity_graph: EntityGraph
+  readonly graph_changes: SparseMap<GraphMove>
+  readonly pending_deletions: Set<Entity>
+  readonly pending_component_removals: Map<Entity, ComponentLike[]>
   readonly components: ComponentStore
   readonly index: EntityIndex
   readonly relations: RelationRegistry
+  recorder?: ReplicationRecorder
+  snapshot_emitter?: SnapshotEmitter
+  tick: number
+  tick_spawn_count: number
+  readonly transient_registry: Map<number, { entity: Entity; tick: number }>
+  readonly pending_ops: ReplicationOp[]
+  history?: HistoryBuffer
+  readonly input_buffer: Map<number, unknown>
+  readonly remote_transactions: Map<number, Transaction[]>
+  readonly remote_snapshots: Map<number, SnapshotMessage[]>
+  readonly clocksync: ClockSyncManager
+  readonly command_buffer: Map<
+    number,
+    {
+      target: Entity
+      component_id: number
+      data: unknown
+      intent_tick: number
+    }[]
+  >
+  // Reusable buffers to avoid allocations in hot paths
+  readonly _reduction_entity_to_ops: Map<Entity, ReplicationOp[]>
+  readonly _reduction_component_changes: Map<number, ReplicationOp>
+  readonly _reduction_component_removals: Set<number>
+  readonly _batch_map: Map<number, unknown>
 }
 
-export function make_world(hi: number): World<never> {
+export function make_world(
+  hi: number,
+  schema: ComponentLike[] = [],
+  recorder?: ReplicationRecorder,
+): World<never> {
+  const component_registry = make_component_registry([
+    Replicated,
+    IntentTick,
+    CommandOf,
+    CommandEntity,
+    ...schema,
+  ])
+
   const world = {
     registry: make_entity_registry(hi),
+    component_registry,
     entity_graph: make_entity_graph(),
+    graph_changes: make_sparse_map<GraphMove>(),
+    pending_deletions: new Set<Entity>(),
+    pending_component_removals: new Map<Entity, ComponentLike[]>(),
     components: make_component_store(),
     index: make_entity_index(),
     relations: make_relation_registry(),
+    recorder,
+    tick: 0,
+    tick_spawn_count: 0,
+    transient_registry: new Map(),
+    pending_ops: [],
+    input_buffer: new Map(),
+    remote_transactions: new Map(),
+    remote_snapshots: new Map(),
+    clocksync: make_clocksync_manager(),
+    command_buffer: new Map(),
+    _reduction_entity_to_ops: new Map(),
+    _reduction_component_changes: new Map(),
+    _reduction_component_removals: new Set(),
+    _batch_map: new Map(),
   } as unknown as World<never>
   world.index.index_to_entity[0] = RESOURCE_ENTITY
   return world
@@ -69,7 +156,7 @@ export function world_get_or_create_index(
   }
   let index = sparse_map_get(world.index.entity_to_index, entity)
   if (index === undefined) {
-    index = world.index.next_index++
+    index = world.index.free_indices.pop() ?? world.index.next_index++
     sparse_map_set(world.index.entity_to_index, entity, index)
     world.index.index_to_entity[index] = entity
   }
@@ -96,12 +183,37 @@ export function set_component_value<T>(
   entity: number,
   component: Component<T> | ComponentLike,
   value: T,
+  version = world.tick,
 ): void {
-  if (component.is_tag && entity === RESOURCE_ENTITY) {
-    world.components.resource_tags.add(component.id)
+  if (component.is_tag) {
+    if (entity === RESOURCE_ENTITY) {
+      world.components.resource_tags.add(component.id)
+    }
     return
   }
   const index = world_get_or_create_index(world, entity)
+
+  // Last-Write-Wins check
+  let versions = world.components.versions.get(component.id)
+  if (!versions) {
+    versions = new Uint32Array(1024) // Initial capacity
+    world.components.versions.set(component.id, versions)
+  }
+
+  // Ensure versions array is large enough
+  if (index >= versions.length) {
+    const next = new Uint32Array(Math.max(versions.length * 2, index + 1))
+    next.set(versions)
+    versions = next
+    world.components.versions.set(component.id, versions)
+  }
+
+  const current_version = versions[index]
+  if (current_version !== undefined && version < current_version) {
+    return
+  }
+  versions[index] = version
+
   const store = get_component_store<T>(world, component)
   if (store) {
     store[index] = value
@@ -113,6 +225,15 @@ export function get_component_value<T>(
   entity: number,
   component: Component<T> | ComponentLike,
 ): T | undefined {
+  if (world.pending_deletions.has(entity as Entity)) {
+    return undefined
+  }
+  const pending_removals = world.pending_component_removals.get(
+    entity as Entity,
+  )
+  if (pending_removals?.some((c) => c.id === component.id)) {
+    return undefined
+  }
   if (component.is_tag) {
     if (entity === RESOURCE_ENTITY) {
       return world.components.resource_tags.has(component.id)

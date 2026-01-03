@@ -20,7 +20,7 @@ describe("entity_registry", () => {
     const entity = alloc_entity(registry, hi)
 
     expect(get_hi(entity)).toBe(hi)
-    expect(get_lo(entity)).toBe(0)
+    expect(get_lo(entity)).toBe(1)
     expect(registry.domains[hi]).toBeDefined()
     expect(registry.domains[hi]?.entity_count).toBe(1)
   })
@@ -32,9 +32,9 @@ describe("entity_registry", () => {
     const e2 = alloc_entity(registry, hi)
 
     expect(get_hi(e1)).toBe(hi)
-    expect(get_lo(e1)).toBe(0)
+    expect(get_lo(e1)).toBe(1)
     expect(get_hi(e2)).toBe(hi)
-    expect(get_lo(e2)).toBe(1)
+    expect(get_lo(e2)).toBe(2)
     expect(registry.domains[hi]?.entity_count).toBe(2)
   })
 

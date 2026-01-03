@@ -3,14 +3,17 @@ import type { Component, ComponentLike } from "./component"
 import type { DefinedSystem } from "./system"
 import type { SystemArgument } from "./system_argument"
 import {
+  is_add_descriptor,
   is_all_descriptor,
   is_has_descriptor,
   is_read_descriptor,
   is_rel_descriptor,
+  is_remove_descriptor,
   is_write_descriptor,
   system_descriptor_key,
 } from "./system_descriptor"
 import {
+  clear_system_executor_monitors,
   make_system_executor,
   run_system_executor,
   type SystemExecutor,
@@ -35,9 +38,13 @@ type ExtractComponent<T> = T extends { readonly __read: infer C }
     ? C
     : T extends { readonly __has: infer C }
       ? C
-      : T extends ComponentLike
-        ? T
-        : never
+      : T extends { readonly __add: infer C }
+        ? C
+        : T extends { readonly __remove: infer C }
+          ? C
+          : T extends ComponentLike
+            ? T
+            : never
 
 type SystemResources<T extends SystemArgument[]> = {
   [K in keyof T]: T[K] extends { readonly __all: true }
@@ -79,6 +86,12 @@ function extract_system_deps(exec: SystemExecutor): SystemDeps {
       if (c && typeof c.id === "number") reads.add(c.id)
     } else if (is_write_descriptor(term)) {
       const c = term.write
+      if (c && typeof c.id === "number") writes.add(c.id)
+    } else if (is_add_descriptor(term)) {
+      const c = term.add
+      if (c && typeof c.id === "number") writes.add(c.id)
+    } else if (is_remove_descriptor(term)) {
+      const c = term.remove
       if (c && typeof c.id === "number") writes.add(c.id)
     } else if (is_has_descriptor(term)) {
       const c = term.has as Component<unknown>
@@ -155,12 +168,17 @@ function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
       add_edge(u, v)
     }
 
-    // Rule 2: All writers before all readers
+    // Rule 2: All writers before all readers (excluding readers that are also writers)
     const readers = component_readers.get(component_id)
     if (readers) {
       for (const writer of writers) {
         for (const reader of readers) {
-          add_edge(writer, reader)
+          if (writer !== reader) {
+            const reader_deps = deps[reader]
+            if (reader_deps && !reader_deps.writes.has(component_id)) {
+              add_edge(writer, reader)
+            }
+          }
         }
       }
     }
@@ -194,7 +212,50 @@ function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
   }
 
   if (sorted_indices.length !== n) {
-    throw new Error("Cycle detected in system dependencies")
+    // Detect cycle for better error message
+    const visited = new Set<number>()
+    const path: number[] = []
+    const on_path = new Set<number>()
+    let cycle: number[] = []
+
+    function find_cycle(u: number): boolean {
+      visited.add(u)
+      path.push(u)
+      on_path.add(u)
+
+      const neighbors = adj[u]
+      if (neighbors) {
+        for (const v of neighbors) {
+          if (on_path.has(v)) {
+            cycle = path.slice(path.indexOf(v))
+            return true
+          }
+          if (!visited.has(v) && find_cycle(v)) {
+            return true
+          }
+        }
+      }
+
+      on_path.delete(u)
+      path.pop()
+      return false
+    }
+
+    for (let i = 0; i < n; i++) {
+      if (!visited.has(i) && find_cycle(i)) {
+        break
+      }
+    }
+
+    const system_names = cycle
+      .map((i) => {
+        const exec = execs[i]
+        assert_defined(exec)
+        return exec.desc.name || exec.fn.name || `anonymous_system_${i}`
+      })
+      .join(" -> ")
+
+    throw new Error(`Cycle detected in system dependencies: ${system_names}`)
   }
 
   return sorted_indices.map((i) => {
@@ -217,5 +278,8 @@ export function run_schedule<T extends ComponentLike, U extends ComponentLike>(
   }
   for (const exec of schedule.execs) {
     run_system_executor(exec)
+  }
+  for (const exec of schedule.execs) {
+    clear_system_executor_monitors(exec)
   }
 }

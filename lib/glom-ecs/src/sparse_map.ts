@@ -70,7 +70,7 @@ export function sparse_map_clear(map: SparseMap): void {
 export function sparse_map_to_sparse_array<T>(
   map: SparseMap<T>,
 ): (T | undefined)[] {
-  const sparse = new Array(map.sparse.length)
+  const sparse = new Array(map.sparse.size)
   for (let i = 0; i < map.dense.length; i++) {
     const key = map.indices[i] as number
     sparse[key] = map.dense[i]

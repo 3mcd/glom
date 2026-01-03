@@ -20,7 +20,7 @@ import {
   run_schedule,
 } from "./system_schedule"
 
-describe("Entity Relations Combined", () => {
+describe("relation", () => {
   const ChildOf = define_relation(100)
   const Name = define_component<string>(101)
 
@@ -30,15 +30,17 @@ describe("Entity Relations Combined", () => {
 
     // 1. Exact relation query
     let foundChildName = ""
-    const system1 = (query: All<Read<typeof Name>, Has<Relationship>>) => {
-      for (const [name] of query) {
-        foundChildName = name
-      }
-    }
+    const system1 = define_system(
+      (query: All<Read<typeof Name>, Has<Relationship>>) => {
+        for (const [name] of query) {
+          foundChildName = name
+        }
+      },
+      {
+        params: [{ all: [{ read: Name }, { has: ChildOf(parent) }] }],
+      },
+    )
     const schedule1 = make_system_schedule()
-    define_system(system1, {
-      params: [{ all: [{ read: Name }, { has: ChildOf(parent) }] }],
-    })
     add_system(schedule1, system1)
 
     spawn(world, [Name("Child"), ChildOf(parent)])
@@ -48,15 +50,17 @@ describe("Entity Relations Combined", () => {
 
     // 2. Wildcard relation query
     const children: string[] = []
-    const system2 = (query: All<Entity, Read<typeof Name>, Has<Relation>>) => {
-      for (const [_, name] of query) {
-        children.push(name)
-      }
-    }
+    const system2 = define_system(
+      (query: All<Entity, Read<typeof Name>, Has<Relation>>) => {
+        for (const [_, name] of query) {
+          children.push(name)
+        }
+      },
+      {
+        params: [{ all: [ENTITY, { read: Name }, { has: ChildOf }] }],
+      },
+    )
     const schedule2 = make_system_schedule()
-    define_system(system2, {
-      params: [{ all: [ENTITY, { read: Name }, { has: ChildOf }] }],
-    })
     add_system(schedule2, system2)
     run_schedule(schedule2, world)
     expect(children).toContain("Child")
@@ -64,15 +68,17 @@ describe("Entity Relations Combined", () => {
     // 3. Cleanup on object destruction
     despawn(world, parent)
     const childrenAfter = [] as string[]
-    const system3 = (query: All<Entity, Read<typeof Name>, Has<Relation>>) => {
-      for (const [_, name] of query) {
-        childrenAfter.push(name)
-      }
-    }
+    const system3 = define_system(
+      (query: All<Entity, Read<typeof Name>, Has<Relation>>) => {
+        for (const [_, name] of query) {
+          childrenAfter.push(name)
+        }
+      },
+      {
+        params: [{ all: [ENTITY, { read: Name }, { has: ChildOf }] }],
+      },
+    )
     const schedule3 = make_system_schedule()
-    define_system(system3, {
-      params: [{ all: [ENTITY, { read: Name }, { has: ChildOf }] }],
-    })
     add_system(schedule3, system3)
     run_schedule(schedule3, world)
     expect(childrenAfter).toEqual([])

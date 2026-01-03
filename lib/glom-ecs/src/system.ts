@@ -15,6 +15,7 @@ export type DefinedSystem<T extends SystemArgument[] = SystemArgument[]> = {
 export function define_system<T extends SystemArgument[]>(
   system: System<T>,
   system_descriptor: SystemDescriptor<T>,
-): asserts system is DefinedSystem<T> {
+): DefinedSystem<T> {
   Reflect.set(system, system_descriptor_key, system_descriptor)
+  return system as DefinedSystem<T>
 }

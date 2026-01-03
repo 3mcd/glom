@@ -50,11 +50,16 @@ describe("all_runtime", () => {
     entity_graph_set_entity_node(world.entity_graph, e1, node)
     entity_graph_set_entity_node(world.entity_graph, e2, node)
 
-    const results = Array.from(all) as [{ val: number }, { name: string }][]
+    const results = []
+    for (const r of all) {
+      results.push([...r])
+    }
     expect(results).toHaveLength(2)
 
     // Results might be in any order because of sparse set / graph nodes
-    const sortedResults = results.sort((a, b) => a[0].val - b[0].val)
+    const sortedResults = (results as [{ val: number }, { name: string }][]).sort(
+      (a, b) => a[0].val - b[0].val,
+    )
 
     expect(sortedResults[0]).toEqual([{ val: 10 }, { name: "e1" }])
     expect(sortedResults[1]).toEqual([{ val: 20 }, { name: "e2" }])
@@ -75,7 +80,10 @@ describe("all_runtime", () => {
     const node = all._anchor_node
     entity_graph_set_entity_node(world.entity_graph, e1, node)
 
-    const results = Array.from(all)
+    const results = []
+    for (const r of all) {
+      results.push([...r])
+    }
     expect(results).toHaveLength(1)
     expect(results[0]).toEqual([e1, { val: 10 }])
   })
@@ -95,7 +103,10 @@ describe("all_runtime", () => {
     const node = all._anchor_node
     entity_graph_set_entity_node(world.entity_graph, e1, node)
 
-    const results = Array.from(all)
+    const results = []
+    for (const r of all) {
+      results.push([...r])
+    }
     expect(results[0]).toEqual([e1, { val: 50 }])
   })
 
@@ -115,7 +126,10 @@ describe("all_runtime", () => {
     const node = all._anchor_node
     entity_graph_set_entity_node(world.entity_graph, e1, node)
 
-    const results = Array.from(all)
+    const results = []
+    for (const r of all) {
+      results.push([...r])
+    }
     expect(results).toHaveLength(1)
     expect(results[0]).toEqual([e1, undefined, { val: 70 }])
   })
@@ -136,7 +150,10 @@ describe("all_runtime", () => {
       { component: c3, value: { val: 30 } },
     ]) // Has c1 and c3
 
-    const results = Array.from(all)
+    const results = []
+    for (const r of all) {
+      results.push([...r])
+    }
     expect(results).toHaveLength(1)
     expect(results[0]).toEqual([{ val: 10 }, undefined])
   })
@@ -164,7 +181,10 @@ describe("all_runtime", () => {
       { relation: rel, object: obj2 },
     ])
 
-    const results = Array.from(all)
+    const results = []
+    for (const r of all) {
+      results.push([...r])
+    }
     // results should be [ [undefined] ] for obj1 only
     expect(results).toHaveLength(1)
     expect(results[0]).toEqual([undefined])

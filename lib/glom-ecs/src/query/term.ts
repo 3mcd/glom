@@ -1,14 +1,39 @@
-import type { Component, ComponentLike } from "../component"
+import type { Component, ComponentInstance, ComponentLike } from "../component"
 import type {
+  AddDescriptor,
+  DespawnDescriptor,
   HasDescriptor,
   NotDescriptor,
   ReadDescriptor,
   RelDescriptor,
+  RemoveDescriptor,
+  SpawnDescriptor,
+  WorldDescriptor,
   WriteDescriptor,
 } from "../descriptors"
 import type { Entity } from "../entity"
 import type { Relation } from "../relation"
 export type { ComponentLike }
+
+export interface Spawn {
+  readonly __spawn: true
+  (components: (ComponentInstance<unknown> | ComponentLike)[]): Entity
+}
+
+export interface Despawn {
+  readonly __despawn: true
+  (entity: Entity): void
+}
+
+export interface Add<T extends ComponentLike> {
+  readonly __add: T
+  (entity: Entity, value: T extends Component<infer V> ? V : void): void
+}
+
+export interface Remove<T extends ComponentLike> {
+  readonly __remove: T
+  (entity: Entity): void
+}
 
 export type EntityTerm = { readonly entity: true }
 
@@ -93,6 +118,28 @@ export function Has<T extends ComponentLike>(component: T): HasDescriptor<T> {
 
 export function Not<T extends ComponentLike>(component: T): NotDescriptor<T> {
   return { not: component } as unknown as NotDescriptor<T>
+}
+
+export function World(): WorldDescriptor {
+  return { world: true }
+}
+
+export function Spawn(): SpawnDescriptor {
+  return { spawn: true }
+}
+
+export function Despawn(): DespawnDescriptor {
+  return { despawn: true }
+}
+
+export function Add<T extends ComponentLike>(component: T): AddDescriptor<T> {
+  return { add: component }
+}
+
+export function Remove<T extends ComponentLike>(
+  component: T,
+): RemoveDescriptor<T> {
+  return { remove: component }
 }
 
 export function Rel<R extends Relation, T>(

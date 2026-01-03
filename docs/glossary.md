@@ -1,6 +1,7 @@
 # Glossary
 
 - **Archetype**: A unique combination of component types. In Glom ECS, entities with identical component sets belong to the same archetype, which is represented by a node in the [Entity Graph](./entity_graph.md).
+- **Transaction**: A sequenced collection of [Replication Operations](#replication-operation) originating from a single [Provenance Domain](#hi-bits-provenance) that must be applied together to maintain causal consistency.
 - **Component**: A data structure that represents a specific property or behavior of an entity. Components are defined using `define_component`.
 - **Continuous Predicted Simulation with Asynchronous Correction**: A networking model where logical systems run isomorphically on both client and server. Clients predict local actions instantly and asynchronously correct their state when authoritative server data arrives.
 - **DAG (Directed Acyclic Graph)**: A graph with no directed cycles. Used in Glom for [System Ordering](./system_ordering.md) and for organizing archetypes in the [Entity Graph](./entity_graph.md).
@@ -10,8 +11,11 @@
 - **Entity Registry**: The system responsible for allocating and tracking entities across multiple distributed [Provenance Domains](./entity_registry.md).
 - **Hi Bits (Provenance)**: The upper 11 bits of an `Entity` integer, used to identify the agent or server that originally created the entity.
 - **Lo Bits (ID)**: The lower 20 bits of an `Entity` integer, representing a unique, auto-incrementing, and recycled identifier within a provenance domain.
+- **Operation Sequence (op_seq)**: A monotonic counter per [Provenance Domain](#hi-bits-provenance) used to order and verify [Transactions](#transaction) in a replicated environment.
 - **Producer-Consumer**: A scheduling rule where systems that **Write** to a component are always executed before systems that **Read** from the same component.
 - **Provenance**: The origin or subject of an entity in a multi-agent system, encoded in the entity's high bits to avoid ID collisions in distributed environments.
+- **Replication Operation**: A primitive mutation (spawn, despawn, set, remove) that can be recorded and applied to remote [World](#world) instances.
+- **Replication Recorder**: A hook in the [World](#world) that captures local ECS mutations and packages them into [Transactions](#transaction).
 - **SMI (Small Integer)**: An optimization in JavaScript engines (like V8) where 31-bit integers are stack-allocated and stored directly in pointers, avoiding heap allocation and garbage collection.
 - **Sparse Map / Sparse Set**: High-performance data structures used for O(1) lookups and efficient iteration over entities and components.
 - **System**: A function containing the logic of the application. Systems are registered in a **Schedule** and operate on data requested through their arguments.

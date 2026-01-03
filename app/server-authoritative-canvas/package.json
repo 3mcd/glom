@@ -1,0 +1,16 @@
+{
+  "name": "server-authoritative-canvas",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "devDependencies": {
+    "bun-types": "latest",
+    "vite": "latest"
+  },
+  "dependencies": {
+    "@glom/ecs": "workspace:*"
+  },
+  "scripts": {
+    "dev": "vite"
+  }
+}
+

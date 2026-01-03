@@ -5,15 +5,18 @@ import { hash_to_uint, hash_word } from "./lib/hash"
 import {
   make_sparse_map,
   type SparseMap,
+  sparse_map_clear,
   sparse_map_delete,
   sparse_map_for_each,
   sparse_map_for_each_value,
+  sparse_map_get,
   sparse_map_set,
 } from "./sparse_map"
 import {
   make_sparse_set,
   type SparseSet,
   sparse_set_add,
+  sparse_set_clear,
   sparse_set_delete,
   sparse_set_for_each,
   sparse_set_has,
@@ -28,9 +31,6 @@ import {
   vec_is_superset_of,
   vec_xor_hash,
 } from "./vec"
-
-const TRAVERSAL_STACK: (EntityGraphNode | undefined)[] = []
-let TRAVERSAL_VERSION = 0
 
 // biome-ignore lint/suspicious/noConfusingVoidType: void is the most accurate return type here
 type EntityGraphNodeIteratee = (node: EntityGraphNode) => boolean | void
@@ -54,7 +54,6 @@ export type EntityGraphNode = {
   readonly prev_nodes: SparseMap<EntityGraphNode>
   readonly listeners: EntityGraphNodeListener[]
   readonly strategy: PruneStrategy
-  _version: number
 }
 
 export function make_entity_graph_node(
@@ -70,7 +69,6 @@ export function make_entity_graph_node(
     prev_nodes: make_sparse_map<EntityGraphNode>(),
     listeners: [],
     strategy,
-    _version: -1,
   }
 }
 
@@ -92,25 +90,26 @@ export function entity_graph_node_unlink(
   sparse_map_delete(prev.next_nodes, xor)
 }
 
+// Use local stacks and Sets to avoid re-entrancy issues with global state
 export function entity_graph_node_traverse_right(
   start_node: EntityGraphNode,
   iteratee: EntityGraphNodeIteratee,
 ): void {
-  const version = ++TRAVERSAL_VERSION
-  let i = 0
-  TRAVERSAL_STACK[i++] = start_node
-  while (i > 0) {
-    const node = TRAVERSAL_STACK[--i]
+  const stack: (EntityGraphNode | undefined)[] = [start_node]
+  const visited = new Set<number>()
+
+  while (stack.length > 0) {
+    const node = stack.pop()
     if (
       node === undefined ||
-      node._version === version ||
+      visited.has(node.id) ||
       iteratee(node) === false
     ) {
       continue
     }
-    node._version = version
+    visited.add(node.id)
     sparse_map_for_each_value(node.next_nodes, (next_node) => {
-      TRAVERSAL_STACK[i++] = next_node
+      stack.push(next_node)
     })
   }
 }
@@ -119,21 +118,21 @@ export function entity_graph_node_traverse_left(
   start_node: EntityGraphNode,
   iteratee: EntityGraphNodeIteratee,
 ): void {
-  const version = ++TRAVERSAL_VERSION
-  let i = 0
-  TRAVERSAL_STACK[i++] = start_node
-  while (i > 0) {
-    const node = TRAVERSAL_STACK[--i]
+  const stack: (EntityGraphNode | undefined)[] = [start_node]
+  const visited = new Set<number>()
+
+  while (stack.length > 0) {
+    const node = stack.pop()
     if (
       node === undefined ||
-      node._version === version ||
+      visited.has(node.id) ||
       iteratee(node) === false
     ) {
       continue
     }
-    node._version = version
+    visited.add(node.id)
     sparse_map_for_each_value(node.prev_nodes, (prev_node) => {
-      TRAVERSAL_STACK[i++] = prev_node
+      stack.push(prev_node)
     })
   }
 }
@@ -176,8 +175,9 @@ export function entity_graph_node_emit_node_created(
   target: EntityGraphNode,
   node: EntityGraphNode,
 ): void {
-  for (let i = 0; i < target.listeners.length; i++) {
-    target.listeners[i]?.node_created?.(node)
+  const listeners = target.listeners
+  for (let i = 0; i < listeners.length; i++) {
+    listeners[i]?.node_created?.(node)
   }
 }
 
@@ -186,8 +186,9 @@ export function entity_graph_node_emit_entities_in(
   node: EntityGraphNode,
   entities: Entity[],
 ): void {
-  for (let i = 0; i < target.listeners.length; i++) {
-    target.listeners[i]?.entities_in?.(entities, node)
+  const listeners = target.listeners
+  for (let i = 0; i < listeners.length; i++) {
+    listeners[i]?.entities_in?.(entities, node)
   }
 }
 
@@ -196,8 +197,9 @@ export function entity_graph_node_emit_entities_out(
   node: EntityGraphNode,
   entities: Entity[],
 ): void {
-  for (let i = 0; i < target.listeners.length; i++) {
-    target.listeners[i]?.entities_out?.(entities, node)
+  const listeners = target.listeners
+  for (let i = 0; i < listeners.length; i++) {
+    listeners[i]?.entities_out?.(entities, node)
   }
 }
 
@@ -205,8 +207,9 @@ export function entity_graph_node_emit_node_destroyed(
   target: EntityGraphNode,
   node: EntityGraphNode,
 ): void {
-  for (let i = 0; i < target.listeners.length; i++) {
-    target.listeners[i]?.node_destroyed?.(node)
+  const listeners = target.listeners
+  for (let i = 0; i < listeners.length; i++) {
+    listeners[i]?.node_destroyed?.(node)
   }
 }
 
@@ -255,18 +258,20 @@ export function entity_graph_node_prune(
   })
 
   // Unlink from all parents
-  for (const parent of parents) {
-    entity_graph_node_unlink(node, parent)
+  for (let i = 0; i < parents.length; i++) {
+    entity_graph_node_unlink(node, parents[i]!)
   }
 
   // Unlink from all children
-  for (const child of children) {
-    entity_graph_node_unlink(child, node)
+  for (let i = 0; i < children.length; i++) {
+    entity_graph_node_unlink(children[i]!, node)
   }
 
   // For each child, potentially link to parents of the pruned node
-  for (const child of children) {
-    for (const parent of parents) {
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i]!
+    for (let j = 0; j < parents.length; j++) {
+      const parent = parents[j]!
       if (vec_is_superset_of(child.vec, parent.vec)) {
         // Check if any other next_nodes of parent are also subsets of child
         let has_more_specific_subset = false
@@ -289,7 +294,7 @@ export function entity_graph_node_prune(
 export type EntityGraph = {
   next_id: number
   readonly by_hash: Map<number, EntityGraphNode>
-  readonly by_entity: (EntityGraphNode | undefined)[]
+  readonly by_entity: SparseMap<EntityGraphNode>
   readonly root: EntityGraphNode
 }
 
@@ -300,7 +305,7 @@ export function make_entity_graph(): EntityGraph {
   return {
     next_id: 1,
     by_hash,
-    by_entity: [],
+    by_entity: make_sparse_map<EntityGraphNode>(),
     root,
   }
 }
@@ -395,26 +400,24 @@ export function entity_graph_get_entity_node(
   graph: EntityGraph,
   entity: Entity,
 ): EntityGraphNode | undefined {
-  return graph.by_entity[entity as number]
+  return sparse_map_get(graph.by_entity, entity as number)
 }
 
 export function entity_graph_for_each_node(
   graph: EntityGraph,
   callback: (node: EntityGraphNode) => void,
 ): void {
-  for (const node of graph.by_hash.values()) {
-    callback(node)
-  }
+  graph.by_hash.forEach(callback)
 }
 
 export function entity_graph_set_entity_node(
   graph: EntityGraph,
   entity: Entity,
   next_node: EntityGraphNode,
-): void {
-  const prev_node = graph.by_entity[entity as number]
+): EntityGraphNode | undefined {
+  const prev_node = sparse_map_get(graph.by_entity, entity as number)
   if (prev_node === next_node) {
-    return
+    return prev_node
   }
   if (prev_node) {
     entity_graph_node_remove_entity(prev_node, entity)
@@ -426,13 +429,14 @@ export function entity_graph_set_entity_node(
     }
   }
   entity_graph_node_add_entity(next_node, entity)
-  graph.by_entity[entity as number] = next_node
+  sparse_map_set(graph.by_entity, entity as number, next_node)
+  return prev_node
 }
 
 export type EntityGraphBatch = {
   readonly entities: SparseSet<Entity>
-  readonly next_node?: EntityGraphNode
-  readonly prev_node?: EntityGraphNode
+  next_node?: EntityGraphNode
+  prev_node?: EntityGraphNode
 }
 
 export function make_entity_graph_batch(
@@ -444,6 +448,28 @@ export function make_entity_graph_batch(
     next_node,
     prev_node,
   }
+}
+
+const BATCH_POOL: EntityGraphBatch[] = []
+
+export function pool_get_batch(
+  prev_node?: EntityGraphNode,
+  next_node?: EntityGraphNode,
+): EntityGraphBatch {
+  const batch = BATCH_POOL.pop()
+  if (batch) {
+    batch.prev_node = prev_node
+    batch.next_node = next_node
+    return batch
+  }
+  return make_entity_graph_batch(prev_node, next_node)
+}
+
+export function pool_return_batch(batch: EntityGraphBatch) {
+  sparse_set_clear(batch.entities)
+  batch.prev_node = undefined
+  batch.next_node = undefined
+  BATCH_POOL.push(batch)
 }
 
 export function entity_graph_batch_add(
@@ -467,7 +493,7 @@ export function entity_graph_batch_each(
   sparse_set_for_each(batch.entities, callback)
 }
 
-export const createEntityBatchKey = (prev_id: number, next_id: number) => {
+export const create_entity_batch_key = (prev_id: number, next_id: number) => {
   return hash_to_uint(hash_word(hash_word(undefined, prev_id), next_id))
 }
 

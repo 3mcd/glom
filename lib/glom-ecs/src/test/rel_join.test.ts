@@ -1,40 +1,43 @@
 import { describe, expect, test } from "bun:test"
 import * as g from "../index"
 
-describe("Relation Join", () => {
+describe("relation integration", () => {
   const Position = g.define_component<{ x: number }>(1000)
   const ChildOf = g.define_relation(1001)
 
   test("simple rel join", () => {
     const world = g.make_world(0)
     const parent = g.spawn(world, [Position({ x: 10 })])
-    const child = g.spawn(world, [Position({ x: 1 }), ChildOf(parent)])
+    g.spawn(world, [Position({ x: 1 }), ChildOf(parent)])
 
     const results: [{ x: number }, { x: number }][] = []
-    const system = (
-      query: g.All<
-        g.Read<typeof Position>,
-        g.Rel<typeof ChildOf, typeof Position>
-      >,
-    ) => {
-      for (const [pos, parent_pos] of query) {
-        results.push([pos, parent_pos])
-      }
-    }
-
-    g.define_system(system, {
-      params: [
-        { all: [{ read: Position }, { rel: [ChildOf, { read: Position }] }] },
-      ],
-    })
+    const system = g.define_system(
+      (
+        query: g.All<
+          g.Read<typeof Position>,
+          g.Rel<typeof ChildOf, typeof Position>
+        >,
+      ) => {
+        for (const [pos, parent_pos] of query) {
+          results.push([pos, parent_pos])
+        }
+      },
+      {
+        params: [
+          { all: [{ read: Position }, { rel: [ChildOf, { read: Position }] }] },
+        ],
+      },
+    )
 
     const schedule = g.make_system_schedule()
     g.add_system(schedule, system)
     g.run_schedule(schedule, world)
 
     expect(results.length).toBe(1)
-    expect(results[0]![0].x).toBe(1)
-    expect(results[0]![1].x).toBe(10)
+    if (results[0]) {
+      expect(results[0][0].x).toBe(1)
+      expect(results[0][1].x).toBe(10)
+    }
   })
 
   test("inner join logic (missing component on object)", () => {
@@ -43,22 +46,23 @@ describe("Relation Join", () => {
     g.spawn(world, [Position({ x: 1 }), ChildOf(parent)]) // child
 
     const results: unknown[][] = []
-    const system = (
-      query: g.All<
-        g.Read<typeof Position>,
-        g.Rel<typeof ChildOf, typeof Position>
-      >,
-    ) => {
-      for (const res of query) {
-        results.push(res)
-      }
-    }
-
-    g.define_system(system, {
-      params: [
-        { all: [{ read: Position }, { rel: [ChildOf, { read: Position }] }] },
-      ],
-    })
+    const system = g.define_system(
+      (
+        query: g.All<
+          g.Read<typeof Position>,
+          g.Rel<typeof ChildOf, typeof Position>
+        >,
+      ) => {
+        for (const res of query) {
+          results.push(res)
+        }
+      },
+      {
+        params: [
+          { all: [{ read: Position }, { rel: [ChildOf, { read: Position }] }] },
+        ],
+      },
+    )
 
     const schedule = g.make_system_schedule()
     g.add_system(schedule, system)
@@ -74,22 +78,23 @@ describe("Relation Join", () => {
     g.spawn(world, [Position({ x: 1 }), ChildOf(p1), ChildOf(p2)]) // child
 
     const results: [{ x: number }, { x: number }][] = []
-    const system = (
-      query: g.All<
-        g.Read<typeof Position>,
-        g.Rel<typeof ChildOf, typeof Position>
-      >,
-    ) => {
-      for (const [pos, parent_pos] of query) {
-        results.push([pos, parent_pos])
-      }
-    }
-
-    g.define_system(system, {
-      params: [
-        { all: [{ read: Position }, { rel: [ChildOf, { read: Position }] }] },
-      ],
-    })
+    const system = g.define_system(
+      (
+        query: g.All<
+          g.Read<typeof Position>,
+          g.Rel<typeof ChildOf, typeof Position>
+        >,
+      ) => {
+        for (const [pos, parent_pos] of query) {
+          results.push([pos, parent_pos])
+        }
+      },
+      {
+        params: [
+          { all: [{ read: Position }, { rel: [ChildOf, { read: Position }] }] },
+        ],
+      },
+    )
 
     const schedule = g.make_system_schedule()
     g.add_system(schedule, system)
@@ -107,37 +112,40 @@ describe("Relation Join", () => {
 
     const grandparent = g.spawn(world, [Name("Grandparent")])
     const parent = g.spawn(world, [Name("Parent"), ChildOf(grandparent)])
-    const child = g.spawn(world, [Name("Child"), ChildOf(parent)])
+    g.spawn(world, [Name("Child"), ChildOf(parent)])
 
     const results: [string, string][] = []
-    const system = (
-      query: g.All<
-        g.Read<typeof Name>,
-        g.Rel<typeof ChildOf, g.Rel<typeof ChildOf, typeof Name>>
-      >,
-    ) => {
-      for (const [name, grandparent_name] of query) {
-        results.push([name, grandparent_name])
-      }
-    }
-
-    g.define_system(system, {
-      params: [
-        {
-          all: [
-            { read: Name },
-            { rel: [ChildOf, { rel: [ChildOf, { read: Name }] }] },
-          ],
-        },
-      ],
-    })
+    const system = g.define_system(
+      (
+        query: g.All<
+          g.Read<typeof Name>,
+          g.Rel<typeof ChildOf, g.Rel<typeof ChildOf, typeof Name>>
+        >,
+      ) => {
+        for (const [name, grandparent_name] of query) {
+          results.push([name, grandparent_name])
+        }
+      },
+      {
+        params: [
+          {
+            all: [
+              { read: Name },
+              { rel: [ChildOf, { rel: [ChildOf, { read: Name }] }] },
+            ],
+          },
+        ],
+      },
+    )
 
     const schedule = g.make_system_schedule()
     g.add_system(schedule, system)
     g.run_schedule(schedule, world)
 
     expect(results.length).toBe(1)
-    expect(results[0]![0]).toBe("Child")
-    expect(results[0]![1]).toBe("Grandparent")
+    if (results[0]) {
+      expect(results[0][0]).toBe("Child")
+      expect(results[0][1]).toBe("Grandparent")
+    }
   })
 })

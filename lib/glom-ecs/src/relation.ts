@@ -15,27 +15,25 @@ export function define_relation(id: number): Relation {
       object,
     } as Relationship
   }) as unknown as Record<string, unknown>
-  rel["id"] = id
-  rel["is_tag"] = true
-  rel["__component_brand"] = true
+  rel.id = id
+  rel.is_tag = true
+  rel.__component_brand = true
   return rel as unknown as Relation
 }
 
-export function is_relation(component: ComponentLike): component is Relation {
+export function is_relation(component: unknown): component is Relation {
   return (
     typeof component === "function" &&
-    "id" in component &&
-    Reflect.get(component, "id") !== undefined
+    component !== null &&
+    "id" in (component as Record<string, unknown>)
   )
 }
 
-export function is_relationship(
-  component: ComponentLike,
-): component is Relationship {
+export function is_relationship(item: unknown): item is Relationship {
   return (
-    typeof component === "object" &&
-    component !== null &&
-    "relation" in component &&
-    is_relation((component as Relationship).relation)
+    typeof item === "object" &&
+    item !== null &&
+    "relation" in item &&
+    is_relation((item as Relationship).relation)
   )
 }

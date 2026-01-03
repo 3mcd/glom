@@ -22,6 +22,7 @@ The registry is designed to support high-performance networking techniques like 
 
 -   **Atomic Operations**: Adding or removing entities from a domain is an atomic and deterministic operation.
 -   **Deterministic IDs**: Within a domain, the `entity_id` increments monotonically. This means if you reset the simulation to a previous state and re-run the same spawning logic, you will get the exact same sequence of entity IDs.
+-   **Operation Sequence (op_seq)**: Each domain tracks a monotonic `op_seq` that increments with every local mutation. This allows remote agents to verify that they have received all operations for a domain in the correct order.
 -   **Stateless Migration**: Because an entity "belongs" to a specific domain for its entire lifecycle, rolling back the simulation of one agent does not affect the ID allocation logic of any other agent.
 -   **Conflict-Free Rebasing**: When a local agent's "predicted" entity creation is eventually confirmed by a server or peer, the deterministic nature of the IDs allows the local state to be rebased onto the authoritative state without conflicts.
 

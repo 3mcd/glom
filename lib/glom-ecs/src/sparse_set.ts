@@ -1,12 +1,12 @@
 export type SparseSet<T extends number = number> = {
   dense: T[]
-  sparse: (number | undefined)[]
+  sparse: Map<number, number>
 }
 
 export function make_sparse_set<T extends number = number>(): SparseSet<T> {
   return {
     dense: [],
-    sparse: [],
+    sparse: new Map(),
   }
 }
 
@@ -14,19 +14,19 @@ export function sparse_set_has<T extends number>(
   set: SparseSet<T>,
   val: T,
 ): boolean {
-  return set.sparse[val] !== undefined
+  return set.sparse.has(val)
 }
 
 export function sparse_set_add<T extends number>(
   set: SparseSet<T>,
   val: T,
 ): number {
-  const idx = set.sparse[val]
+  const idx = set.sparse.get(val)
   if (idx !== undefined) {
     return idx
   }
   const new_idx = set.dense.push(val) - 1
-  set.sparse[val] = new_idx
+  set.sparse.set(val, new_idx)
   return new_idx
 }
 
@@ -41,29 +41,27 @@ export function sparse_set_index_of<T extends number>(
   set: SparseSet<T>,
   val: T,
 ): number {
-  return set.sparse[val] ?? -1
+  return set.sparse.get(val) ?? -1
 }
 
 export function sparse_set_delete<T extends number>(
   set: SparseSet<T>,
   val: T,
 ): void {
-  const idx = set.sparse[val]
+  const idx = set.sparse.get(val)
   if (idx === undefined) {
     return
   }
   const last_val = set.dense[set.dense.length - 1] as T
   set.dense[idx] = last_val
   set.dense.pop()
-  set.sparse[last_val] = idx
-  set.sparse[val] = undefined
+  set.sparse.set(last_val, idx)
+  set.sparse.delete(val)
 }
 
 export function sparse_set_clear<T extends number>(set: SparseSet<T>): void {
-  while (set.dense.length > 0) {
-    const val = set.dense.pop() as T
-    set.sparse[val] = undefined
-  }
+  set.dense.length = 0
+  set.sparse.clear()
 }
 
 export function sparse_set_values<T extends number>(set: SparseSet<T>): T[] {

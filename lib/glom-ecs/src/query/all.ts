@@ -39,3 +39,14 @@ export function All<T extends unknown[]>(...terms: T): { all: T } {
 export function is_all(val: unknown): val is AnyAll {
   return typeof val === "object" && val !== null && "__all" in val
 }
+
+export type In<T extends AnyAll> = T & { readonly __in: T }
+export type Out<T extends AnyAll> = T & { readonly __out: T }
+
+export function In<T extends { all: unknown[] }>(query: T): { in: T } {
+  return { in: query }
+}
+
+export function Out<T extends { all: unknown[] }>(query: T): { out: T } {
+  return { out: query }
+}

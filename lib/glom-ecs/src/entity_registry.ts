@@ -18,7 +18,7 @@ export function make_entity_registry(hi: number): EntityRegistry {
   }
 }
 
-function get_domain(
+export function get_domain(
   registry: EntityRegistry,
   hi: number,
 ): EntityRegistryDomain {
@@ -31,4 +31,8 @@ export function alloc_entity(registry: EntityRegistry, hi: number): Entity {
 
 export function remove_entity(registry: EntityRegistry, entity: Entity) {
   remove_domain_entity(get_domain(registry, get_hi(entity)), entity)
+}
+
+export function next_op_seq(registry: EntityRegistry, hi: number): number {
+  return get_domain(registry, hi).op_seq++
 }

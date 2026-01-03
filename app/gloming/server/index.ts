@@ -7,28 +7,29 @@ const D = g.define_tag(3)
 const Rel = g.define_relation(4)
 
 const system_schedule = g.make_system_schedule()
-const system = (
-  query: g.All<
-    g.Entity,
-    g.Read<typeof A>,
-    g.Rel<typeof Rel, typeof B>,
-    g.Has<typeof D>
-  >,
-  c: g.Write<typeof C>,
-) => {
-  for (const [e, a, b] of query) {
-    console.log(e, a, b)
-  }
-  c.x += 1
-  console.log(c.x)
-}
-
-g.define_system(system, {
-  params: [
-    g.All(g.Entity, g.Read(A), g.Rel(Rel, g.Write(B)), g.Has(D)),
-    g.Write(C),
-  ],
-})
+const system = g.define_system(
+  (
+    query: g.All<
+      g.Entity,
+      g.Read<typeof A>,
+      g.Rel<typeof Rel, typeof B>,
+      g.Has<typeof D>
+    >,
+    c: g.Write<typeof C>,
+  ) => {
+    for (const [e, a, b] of query) {
+      console.log(e, a, b)
+    }
+    c.x += 1
+    console.log(c.x)
+  },
+  {
+    params: [
+      g.All(g.Entity, g.Read(A), g.Rel(Rel, g.Write(B)), g.Has(D)),
+      g.Write(C),
+    ],
+  },
+)
 
 g.add_system(system_schedule, system)
 

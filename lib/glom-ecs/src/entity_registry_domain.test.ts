@@ -12,7 +12,7 @@ describe("entity_registry_domain", () => {
     expect(domain.hi).toBe(5)
     expect(domain.entity_count).toBe(0)
     expect(domain.dense).toEqual([])
-    expect(domain.sparse).toEqual([])
+    expect(domain.sparse.size).toBe(0)
   })
 
   test("alloc_entity", () => {
@@ -21,9 +21,9 @@ describe("entity_registry_domain", () => {
 
     expect(domain.entity_count).toBe(1)
     expect(domain.dense[0]).toBe(entity)
-    expect(domain.sparse[get_lo(entity)]).toBe(0)
+    expect(domain.sparse.get(get_lo(entity))).toBe(0)
     expect(get_hi(entity)).toBe(10)
-    expect(get_lo(entity)).toBe(0)
+    expect(get_lo(entity)).toBe(1)
   })
 
   test("add_entity and remove_entity", () => {
@@ -39,8 +39,8 @@ describe("entity_registry_domain", () => {
     
     expect(domain.entity_count).toBe(1)
     expect(domain.dense[0]).toBe(e2)
-    expect(domain.sparse[get_lo(e2)]).toBe(0)
-    expect(domain.sparse[get_lo(e1)]).toBeUndefined()
+    expect(domain.sparse.get(get_lo(e2))).toBe(0)
+    expect(domain.sparse.get(get_lo(e1))).toBeUndefined()
   })
 
   test("remove non-existent entity", () => {
