@@ -1,6 +1,7 @@
 import type { Component, ComponentLike } from "../component"
 import type {
   HasDescriptor,
+  NotDescriptor,
   ReadDescriptor,
   RelDescriptor,
   WriteDescriptor,
@@ -29,6 +30,10 @@ export interface Has<T extends ComponentLike> {
   readonly __has: T
 }
 
+export interface Not<T extends ComponentLike> {
+  readonly __not: T
+}
+
 export interface Rel<R extends Relation, T extends Term> {
   readonly __rel: [R, T]
 }
@@ -44,21 +49,24 @@ export type TermValue<T extends Term> =
         : never
       : T extends Has<ComponentLike>
         ? void
-        : T extends Rel<Relation, infer U>
-          ? TermValue<U>
-          : T extends Component<infer V>
-            ? V
-            : T extends EntityTerm
-              ? Entity
-              : T extends Entity
+        : T extends Not<ComponentLike>
+          ? void
+          : T extends Rel<Relation, infer U>
+            ? TermValue<U>
+            : T extends Component<infer V>
+              ? V
+              : T extends EntityTerm
                 ? Entity
-                : never
+                : T extends Entity
+                  ? Entity
+                  : never
 
 export type Term =
   | ComponentLike
   | { readonly __read: ComponentLike }
   | { readonly __write: ComponentLike }
   | { readonly __has: ComponentLike }
+  | { readonly __not: ComponentLike }
   | { readonly __rel: [Relation, unknown] }
   | EntityTerm
   | Entity
@@ -83,16 +91,20 @@ export function Has<T extends ComponentLike>(component: T): HasDescriptor<T> {
   return { has: component } as unknown as HasDescriptor<T>
 }
 
+export function Not<T extends ComponentLike>(component: T): NotDescriptor<T> {
+  return { not: component } as unknown as NotDescriptor<T>
+}
+
 export function Rel<R extends Relation, T>(
   relation: R,
-  target: T,
+  object: T,
 ): RelDescriptor<R, T>
 export function Rel<R extends Relation>(relation: R): RelDescriptor<R, R>
 export function Rel<R extends Relation, T>(
   relation: R,
-  target?: T,
+  object?: T,
 ): RelDescriptor<R, T | R> {
-  return { rel: [relation, target ?? relation] } as unknown as RelDescriptor<
+  return { rel: [relation, object ?? relation] } as unknown as RelDescriptor<
     R,
     T | R
   >

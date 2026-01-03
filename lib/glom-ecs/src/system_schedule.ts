@@ -84,9 +84,9 @@ function extract_system_deps(exec: SystemExecutor): SystemDeps {
       const c = term.has as Component<unknown>
       if (c && typeof c.id === "number") reads.add(c.id)
     } else if (is_rel_descriptor(term)) {
-      const [rel, target] = term.rel
+      const [rel, object] = term.rel
       if (rel && typeof rel.id === "number") reads.add(rel.id)
-      add_term_deps(target)
+      add_term_deps(object)
     }
   }
 

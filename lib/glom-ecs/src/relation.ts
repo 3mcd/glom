@@ -1,18 +1,18 @@
 import type { Component, ComponentLike } from "./component"
 import type { Entity } from "./entity"
 
-export type Relation = Component<void> & ((target: Entity) => Relationship)
+export type Relation = Component<void> & ((object: Entity) => Relationship)
 
 export type Relationship = ComponentLike & {
   relation: Relation
-  target: Entity
+  object: Entity
 }
 
 export function define_relation(id: number): Relation {
-  const rel = ((target: Entity): Relationship => {
+  const rel = ((object: Entity): Relationship => {
     return {
       relation: rel as unknown as Relation,
-      target,
+      object,
     } as Relationship
   }) as unknown as Record<string, unknown>
   rel["id"] = id

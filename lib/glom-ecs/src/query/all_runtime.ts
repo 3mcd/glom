@@ -1,4 +1,6 @@
-import type { Component, ComponentLike } from "../component"
+import type { ComponentLike } from "../component"
+import type { AllDescriptor as RawAllDescriptor } from "../descriptors"
+import type { Entity } from "../entity"
 import {
   type EntityGraphNode,
   type EntityGraphNodeListener,
@@ -6,7 +8,7 @@ import {
   entity_graph_node_add_listener,
   entity_graph_node_remove_listener,
 } from "../entity_graph"
-import { type Relation, is_relation, is_relationship } from "../relation"
+import { is_relationship, type Relation } from "../relation"
 import {
   get_or_create_virtual_id,
   get_virtual_component,
@@ -18,34 +20,27 @@ import {
   sparse_map_get,
   sparse_map_set,
 } from "../sparse_map"
-import type { AllDescriptor } from "../system_descriptor"
 import { make_vec, type Vec, vec_is_superset_of } from "../vec"
 import { get_component_store, type World } from "../world"
-import type { All, AnyAll } from "./all"
-import type { Entity } from "../entity"
-import type { Term } from "./term"
+import type { AnyAll } from "./all"
 
 type TermInfo =
   | { type: "entity" }
   | { type: "component"; store: unknown[] | undefined }
   | { type: "has"; component: ComponentLike }
-  | { type: "rel"; relation: Relation; target_term: TermInfo }
+  | { type: "not"; component: ComponentLike }
+  | { type: "rel"; relation: Relation; object_term: TermInfo }
 
-export class AllRuntime
-  implements
-    AnyAll,
-    EntityGraphNodeListener
-{
+export class AllRuntime implements AnyAll, EntityGraphNodeListener {
   readonly __all = true
   readonly nodes = make_sparse_map<EntityGraphNode>()
   private _anchor_node?: EntityGraphNode
   private _world?: World
   private _required_vec?: Vec
+  private _excluded_vecs: Vec[] = []
   private _term_infos: TermInfo[] = []
 
-  constructor(
-    readonly desc: AllDescriptor,
-  ) {}
+  constructor(readonly desc: RawAllDescriptor) {}
 
   *[Symbol.iterator](): Iterator<unknown[]> {
     const world = this._world
@@ -103,41 +98,57 @@ export class AllRuntime
       const val = info.store[index]
       return val === undefined ? [] : [val]
     }
-    if (info.type === "has") {
-      return [undefined]
+    if (info.type === "has" || info.type === "not") {
+      const world = this._world!
+      const actual_node = node ?? world.entity_graph.by_entity[entity as number]
+      if (!actual_node) return info.type === "not" ? [undefined] : []
+
+      const component_id = info.component.id
+      let has_component = false
+      for (let i = 0; i < actual_node.vec.elements.length; i++) {
+        if (actual_node.vec.elements[i]!.id === component_id) {
+          has_component = true
+          break
+        }
+      }
+
+      if (info.type === "has") {
+        return has_component ? [undefined] : []
+      } else {
+        return has_component ? [] : [undefined]
+      }
     }
     if (info.type === "rel") {
       const world = this._world!
-      const actual_node =
-        node ?? world.entity_graph.by_entity[entity as number]
+      const actual_node = node ?? world.entity_graph.by_entity[entity as number]
       if (!actual_node) return []
 
-      const targets = this._get_rel_targets(entity, actual_node, info.relation)
+      const objects = this._get_rel_objects(entity, actual_node, info.relation)
       const results: unknown[] = []
-      for (const target of targets) {
-        results.push(...this._get_term_values(target, info.target_term))
+      for (const object of objects) {
+        results.push(...this._get_term_values(object, info.object_term))
       }
       return results
     }
     return []
   }
 
-  private _get_rel_targets(
+  private _get_rel_objects(
     _entity: Entity,
     node: EntityGraphNode,
     relation: Relation,
   ): Entity[] {
     const world = this._world!
-    const targets: Entity[] = []
-    const rel_id = relation.id
+    const objects: Entity[] = []
+    const relation_id = relation.id
 
     for (const comp of node.vec.elements) {
-      const rel_info = world.relations.virtual_to_relation.get(comp.id)
-      if (rel_info && rel_info.rel_id === rel_id) {
-        targets.push(rel_info.target as Entity)
+      const rel_info = world.relations.virtual_to_rel.get(comp.id)
+      if (rel_info && rel_info.relation_id === relation_id) {
+        objects.push(rel_info.object as Entity)
       }
     }
-    return targets
+    return objects
   }
 
   node_created(node: EntityGraphNode): void {
@@ -146,6 +157,12 @@ export class AllRuntime
       !vec_is_superset_of(node.vec, this._required_vec)
     ) {
       return
+    }
+
+    for (let i = 0; i < this._excluded_vecs.length; i++) {
+      if (vec_is_superset_of(node.vec, this._excluded_vecs[i]!)) {
+        return
+      }
     }
 
     sparse_map_set(this.nodes, node.id, node)
@@ -159,12 +176,13 @@ export class AllRuntime
     this._world = world
 
     // Resolve terms once
-    this._term_infos = this.desc.all.map((term) =>
+    this._term_infos = this.desc.all.map((term: unknown) =>
       this._resolve_term_info(term, world),
     )
 
-    const components = collect_components(this.desc, world)
-    this._required_vec = make_vec(components)
+    const { required, excluded } = collect_components(this.desc, world)
+    this._required_vec = make_vec(required)
+    this._excluded_vecs = excluded.map((c) => make_vec([c]))
 
     this._anchor_node = entity_graph_find_or_create_node(
       world.entity_graph,
@@ -187,14 +205,20 @@ export class AllRuntime
       return {
         type: "rel",
         relation: rel_tuple[0],
-        target_term: this._resolve_term_info(rel_tuple[1], world),
+        object_term: this._resolve_term_info(rel_tuple[1], world),
       }
     }
-    if ("has" in t) {
-      return { type: "has", component: t.has as ComponentLike }
-    }
+
     let component: ComponentLike
-    if ("read" in t) {
+    let type: "component" | "has" | "not" = "component"
+
+    if ("has" in t) {
+      component = t.has as ComponentLike
+      type = "has"
+    } else if ("not" in t) {
+      component = t.not as ComponentLike
+      type = "not"
+    } else if ("read" in t) {
       component = t.read as ComponentLike
     } else if ("write" in t) {
       component = t.write as ComponentLike
@@ -206,9 +230,16 @@ export class AllRuntime
       const vid = get_or_create_virtual_id(
         world,
         component.relation,
-        component.target,
+        component.object,
       )
       component = get_virtual_component(world.relations, vid)
+    }
+
+    if (type === "has") {
+      return { type: "has", component }
+    }
+    if (type === "not") {
+      return { type: "not", component }
     }
 
     return {
@@ -224,32 +255,33 @@ export class AllRuntime
     }
     this._world = undefined
     this._required_vec = undefined
+    this._excluded_vecs = []
     this._term_infos = []
     sparse_map_clear(this.nodes)
   }
 }
 
-export function make_all(
-  desc: AllDescriptor,
-): All {
-  return new AllRuntime(desc) as unknown as All
+export function make_all(desc: RawAllDescriptor): AnyAll {
+  return new AllRuntime(desc)
 }
 
 function collect_components(
-  desc: AllDescriptor,
+  desc: RawAllDescriptor,
   world: World,
-): ComponentLike[] {
-  const components: ComponentLike[] = []
+): { required: ComponentLike[]; excluded: ComponentLike[] } {
+  const required: ComponentLike[] = []
+  const excluded: ComponentLike[] = []
   for (let i = 0; i < desc.all.length; i++) {
     const term = desc.all[i]!
-    add_term_components(term, components, world)
+    add_term_components(term, required, excluded, world)
   }
-  return components
+  return { required, excluded }
 }
 
 function add_term_components(
   term: unknown,
-  components: ComponentLike[],
+  required: ComponentLike[],
+  excluded: ComponentLike[],
   world: World,
 ) {
   if (typeof term !== "object" || term === null) return
@@ -257,7 +289,7 @@ function add_term_components(
 
   if ("rel" in t) {
     const rel_tuple = t.rel as [Relation, unknown]
-    components.push(rel_tuple[0])
+    required.push(rel_tuple[0])
     return
   }
   if ("entity" in t) {
@@ -265,29 +297,35 @@ function add_term_components(
   }
 
   let component: ComponentLike
+  let is_excluded = false
   if ("read" in t) {
     component = t.read as ComponentLike
   } else if ("write" in t) {
     component = t.write as ComponentLike
   } else if ("has" in t) {
     component = t.has as ComponentLike
+  } else if ("not" in t) {
+    component = t.not as ComponentLike
+    is_excluded = true
   } else {
     component = term as ComponentLike
   }
+
+  const target = is_excluded ? excluded : required
 
   if (is_relationship(component)) {
     const vid = get_or_create_virtual_id(
       world,
       component.relation,
-      component.target,
+      component.object,
     )
-    components.push(get_virtual_component(world.relations, vid))
+    target.push(get_virtual_component(world.relations, vid))
   } else if (
     component &&
     (typeof component === "object" || typeof component === "function") &&
     "id" in component
   ) {
-    components.push(component)
+    target.push(component)
   }
 }
 

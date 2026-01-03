@@ -11,6 +11,9 @@ export type WriteDescriptor<T = unknown> = {
 export type HasDescriptor<T extends ComponentLike = ComponentLike> = {
   has: T
 }
+export type NotDescriptor<T extends ComponentLike = ComponentLike> = {
+  not: T
+}
 export type RelDescriptor<R extends Relation = Relation, T = unknown> = {
   rel: [R, T]
 }
@@ -44,6 +47,12 @@ export function is_write_descriptor(desc: unknown): desc is WriteDescriptor {
 export function is_has_descriptor(desc: unknown): desc is HasDescriptor {
   return (
     typeof desc === "object" && desc !== null && "has" in (desc as Record<string, unknown>)
+  )
+}
+
+export function is_not_descriptor(desc: unknown): desc is NotDescriptor {
+  return (
+    typeof desc === "object" && desc !== null && "not" in (desc as Record<string, unknown>)
   )
 }
 

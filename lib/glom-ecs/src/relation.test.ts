@@ -61,7 +61,7 @@ describe("Entity Relations Combined", () => {
     run_schedule(schedule2, world)
     expect(children).toContain("Child")
 
-    // 3. Cleanup on target destruction
+    // 3. Cleanup on object destruction
     despawn(world, parent)
     const childrenAfter = [] as string[]
     const system3 = (query: All<Entity, Read<typeof Name>, Has<Relation>>) => {

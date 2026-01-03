@@ -11,7 +11,7 @@
 - **Hi Bits (Provenance)**: The upper 11 bits of an `Entity` integer, used to identify the agent or server that originally created the entity.
 - **Lo Bits (ID)**: The lower 20 bits of an `Entity` integer, representing a unique, auto-incrementing, and recycled identifier within a provenance domain.
 - **Producer-Consumer**: A scheduling rule where systems that **Write** to a component are always executed before systems that **Read** from the same component.
-- **Provenance**: The origin or source of an entity in a multi-agent system, encoded in the entity's high bits to avoid ID collisions in distributed environments.
+- **Provenance**: The origin or subject of an entity in a multi-agent system, encoded in the entity's high bits to avoid ID collisions in distributed environments.
 - **SMI (Small Integer)**: An optimization in JavaScript engines (like V8) where 31-bit integers are stack-allocated and stored directly in pointers, avoiding heap allocation and garbage collection.
 - **Sparse Map / Sparse Set**: High-performance data structures used for O(1) lookups and efficient iteration over entities and components.
 - **System**: A function containing the logic of the application. Systems are registered in a **Schedule** and operate on data requested through their arguments.

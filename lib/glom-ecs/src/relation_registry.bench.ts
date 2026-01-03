@@ -38,19 +38,19 @@ group("relation registry operations", () => {
 
   bench("register_incoming_relation", () => {
     for (let i = 0; i < 1000; i++) {
-      const source = entities[i % entity_count]!
-      const target = entities[(i + 1) % entity_count]!
+      const subject = entities[i % entity_count]!
+      const object = entities[(i + 1) % entity_count]!
       const rel = relations[i % relation_count]!
-      register_incoming_relation(world, source, rel.id, target)
+      register_incoming_relation(world, subject, rel.id, object)
     }
   })
 
   bench("unregister_incoming_relation", () => {
     for (let i = 0; i < 1000; i++) {
-      const source = entities[i % entity_count]!
-      const target = entities[(i + 1) % entity_count]!
+      const subject = entities[i % entity_count]!
+      const object = entities[(i + 1) % entity_count]!
       const rel = relations[i % relation_count]!
-      unregister_incoming_relation(world, source, rel.id, target)
+      unregister_incoming_relation(world, subject, rel.id, object)
     }
   })
 })

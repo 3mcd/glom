@@ -7,6 +7,7 @@ import {
 import type { AllDescriptor } from "../system_descriptor"
 import { make_world, set_component_value } from "../world"
 import { AllRuntime, make_all, setup_all, teardown_all } from "./all_runtime"
+import { spawn } from "../world_api"
 
 describe("all_runtime", () => {
   const c1 = define_component<{ val: number }>(1)
@@ -117,6 +118,56 @@ describe("all_runtime", () => {
     const results = Array.from(all)
     expect(results).toHaveLength(1)
     expect(results[0]).toEqual([e1, undefined, { val: 70 }])
+  })
+
+  test("iterator with Not filter", () => {
+    const c3 = define_component<{ val: number }>(3)
+    const descWithNot: AllDescriptor<unknown, unknown> = {
+      all: [{ read: c1 }, { not: c3 }],
+    } as unknown as AllDescriptor<unknown, unknown>
+
+    const world = make_world(0)
+    const all = make_all(descWithNot) as AllRuntime
+    setup_all(all, world)
+
+    spawn(world, [{ component: c1, value: { val: 10 } }]) // Has c1, no c3
+    spawn(world, [
+      { component: c1, value: { val: 20 } },
+      { component: c3, value: { val: 30 } },
+    ]) // Has c1 and c3
+
+    const results = Array.from(all)
+    expect(results).toHaveLength(1)
+    expect(results[0]).toEqual([{ val: 10 }, undefined])
+  })
+
+  test("iterator with Rel and Not filter", () => {
+    const world = make_world(0)
+    const rel = define_tag(100)
+    const c3 = define_component<{ val: number }>(3)
+
+    // Rel(rel, Not(c3))
+    const descWithRelNot: AllDescriptor<unknown> = {
+      all: [{ rel: [rel, { not: c3 }] }],
+    } as unknown as AllDescriptor<unknown>
+
+    const all = make_all(descWithRelNot) as AllRuntime
+    setup_all(all, world)
+
+    const obj1 = spawn(world, []) // No c3
+    const obj2 = spawn(world, [{ component: c3, value: { val: 30 } }])
+
+    // e1 -> obj1 (rel)
+    // e1 -> obj2 (rel)
+    spawn(world, [
+      { relation: rel, object: obj1 },
+      { relation: rel, object: obj2 },
+    ])
+
+    const results = Array.from(all)
+    // results should be [ [undefined] ] for obj1 only
+    expect(results).toHaveLength(1)
+    expect(results[0]).toEqual([undefined])
   })
 
   test("teardown_all removes listener and clears nodes", () => {

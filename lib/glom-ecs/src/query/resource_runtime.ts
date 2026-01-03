@@ -2,11 +2,12 @@ import { assert_defined } from "../assert"
 import type { Component, ComponentLike } from "../component"
 import type {
   HasDescriptor,
+  NotDescriptor,
   ReadDescriptor,
   WriteDescriptor,
 } from "../descriptors"
 import { get_resource, has_resource, type World } from "../world"
-import type { Has, Read, Write } from "./term"
+import type { Has, Not, Read, Write } from "./term"
 
 export function make_read<T>(
   desc: ReadDescriptor<T>,
@@ -35,4 +36,15 @@ export function make_has<T extends ComponentLike>(
     throw new Error(`Resource ${desc.has.id} not found`)
   }
   return undefined as unknown as Has<T>
+}
+
+export function make_not<T extends ComponentLike>(
+  desc: NotDescriptor<T>,
+  world: World,
+): Not<T> {
+  const exists = has_resource(world, desc.not)
+  if (exists) {
+    throw new Error(`Resource ${desc.not.id} should not exist`)
+  }
+  return undefined as unknown as Not<T>
 }

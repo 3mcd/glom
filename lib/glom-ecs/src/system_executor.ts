@@ -1,12 +1,18 @@
 import { assert_defined } from "./assert"
 import { is_all } from "./query/all"
 import { make_all, setup_all, teardown_all } from "./query/all_runtime"
-import { make_has, make_read, make_write } from "./query/resource_runtime"
+import {
+  make_has,
+  make_not,
+  make_read,
+  make_write,
+} from "./query/resource_runtime"
 import type { System } from "./system"
 import type { SystemArgument } from "./system_argument"
 import {
   is_all_descriptor,
   is_has_descriptor,
+  is_not_descriptor,
   is_read_descriptor,
   is_write_descriptor,
   type SystemDescriptor,
@@ -52,6 +58,8 @@ export function setup_system_executor<
       args[i] = make_write(desc, world)
     } else if (is_has_descriptor(desc)) {
       args[i] = make_has(desc, world)
+    } else if (is_not_descriptor(desc)) {
+      args[i] = make_not(desc, world)
     }
   }
 }

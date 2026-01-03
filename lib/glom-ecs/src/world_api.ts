@@ -47,10 +47,10 @@ export function spawn(
       )
     } else if (item) {
       if (is_relationship(item)) {
-        const vid = get_or_create_virtual_id(world, item.relation, item.target)
+        const vid = get_or_create_virtual_id(world, item.relation, item.object)
         resolved_components.push(get_virtual_component(world.relations, vid))
         resolved_components.push(item.relation) // Wildcard tag
-        register_incoming_relation(world, entity, item.relation.id, item.target)
+        register_incoming_relation(world, entity, item.relation.id, item.object)
       } else {
         resolved_components.push(item)
       }
@@ -70,25 +70,25 @@ export function despawn(world: World, entity: Entity): void {
     return
   }
 
-  // 1. Clean up incoming relations where THIS entity is the target
-  const incoming = world.relations.target_to_incoming.get(entity)
+  // 1. Clean up incoming relations where THIS entity is the object
+  const incoming = world.relations.object_to_subjects.get(entity)
   if (incoming) {
     const to_remove = Array.from(incoming)
-    for (const { source, rel_id } of to_remove) {
-      remove_relation(world, source as Entity, rel_id, entity)
+    for (const { subject, relation_id } of to_remove) {
+      remove_relation(world, subject as Entity, relation_id, entity)
     }
-    world.relations.target_to_incoming.delete(entity)
+    world.relations.object_to_subjects.delete(entity)
   }
 
-  // 2. Clean up outgoing relations where THIS entity is the source
+  // 2. Clean up outgoing relations where THIS entity is the subject
   for (const comp of node.vec.elements) {
-    const rel = world.relations.virtual_to_relation.get(comp.id)
+    const rel = world.relations.virtual_to_rel.get(comp.id)
     if (rel) {
       unregister_incoming_relation(
         world,
         entity,
-        rel.rel_id,
-        rel.target as Entity,
+        rel.relation_id,
+        rel.object as Entity,
       )
     }
   }
@@ -117,13 +117,13 @@ export function despawn(world: World, entity: Entity): void {
 function remove_relation(
   world: World,
   entity: Entity,
-  rel_id: number,
-  target: Entity,
+  relation_id: number,
+  object: Entity,
 ): void {
   const node = entity_graph_get_entity_node(world.entity_graph, entity)
   if (!node) return
 
-  const virtual_id = get_virtual_id(world.relations, rel_id, target)
+  const virtual_id = get_virtual_id(world.relations, relation_id, object)
   if (virtual_id === undefined) return
 
   const vid_comp = get_virtual_component(world.relations, virtual_id)
@@ -135,15 +135,15 @@ function remove_relation(
   // Check if we should also remove the wildcard tag
   let has_other_relations = false
   for (const comp of next_vec.elements) {
-    const rel = world.relations.virtual_to_relation.get(comp.id)
-    if (rel && rel.rel_id === rel_id) {
+    const rel = world.relations.virtual_to_rel.get(comp.id)
+    if (rel && rel.relation_id === relation_id) {
       has_other_relations = true
       break
     }
   }
 
   if (!has_other_relations) {
-    const rel_tag = define_tag(rel_id) // We need the component object for the ID
+    const rel_tag = define_tag(relation_id) // We need the component object for the ID
     next_vec = vec_difference(
       next_vec,
       make_vec([rel_tag as Component<unknown>]),
@@ -177,10 +177,10 @@ export function add_component(
     )
   } else if (item) {
     if (is_relationship(item)) {
-      const vid = get_or_create_virtual_id(world, item.relation, item.target)
+      const vid = get_or_create_virtual_id(world, item.relation, item.object)
       to_add.push(get_virtual_component(world.relations, vid))
       to_add.push(item.relation) // Wildcard tag
-      register_incoming_relation(world, entity, item.relation.id, item.target)
+      register_incoming_relation(world, entity, item.relation.id, item.object)
     } else {
       to_add.push(item)
     }
