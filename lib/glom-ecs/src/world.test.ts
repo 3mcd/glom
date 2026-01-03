@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/style/noNonNullAssertion: tests */
 import { describe, expect, test } from "bun:test"
 import { define_component, define_tag } from "./component"
 import { make_entity, RESOURCE_ENTITY } from "./entity"
@@ -26,7 +27,7 @@ describe("world_storage", () => {
     // Check that it's in the store at the mapped index, not the lo ID
     const index = world_get_or_create_index(world, entity)
     const store = get_component_store(world, Position)
-    expect(store[index]).toEqual({ x: 1, y: 2 })
+    expect(store![index]).toEqual({ x: 1, y: 2 })
   })
 
   test("handle hi/lo ID collisions via dense mapping", () => {
@@ -79,10 +80,10 @@ describe("world_storage", () => {
 
     add_resource(world, IsRunning())
     expect(get_resource(world, IsRunning)).toBeUndefined() // void value is undefined
-    expect(world.resource_tags.has(IsRunning.id)).toBe(true)
+    expect(world.components.resource_tags.has(IsRunning.id)).toBe(true)
 
     delete_component_value(world, RESOURCE_ENTITY, IsRunning)
-    expect(world.resource_tags.has(IsRunning.id)).toBe(false)
+    expect(world.components.resource_tags.has(IsRunning.id)).toBe(false)
   })
 
   test("regular components as resources", () => {

@@ -9,10 +9,7 @@ export function make_read<T>(
 ): Read<Component<T>> {
   const value = get_resource(world, desc.read)
   assert_defined(value)
-  return {
-    __read: desc.read,
-    value: value as T,
-  }
+  return value as unknown as Read<Component<T>>
 }
 
 export function make_write<T>(
@@ -21,8 +18,5 @@ export function make_write<T>(
 ): Write<Component<T>> {
   const value = get_resource(world, desc.write)
   assert_defined(value)
-  return {
-    __write: desc.write,
-    value: value as T,
-  }
+  return value as unknown as Write<Component<T>>
 }

@@ -328,12 +328,12 @@ export function entity_graph_link_nodes_traverse(
       return true
     }
     if (is_superset) {
-      entity_graph_node_link(visited, node)
       sparse_map_for_each(visited.prev_nodes, (xor, prev_node) => {
         if (vec_is_superset_of(node.vec, prev_node.vec)) {
           entity_graph_node_unlink(visited, prev_node, xor)
         }
       })
+      entity_graph_node_link(visited, node)
       return false
     }
     return true

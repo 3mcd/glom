@@ -13,7 +13,16 @@ export type Vec = {
 }
 
 export function make_vec(components: Component<any>[]): Vec {
-  const elements = components.slice().sort((a, b) => a.id - b.id)
+  const elements: Component<any>[] = []
+  const seen = new Set<number>()
+  for (let i = 0; i < components.length; i++) {
+    const c = components[i]!
+    if (!seen.has(c.id)) {
+      elements.push(c)
+      seen.add(c.id)
+    }
+  }
+  elements.sort((a, b) => a.id - b.id)
   return make_vec_sorted(elements)
 }
 
@@ -79,7 +88,7 @@ export function vec_xor_hash(a: Vec, b: Vec): number {
     xor = hash_word(xor, b_id)
     b_idx++
   }
-  return xor
+  return xor >>> 0
 }
 
 export function vec_is_superset_of(a: Vec, b: Vec): boolean {

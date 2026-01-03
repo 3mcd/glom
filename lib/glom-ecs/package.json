@@ -14,6 +14,6 @@
   },
   "main": "dist/glom-ecs.cjs.js",
   "scripts": {
-    "bench": "bun run src/entity_graph.bench.ts"
+    "bench": "for f in src/*.bench.ts; do bun run $f; done"
   }
 }

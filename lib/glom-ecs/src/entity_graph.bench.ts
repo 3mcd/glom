@@ -1,4 +1,4 @@
-// biome-ignore-all lint/style/noNonNullAssertion: useful in tests
+// biome-ignore-all lint/style/noNonNullAssertion: tests
 import { bench, group, run } from "mitata"
 import { define_component } from "./component"
 import type { Entity } from "./entity"

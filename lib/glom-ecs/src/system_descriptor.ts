@@ -6,13 +6,15 @@ type TermDescriptor<T> = T extends { readonly __read: infer U }
   ? { read: U }
   : T extends { readonly __write: infer U }
     ? { write: U }
-    : T extends number
-      ? { entity: true }
-      : T extends { readonly entity: true }
+    : T extends { readonly __rel: [infer R, infer U] }
+      ? { rel: [R, TermDescriptor<U>] }
+      : T extends number
         ? { entity: true }
-        : T extends { readonly __component_brand: true }
-          ? { write: T } | { read: T }
-          : never
+        : T extends { readonly entity: true }
+          ? { entity: true }
+          : T extends { readonly __component_brand: true }
+            ? { write: T } | { read: T }
+            : never
 
 type MapTerms<T> = T extends [infer Head, ...infer Tail]
   ? [TermDescriptor<Head>, ...MapTerms<Tail>]

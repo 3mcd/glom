@@ -1,13 +1,13 @@
 export type SparseMap<T = unknown> = {
   dense: T[]
-  sparse: (number | undefined)[]
+  sparse: Map<number, number>
   indices: number[]
 }
 
 export function make_sparse_map<T = unknown>(): SparseMap<T> {
   return {
     dense: [],
-    sparse: [],
+    sparse: new Map(),
     indices: [],
   }
 }
@@ -16,7 +16,7 @@ export function sparse_map_get<T>(
   map: SparseMap<T>,
   key: number,
 ): T | undefined {
-  const d_idx = map.sparse[key]
+  const d_idx = map.sparse.get(key)
   if (d_idx === undefined) {
     return undefined
   }
@@ -28,9 +28,9 @@ export function sparse_map_set<T>(
   key: number,
   value: T,
 ): void {
-  const d_idx = map.sparse[key]
+  const d_idx = map.sparse.get(key)
   if (d_idx === undefined) {
-    map.sparse[key] = map.dense.length
+    map.sparse.set(key, map.dense.length)
     map.dense.push(value)
     map.indices.push(key)
   } else {
@@ -39,11 +39,11 @@ export function sparse_map_set<T>(
 }
 
 export function sparse_map_has(map: SparseMap, key: number): boolean {
-  return map.sparse[key] !== undefined
+  return map.sparse.has(key)
 }
 
 export function sparse_map_delete<T>(map: SparseMap<T>, key: number): void {
-  const idx = map.sparse[key]
+  const idx = map.sparse.get(key)
   if (idx === undefined) {
     return
   }
@@ -53,8 +53,8 @@ export function sparse_map_delete<T>(map: SparseMap<T>, key: number): void {
   map.dense.pop()
   map.indices[idx] = last_key
   map.indices.pop()
-  map.sparse[last_key] = idx
-  map.sparse[key] = undefined
+  map.sparse.set(last_key, idx)
+  map.sparse.delete(key)
 }
 
 export function sparse_map_size(map: SparseMap): number {
@@ -62,11 +62,9 @@ export function sparse_map_size(map: SparseMap): number {
 }
 
 export function sparse_map_clear(map: SparseMap): void {
-  while (map.indices.length > 0) {
-    const key = map.indices.pop() as number
-    map.dense.pop()
-    map.sparse[key] = undefined
-  }
+  map.dense.length = 0
+  map.indices.length = 0
+  map.sparse.clear()
 }
 
 export function sparse_map_to_sparse_array<T>(

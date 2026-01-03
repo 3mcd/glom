@@ -5,8 +5,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "bun run dev.arpg",
-    "dev.arpg": "bun run --elide-lines=0 --filter=example dev",
+    "dev": "bun run dev.gloming",
+    "dev.gloming": "bun run --elide-lines=0 --filter=gloming dev",
     "dev.share": "ngrok start --config ngrok.yml frontend backend",
     "test": "bun run --elide-lines=0 --filter=* test",
     "bench": "bun run --elide-lines=0 --filter=* bench"

@@ -7,7 +7,12 @@ export {
 } from "./component"
 export { ENTITY, type Entity } from "./entity"
 export type { All } from "./query/all"
-export type { Read, Write } from "./query/term"
+export type { Read, Rel, Write } from "./query/term"
+export {
+  define_relationship,
+  type Relationship,
+  type RelationshipInstance,
+} from "./relation"
 export { define_system } from "./system"
 export {
   add_system,
@@ -22,3 +27,4 @@ export {
   set_component_value,
   type World,
 } from "./world"
+export { add_component, despawn, spawn } from "./world_api"

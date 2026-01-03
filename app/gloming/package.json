@@ -1,5 +1,5 @@
 {
-  "name": "arpg",
+  "name": "gloming",
   "module": "index.ts",
   "type": "module",
   "private": true,
@@ -11,5 +11,8 @@
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "scripts": {
+    "dev": "bun run server/index.ts"
   }
 }

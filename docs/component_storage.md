@@ -35,9 +35,9 @@ When a system runs, it can grab references to the relevant component stores once
 
 ```typescript
 // Conceptual optimized system loop
-const pos_store = world.storage[Position.id];
-const vel_store = world.storage[Velocity.id];
-const mapping = world.entity_to_index.sparse;
+const pos_store = world.components.storage[Position.id];
+const vel_store = world.components.storage[Velocity.id];
+const mapping = world.index.entity_to_index.sparse;
 
 for (const id of entities) {
   const idx = mapping[id]; // Direct lookup of local index

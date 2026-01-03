@@ -135,9 +135,7 @@ describe("all_runtime", () => {
   })
 
   test("teardown_all removes listener and clears nodes", () => {
-    const world = {
-      entity_graph: make_entity_graph(),
-    } as World
+    const world = make_world(0)
     const all = make_all(desc) as AllRuntime
 
     setup_all(all, world)
