@@ -174,7 +174,11 @@ function transformSystem(
     const isAll = isGlomAllType(type)
 
     if (isAll && typeNode && ts.isTypeReferenceNode(typeNode)) {
-      const terms = extractAllTermsFromNode(typeNode, context.factory)
+      const terms = extractAllTermsFromNode(
+        typeNode,
+        context.factory,
+        typeChecker,
+      )
       if (terms.length > 0) {
         if (ts.isIdentifier(param.name)) {
           allQueryInfos.push({
@@ -182,9 +186,6 @@ function transformSystem(
             terms,
           })
         }
-        paramDescriptors.push(generateAllDescriptor(terms, context.factory))
-        isGlomSystem = true
-        continue
       }
     }
 
@@ -307,15 +308,25 @@ function wrapWithMetadata(
 }
 
 function isGlomAllType(type: ts.Type): boolean {
-  if (type.getProperty("__all")) return true
+  if (
+    type.getProperty("__all") ||
+    type.getProperty("__in") ||
+    type.getProperty("__out")
+  )
+    return true
   const symbol = type.getSymbol() || type.aliasSymbol
   if (!symbol) return false
-  if (symbol.getName() === "All") return true
+  const name = symbol.getName()
+  if (name === "All" || name === "In" || name === "Out") return true
 
   const target = (type as {target?: ts.Type}).target
   if (target) {
     const targetSymbol = target.getSymbol() || target.aliasSymbol
-    if (targetSymbol && targetSymbol.getName() === "All") return true
+    if (targetSymbol) {
+      const targetName = targetSymbol.getName()
+      if (targetName === "All" || targetName === "In" || targetName === "Out")
+        return true
+    }
   }
   return false
 }
@@ -323,7 +334,37 @@ function isGlomAllType(type: ts.Type): boolean {
 function extractAllTermsFromNode(
   typeNode: ts.TypeReferenceNode,
   factory: ts.NodeFactory,
+  typeChecker: ts.TypeChecker,
 ): QueryTerm[] {
+  const typeName = typeNode.typeName
+  const name = ts.isIdentifier(typeName)
+    ? typeName.text
+    : ts.isQualifiedName(typeName)
+      ? typeName.right.text
+      : ""
+
+  if ((name === "In" || name === "Out") && typeNode.typeArguments?.[0]) {
+    const inner = typeNode.typeArguments[0]
+    if (ts.isTypeReferenceNode(inner)) {
+      return extractAllTermsFromNode(inner, factory, typeChecker)
+    }
+  }
+
+  if (typeNode.typeArguments === undefined) {
+    const type = typeChecker.getTypeAtLocation(typeNode)
+    const symbol = type.aliasSymbol || type.getSymbol()
+    if (symbol) {
+      const decl = symbol.declarations?.[0]
+      if (
+        decl &&
+        ts.isTypeAliasDeclaration(decl) &&
+        ts.isTypeReferenceNode(decl.type)
+      ) {
+        return extractAllTermsFromNode(decl.type, factory, typeChecker)
+      }
+    }
+  }
+
   const terms: QueryTerm[] = []
   let storeIndex = 0
   let joinIndex = 0
@@ -502,6 +543,40 @@ function generateParamDescriptor(
       ? typeName.right.text
       : ""
 
+  const symbol = type.getSymbol() || type.aliasSymbol
+  const actualName = symbol?.getName()
+
+  if (actualName === "In" || type.getProperty("__in")) {
+    return factory.createObjectLiteralExpression([
+      factory.createPropertyAssignment(
+        "in",
+        generateAllDescriptor(
+          extractAllTermsFromNode(node, factory, typeChecker),
+          factory,
+        ),
+      ),
+    ])
+  }
+
+  if (actualName === "Out" || type.getProperty("__out")) {
+    return factory.createObjectLiteralExpression([
+      factory.createPropertyAssignment(
+        "out",
+        generateAllDescriptor(
+          extractAllTermsFromNode(node, factory, typeChecker),
+          factory,
+        ),
+      ),
+    ])
+  }
+
+  if (isGlomAllType(type)) {
+    return generateAllDescriptor(
+      extractAllTermsFromNode(node, factory, typeChecker),
+      factory,
+    )
+  }
+
   switch (name) {
     case "Read":
       return factory.createObjectLiteralExpression([
@@ -588,7 +663,7 @@ function rewriteSystemFunction(
   const queryMap = new Map(queryInfos.map((q) => [q.paramName, q.terms]))
   const usedQueries = new Set<string>()
 
-  const visitor = (node: ts.Node): ts.Node => {
+  const transformNode = (node: ts.Node): ts.Node => {
     if (ts.isForOfStatement(node)) {
       const expression = node.expression
       if (ts.isIdentifier(expression)) {
@@ -608,9 +683,14 @@ function rewriteSystemFunction(
 
           let loopBody: ts.Statement[] = []
           if (ts.isBlock(node.statement)) {
-            loopBody = [...node.statement.statements]
+            loopBody = ts.visitNodes(
+              node.statement.statements,
+              transformNode,
+            ) as unknown as ts.Statement[]
           } else {
-            loopBody = [node.statement]
+            loopBody = [
+              ts.visitNode(node.statement, transformNode) as ts.Statement,
+            ]
           }
 
           if (loopBody.length > 0) {
@@ -628,10 +708,10 @@ function rewriteSystemFunction(
         }
       }
     }
-    return ts.visitEachChild(node, visitor, context)
+    return ts.visitEachChild(node, transformNode, context)
   }
 
-  const updatedBody = ts.visitNode(originalBody, visitor) as ts.Block
+  const updatedBody = ts.visitNode(originalBody, transformNode) as ts.Block
 
   const preambles: ts.Statement[] = []
   usedQueries.forEach((paramName) => {
