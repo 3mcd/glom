@@ -1,4 +1,4 @@
-import { Replicated } from "./replication"
+import { Replicated } from "./replication_config"
 import { get_component_value, set_component_value, type World } from "./world"
 import type { SnapshotBlock, SnapshotMessage } from "./net_types"
 import type { Entity } from "./entity"

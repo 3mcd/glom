@@ -1,17 +1,17 @@
 import { describe, expect, test } from "bun:test"
 import { define_component, define_tag } from "../component"
-import { ENTITY } from "../entity"
+import { Entity } from "../entity"
 import { make_world } from "../world"
-import { setup_all } from "./all_runtime"
-import { make_in, make_out } from "./monitor_runtime"
 import {
   add_component,
   despawn,
   remove_component,
   spawn,
-  world_flush_graph_changes,
   world_flush_deletions,
+  world_flush_graph_changes,
 } from "../world_api"
+import { setup_all } from "./all_runtime"
+import { make_in, make_out } from "./monitor_runtime"
 
 describe("monitor_runtime", () => {
   const Position = define_component<{ x: number; y: number }>()
@@ -20,7 +20,7 @@ describe("monitor_runtime", () => {
 
   test("In<Q> catches new matching entities after flush", () => {
     const world = make_world(0, schema)
-    const query = { all: [ENTITY, { read: Position }] }
+    const query = { all: [Entity, { read: Position }] }
     const monitor = make_in({ in: query })
     setup_all(monitor, world)
 
@@ -44,7 +44,7 @@ describe("monitor_runtime", () => {
 
   test("Out<Q> catches entities that no longer match", () => {
     const world = make_world(0, schema)
-    const query = { all: [ENTITY, { read: Position }] }
+    const query = { all: [Entity, { read: Position }] }
     const monitor = make_out({ out: query })
     setup_all(monitor, world)
 
@@ -72,7 +72,7 @@ describe("monitor_runtime", () => {
 
   test("Out<Q> catches despawned entities", () => {
     const world = make_world(0, schema)
-    const query = { all: [ENTITY, { read: Position }] }
+    const query = { all: [Entity, { read: Position }] }
     const monitor = make_out({ out: query })
     setup_all(monitor, world)
 
@@ -91,8 +91,8 @@ describe("monitor_runtime", () => {
 
   test("Transaction Reduction: Spawn then Despawn in same tick is a no-op", () => {
     const world = make_world(0, schema)
-    const in_monitor = make_in({ in: { all: [ENTITY] } })
-    const out_monitor = make_out({ out: { all: [ENTITY] } })
+    const in_monitor = make_in({ in: { all: [Entity] } })
+    const out_monitor = make_out({ out: { all: [Entity] } })
     setup_all(in_monitor, world)
     setup_all(out_monitor, world)
 
@@ -107,7 +107,7 @@ describe("monitor_runtime", () => {
 
   test("Transaction Reduction: Add then Remove in same tick is a no-op", () => {
     const world = make_world(0, schema)
-    const query = { all: [ENTITY, { has: Tag }] }
+    const query = { all: [Entity, { has: Tag }] }
     const in_monitor = make_in({ in: query })
     const out_monitor = make_out({ out: query })
     setup_all(in_monitor, world)
@@ -134,7 +134,7 @@ describe("monitor_runtime", () => {
     const C = define_tag()
     const world = make_world(0, [A, B, C])
 
-    const monitor_B = make_in({ in: { all: [ENTITY, { has: B }] } })
+    const monitor_B = make_in({ in: { all: [Entity, { has: B }] } })
     setup_all(monitor_B, world)
 
     const e = spawn(world, [A])
@@ -178,4 +178,3 @@ describe("monitor_runtime", () => {
     expect(world.index.entity_to_index.dense).toHaveLength(0)
   })
 })
-

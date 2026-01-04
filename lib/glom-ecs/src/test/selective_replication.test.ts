@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { define_component } from "../component"
-import { apply_transaction, Replicated, type Transaction } from "../replication"
+import { apply_transaction, type Transaction } from "../replication"
+import { Replicated } from "../replication_config"
 import { get_component_value, make_world } from "../world"
 import { add_component, commit_transaction, despawn, spawn } from "../world_api"
 

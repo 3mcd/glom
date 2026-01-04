@@ -1,14 +1,23 @@
 import { prune_commands } from "./command"
 import { get_hi } from "./entity"
 import { rollback_to_tick } from "./history"
+import { Read, World as WorldTerm } from "./query/term"
 import {
   apply_transaction,
   TRANSIENT_DOMAIN,
   type Transaction,
 } from "./replication"
+import { ReplicationConfig } from "./replication_config"
+import { apply_snapshot_stream } from "./snapshot_stream"
+import { define_system } from "./system"
 import { run_schedule, type SystemSchedule } from "./system_schedule"
 import type { World } from "./world"
-import { advance_tick, commit_transaction, despawn, world_flush_graph_changes } from "./world_api"
+import {
+  advance_tick,
+  commit_transaction,
+  despawn,
+  world_flush_graph_changes,
+} from "./world_api"
 
 export function receive_transaction(world: World, tx: Transaction) {
   let list = world.remote_transactions.get(tx.tick)
@@ -139,7 +148,7 @@ export function perform_batch_reconciliation(
     // 3. Re-simulate forward from min_tick up to original_tick - 1
     while (world.tick < original_tick) {
       // 3a. Run simulation for the current tick
-      run_schedule(schedule, world as World<never>)
+      run_schedule(schedule, world as World)
       commit_transaction(world)
 
       // 3b. Apply any remote transactions for THIS specific tick.
@@ -210,3 +219,65 @@ export function cleanup_transient_entities(
     }
   }
 }
+
+/**
+ * System: Processes remote transactions for the current tick.
+ */
+export const apply_remote_transactions = define_system(
+  (world: World) => {
+    const transactions = world.remote_transactions.get(world.tick)
+    if (transactions) {
+      for (const tx of transactions) {
+        apply_transaction(world, tx)
+      }
+      world.remote_transactions.delete(world.tick)
+    }
+  },
+  { params: [WorldTerm()], name: "apply_remote_transactions" },
+)
+
+/**
+ * System: Processes remote snapshots for the current tick.
+ */
+export const apply_remote_snapshots = define_system(
+  (world: World) => {
+    const snapshots = world.remote_snapshots.get(world.tick)
+    if (snapshots) {
+      for (const snap of snapshots) {
+        apply_snapshot_stream(world, snap)
+      }
+      world.remote_snapshots.delete(world.tick)
+    }
+  },
+  { params: [WorldTerm()], name: "apply_remote_snapshots" },
+)
+
+/**
+ * System: Performs a batch reconciliation by rolling back to the oldest un-applied
+ * transaction and re-simulating using the provided schedule.
+ */
+export const perform_rollback = define_system(
+  (config: Read<typeof ReplicationConfig>, world: World) => {
+    if (!config.simulation_schedule) return
+    perform_batch_reconciliation(world, config.simulation_schedule)
+  },
+  {
+    params: [Read(ReplicationConfig), WorldTerm()],
+    name: "perform_rollback",
+  },
+)
+
+/**
+ * System: Removes predicted entities that were never confirmed by the server
+ * within the provided window (default 60 ticks).
+ */
+export const cleanup_ghosts = define_system(
+  (config: Read<typeof ReplicationConfig>, world: World) => {
+    const window = config.ghost_cleanup_window ?? 60
+    cleanup_transient_entities(world, world.tick - window)
+  },
+  {
+    params: [Read(ReplicationConfig), WorldTerm()],
+    name: "cleanup_ghosts",
+  },
+)

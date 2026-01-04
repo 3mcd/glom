@@ -1,40 +1,39 @@
 import * as g from "@glom/ecs"
+import * as commands from "@glom/ecs/command"
+import * as reconciliation from "@glom/ecs/reconciliation"
+import * as replication from "@glom/ecs/replication"
 
 // 1. Components & Definitions with Serdes for binary transport
 const Position = g.define_component<{ x: number; y: number }>({
   bytes_per_element: 8,
-  encode: (val, buf, off) => {
-    const view = new DataView(buf.buffer, buf.byteOffset + off)
-    view.setFloat32(0, val.x, true)
-    view.setFloat32(4, val.y, true)
+  encode: (val, writer) => {
+    writer.write_float32(val.x)
+    writer.write_float32(val.y)
   },
-  decode: (buf, off) => {
-    const view = new DataView(buf.buffer, buf.byteOffset + off)
-    return { x: view.getFloat32(0, true), y: view.getFloat32(4, true) }
+  decode: (reader) => {
+    return { x: reader.read_float32(), y: reader.read_float32() }
   },
 })
 
 // Color as an integer ID (1=Red, 2=Blue) to keep it simple for serialization
 const Color = g.define_component<number>({
   bytes_per_element: 4,
-  encode: (val, buf, off) => {
-    new DataView(buf.buffer, buf.byteOffset + off).setUint32(0, val, true)
+  encode: (val, writer) => {
+    writer.write_uint32(val)
   },
-  decode: (buf, off) => {
-    return new DataView(buf.buffer, buf.byteOffset + off).getUint32(0, true)
+  decode: (reader) => {
+    return reader.read_uint32()
   },
 })
 
 const MoveCommand = g.define_component<{ dx: number; dy: number }>({
   bytes_per_element: 8,
-  encode: (val, buf, off) => {
-    const view = new DataView(buf.buffer, buf.byteOffset + off)
-    view.setFloat32(0, val.dx, true)
-    view.setFloat32(4, val.dy, true)
+  encode: (val, writer) => {
+    writer.write_float32(val.dx)
+    writer.write_float32(val.dy)
   },
-  decode: (buf, off) => {
-    const view = new DataView(buf.buffer, buf.byteOffset + off)
-    return { dx: view.getFloat32(0, true), dy: view.getFloat32(4, true) }
+  decode: (reader) => {
+    return { dx: reader.read_float32(), dy: reader.read_float32() }
   },
 })
 
@@ -69,7 +68,7 @@ const movement_system = g.define_system(
   {
     params: [
       g.All(
-        g.ENTITY,
+        g.Entity,
         g.Read(Position),
         g.Rel(g.CommandOf, g.Read(MoveCommand)),
       ),
@@ -100,8 +99,7 @@ function create_peer(
   keys: { up: string; down: string; left: string; right: string },
 ) {
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement
-  const ctx = canvas.getContext("2d")!
-
+  const ctx = canvas.getContext("2d") as CanvasRenderingContext2D
   const world = g.make_world(hi, schema)
   const schedule = g.make_system_schedule()
 
@@ -115,20 +113,20 @@ function create_peer(
     }),
   )
 
-  g.add_system(schedule, g.GlomNetwork.reconcile.apply_remote_transactions)
-  g.add_system(schedule, g.GlomNetwork.reconcile.apply_remote_snapshots)
-  g.add_system(schedule, g.GlomNetwork.reconcile.cleanup_ghosts)
-  g.add_system(schedule, g.GlomNetwork.commands.spawn_ephemeral_commands)
+  g.add_system(schedule, reconciliation.apply_remote_transactions)
+  g.add_system(schedule, reconciliation.apply_remote_snapshots)
+  g.add_system(schedule, reconciliation.cleanup_ghosts)
+  g.add_system(schedule, commands.spawn_ephemeral_commands)
   g.add_system(schedule, movement_system)
   g.add_system(schedule, make_render_system(ctx))
-  g.add_system(schedule, g.GlomNetwork.commands.cleanup_ephemeral_commands)
-  g.add_system(schedule, g.GlomNetwork.replicate.commit_pending_mutations)
+  g.add_system(schedule, commands.cleanup_ephemeral_commands)
+  g.add_system(schedule, replication.commit_pending_mutations)
 
   // Emit snapshots every 10 ticks
-  g.add_system(schedule, g.GlomNetwork.replicate.emit_snapshots)
+  g.add_system(schedule, replication.emit_snapshots)
 
-  g.add_system(schedule, g.GlomNetwork.replicate.advance_world_tick)
-  g.add_system(schedule, g.GlomNetwork.replicate.prune_temporal_buffers)
+  g.add_system(schedule, replication.advance_world_tick)
+  g.add_system(schedule, replication.prune_temporal_buffers)
 
   const active_keys = new Set<string>()
   window.addEventListener("keydown", (e) => active_keys.add(e.code))
@@ -162,13 +160,13 @@ function create_peer(
 }
 
 // Initialize peers
-const peerA = create_peer(1, "canvasA", {
+const peer_a = create_peer(1, "canvasA", {
   up: "KeyW",
   down: "KeyS",
   left: "KeyA",
   right: "KeyD",
 })
-const peerB = create_peer(2, "canvasB", {
+const peer_b = create_peer(2, "canvasB", {
   up: "ArrowUp",
   down: "ArrowDown",
   left: "ArrowLeft",
@@ -209,17 +207,17 @@ const link = (from: g.World, to: g.World) => {
   }
 }
 
-link(peerA.world, peerB.world)
-link(peerB.world, peerA.world)
+link(peer_a.world, peer_b.world)
+link(peer_b.world, peer_a.world)
 
 // Now spawn the players
-const entA = peerA.spawn_player()
-const entB = peerB.spawn_player()
+const entity_a = peer_a.spawn_player()
+const entity_b = peer_b.spawn_player()
 
 // 5. Main Loop
 function loop() {
-  peerA.update(entA)
-  peerB.update(entB)
+  peer_a.update(entity_a)
+  peer_b.update(entity_b)
   requestAnimationFrame(loop)
 }
 

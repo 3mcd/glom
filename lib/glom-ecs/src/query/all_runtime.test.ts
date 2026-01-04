@@ -1,13 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import { define_component, define_tag } from "../component"
-import { ENTITY, make_entity } from "../entity"
-import {
-  entity_graph_set_entity_node,
-} from "../entity_graph"
+import { Entity, make_entity } from "../entity"
+import { entity_graph_set_entity_node } from "../entity_graph"
 import type { AllDescriptor } from "../system_descriptor"
 import { make_world, set_component_value } from "../world"
-import { AllRuntime, make_all, setup_all, teardown_all } from "./all_runtime"
 import { spawn } from "../world_api"
+import { AllRuntime, make_all, setup_all, teardown_all } from "./all_runtime"
 
 describe("all_runtime", () => {
   const c1 = define_component<{ val: number }>()
@@ -46,7 +44,7 @@ describe("all_runtime", () => {
     set_component_value(world, e2, c2, { name: "e2" })
 
     // Manually put entities into the node
-    // @ts-ignore: private access for test
+    // @ts-expect-error: private access for test
     const node = all._anchor_node
     entity_graph_set_entity_node(world.entity_graph, e1, node)
     entity_graph_set_entity_node(world.entity_graph, e2, node)
@@ -58,9 +56,9 @@ describe("all_runtime", () => {
     expect(results).toHaveLength(2)
 
     // Results might be in any order because of sparse set / graph nodes
-    const sortedResults = (results as [{ val: number }, { name: string }][]).sort(
-      (a, b) => a[0].val - b[0].val,
-    )
+    const sortedResults = (
+      results as [{ val: number }, { name: string }][]
+    ).sort((a, b) => a[0].val - b[0].val)
 
     expect(sortedResults[0]).toEqual([{ val: 10 }, { name: "e1" }])
     expect(sortedResults[1]).toEqual([{ val: 20 }, { name: "e2" }])
@@ -77,7 +75,7 @@ describe("all_runtime", () => {
     const e1 = make_entity(1, 0)
     set_component_value(world, e1, c1, { val: 10 })
 
-    // @ts-ignore: private access for test
+    // @ts-expect-error: private access for test
     const node = all._anchor_node
     entity_graph_set_entity_node(world.entity_graph, e1, node)
 
@@ -89,9 +87,9 @@ describe("all_runtime", () => {
     expect(results[0]).toEqual([e1, { val: 10 }])
   })
 
-  test("iterator with ENTITY constant", () => {
+  test("iterator with Entity constant", () => {
     const descWithEntity: AllDescriptor<unknown, unknown> = {
-      all: [ENTITY, { read: c1 }],
+      all: [Entity, { read: c1 }],
     } as unknown as AllDescriptor<unknown, unknown>
     const world = make_world(0, schema)
     const all = make_all(descWithEntity) as AllRuntime
@@ -100,7 +98,7 @@ describe("all_runtime", () => {
     const e1 = make_entity(5, 0)
     set_component_value(world, e1, c1, { val: 50 })
 
-    // @ts-ignore: private access for test
+    // @ts-expect-error: private access for test
     const node = all._anchor_node
     entity_graph_set_entity_node(world.entity_graph, e1, node)
 
@@ -114,7 +112,7 @@ describe("all_runtime", () => {
   test("iterator with tags (ZSTs)", () => {
     const t1 = define_tag()
     const descWithTag: AllDescriptor<unknown, unknown, unknown> = {
-      all: [ENTITY, { has: t1 }, { read: c1 }],
+      all: [Entity, { has: t1 }, { read: c1 }],
     } as unknown as AllDescriptor<unknown, unknown, unknown>
     const world = make_world(0, [c1, t1])
     const all = make_all(descWithTag) as AllRuntime
@@ -123,7 +121,7 @@ describe("all_runtime", () => {
     const e1 = make_entity(7, 0)
     set_component_value(world, e1, c1, { val: 70 })
 
-    // @ts-ignore: private access for test
+    // @ts-expect-error: private access for test
     const node = all._anchor_node
     entity_graph_set_entity_node(world.entity_graph, e1, node)
 
@@ -199,7 +197,7 @@ describe("all_runtime", () => {
     expect(all.nodes.dense.length).toBeGreaterThan(0)
 
     // Check that it's actually removed from the graph
-    // @ts-ignore: private access for test
+    // @ts-expect-error: private access for test
     const anchorNode = all._anchor_node
     expect(anchorNode).toBeDefined()
 

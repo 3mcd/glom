@@ -1,14 +1,8 @@
-export type ComponentEncode<T> = (
-  value: T,
-  buffer: Uint8Array,
-  offset: number,
-) => void
+import type { ByteReader, ByteWriter } from "./lib/binary"
 
-export type ComponentDecode<T> = (
-  buffer: Uint8Array,
-  offset: number,
-  value?: T,
-) => T
+export type ComponentEncode<T> = (value: T, writer: ByteWriter) => void
+
+export type ComponentDecode<T> = (reader: ByteReader, value?: T) => T
 
 export type ComponentSerde<T> = {
   encode: ComponentEncode<T>

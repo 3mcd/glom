@@ -71,6 +71,10 @@ export class ByteWriter {
   get_length(): number {
     return this.cursor
   }
+
+  public reset() {
+    this.cursor = 0
+  }
 }
 
 export class ByteReader {
@@ -79,6 +83,12 @@ export class ByteReader {
 
   constructor(public buffer: Uint8Array) {
     this.view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+  }
+
+  public reset(buffer: Uint8Array) {
+    this.buffer = buffer
+    this.view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+    this.cursor = 0
   }
 
   read_uint8(): number {

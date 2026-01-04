@@ -1,9 +1,7 @@
-import {
-  type Component,
-  type ComponentLike,
-  define_component,
-  define_tag,
-} from "./component"
+import type { Component, ComponentLike } from "./component"
+import { Replicated, ReplicationConfig } from "./replication_config"
+export { Replicated, ReplicationConfig }
+
 import type { Entity } from "./entity"
 import {
   entity_graph_find_or_create_node,
@@ -12,47 +10,36 @@ import {
   entity_graph_node_remove_entity,
   entity_graph_set_entity_node,
 } from "./entity_graph"
-import { get_domain, next_op_seq, remove_entity } from "./entity_registry"
+import { get_domain, remove_entity } from "./entity_registry"
 import {
   add_domain_entity,
-  make_entity_registry_domain,
   remove_domain_entity,
 } from "./entity_registry_domain"
 import { hash_word } from "./lib/hash"
-import { is_relationship } from "./relation"
+import { Read, World as WorldTerm } from "./query/term"
+import { prune_buffers } from "./reconciliation"
+import type { Relation } from "./relation"
 import {
-  get_or_create_virtual_id,
-  get_virtual_id,
   register_incoming_relation,
   unregister_incoming_relation,
 } from "./relation_registry"
+import { capture_snapshot_stream } from "./snapshot_stream"
 import { sparse_map_delete, sparse_map_get, sparse_map_set } from "./sparse_map"
+import { define_system } from "./system"
 import type { SystemSchedule } from "./system_schedule"
 import { make_vec, vec_difference, vec_sum } from "./vec"
 import {
   delete_component_value,
-  get_component_store,
   get_component_value,
   set_component_value,
   type World,
 } from "./world"
-import { add_component, remove_component } from "./world_api"
-
-export const Replicated = define_tag(0)
-
-export const ReplicationConfig = define_component<{
-  history_window?: number
-  ghost_cleanup_window?: number
-  snapshot_components?: number[]
-  simulation_schedule?: SystemSchedule
-}>(
-  {
-    bytes_per_element: 0,
-    encode: () => {},
-    decode: () => ({}),
-  },
-  1,
-)
+import {
+  add_component,
+  advance_tick,
+  commit_transaction,
+  remove_component,
+} from "./world_api"
 
 export const TRANSIENT_DOMAIN = 2046 // Reserved domain for predicted spawns
 
@@ -414,3 +401,61 @@ export function apply_transaction(world: World, batch: Transaction) {
 
   domain.op_seq = batch.seq + 1
 }
+
+/**
+ * System: Packages all mutations recorded during the tick into a transaction.
+ */
+export const commit_pending_mutations = define_system(
+  (world: World) => {
+    commit_transaction(world)
+  },
+  { params: [WorldTerm()], name: "commit_pending_mutations" },
+)
+
+/**
+ * System: Captures and emits snapshots for the provided component IDs.
+ */
+export const emit_snapshots = define_system(
+  (config: Read<typeof ReplicationConfig>, world: World) => {
+    if (!world.snapshot_emitter || !config.snapshot_components) return
+    const blocks = capture_snapshot_stream(world, config.snapshot_components)
+    if (blocks.length > 0) {
+      world.snapshot_emitter({
+        tick: world.tick,
+        blocks,
+      })
+    }
+  },
+  {
+    params: [Read(ReplicationConfig), WorldTerm()],
+    name: "emit_snapshots",
+  },
+)
+
+/**
+ * System: Prunes old history and command buffers.
+ * Keeps the last N ticks (default 64).
+ */
+export const prune_temporal_buffers = define_system(
+  (config: Read<typeof ReplicationConfig>, world: World) => {
+    const window = config.history_window ?? 64
+    const min_tick = world.tick - window
+    if (min_tick > 0) {
+      prune_buffers(world, min_tick)
+    }
+  },
+  {
+    params: [Read(ReplicationConfig), WorldTerm()],
+    name: "prune_temporal_buffers",
+  },
+)
+
+/**
+ * System: Increments the world tick and captures a snapshot.
+ */
+export const advance_world_tick = define_system(
+  (world: World) => {
+    advance_tick(world)
+  },
+  { params: [WorldTerm()], name: "advance_world_tick" },
+)

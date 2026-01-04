@@ -1,0 +1,4 @@
+{
+  "main": "dist/glom-ecs-replication.cjs.js",
+  "module": "dist/glom-ecs-replication.esm.js"
+}

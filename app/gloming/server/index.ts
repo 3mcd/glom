@@ -1,10 +1,10 @@
 import * as g from "@glom/ecs"
 
-const A = g.define_component<number>(0)
-const B = g.define_component<string>(1)
-const C = g.define_component<{ x: number }>(2)
-const D = g.define_tag(3)
-const Rel = g.define_relation(4)
+const A = g.define_component<number>()
+const B = g.define_component<string>()
+const C = g.define_component<{ x: number }>()
+const D = g.define_tag()
+const Rel = g.define_relation()
 
 const system_schedule = g.make_system_schedule()
 const system = g.define_system(

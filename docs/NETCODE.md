@@ -181,7 +181,7 @@ The world has a `command_buffer` to store intent across ticks. This tick-indexed
 Glom works best when you add its networking systems directly to your schedules.
 
 ### 9.1 System Groups
-Glom provides several pre-defined system groups. **Reconciliation (`GlomNetwork.reconcile`)** handles applying remote transactions and performing rollbacks. **Command lifecycle (`GlomNetwork.commands`)** manages spawning and cleaning up ephemeral command entities. Finally, **replication (`GlomNetwork.replicate`)** packages changes into transactions and prunes old history.
+Glom provides several pre-defined systems. **Reconciliation** systems handle applying remote transactions (`apply_remote_transactions`) and performing rollbacks (`perform_rollback`). **Command lifecycle** systems manage spawning (`spawn_ephemeral_commands`) and cleaning up (`cleanup_ephemeral_commands`) ephemeral command entities. Finally, **replication** systems package changes into transactions (`commit_pending_mutations`) and prune old history (`prune_temporal_buffers`).
 
 ### 9.2 Client orchestration order
 The flowchart below maps out the sequence of reconciliation, simulation, and rendering that ensures the most authoritative state is displayed each frame. Follow this order in your client's main loop:
@@ -205,17 +205,17 @@ flowchart TD
 The cycle begins by fixing the past with a rollback before starting this frame's simulation. We then predict the state for the *next* frame and apply the server's update for the **current** tick. This ensures what you render is as authoritative as possible and prevents prediction flicker. Finally, we record local changes and grab a snapshot for the next frame.
 
 ### 9.3 Client Schedule Example
-The following snippet demonstrates how to organize your systems using the pre-defined `GlomNetwork` groups:
+The following snippet demonstrates how to organize your systems using the new modular API:
 
 ```typescript
-import * as g from "glom-ecs";
+import * as g from "@glom/ecs";
 
 // 1. Define your core simulation systems in a separate schedule.
 // This schedule will be used for BOTH normal prediction and re-simulation during rollback.
 const simulation = g.make_system_schedule();
-g.add_system(simulation, g.GlomNetwork.commands.spawn_ephemeral_commands);
+g.add_system(simulation, g.spawn_ephemeral_commands);
 g.add_system(simulation, movement_system);
-g.add_system(simulation, g.GlomNetwork.commands.cleanup_ephemeral_commands);
+g.add_system(simulation, g.cleanup_ephemeral_commands);
 
 // 2. Build your main client schedule using the orchestration order.
 const client = g.make_system_schedule();
@@ -228,22 +228,22 @@ g.add_resource(world, g.ReplicationConfig({
 }));
 
 // Phase A: Reconciliation (Fix the past)
-g.add_system(client, g.GlomNetwork.reconcile.perform_rollback);
-g.add_system(client, g.GlomNetwork.reconcile.cleanup_ghosts);
+g.add_system(client, g.perform_rollback);
+g.add_system(client, g.cleanup_ghosts);
 
 // Phase B: Prediction (Simulate the future)
-g.add_system(client, g.GlomNetwork.commands.spawn_ephemeral_commands);
+g.add_system(client, g.spawn_ephemeral_commands);
 g.add_system(client, movement_system);
 
 // Phase C: Correction & Rendering (The "Gold" State)
-g.add_system(client, g.GlomNetwork.reconcile.apply_remote_transactions);
+g.add_system(client, g.apply_remote_transactions);
 g.add_system(client, render_system);
 
 // Phase D: Maintenance (Prepare for the next frame)
-g.add_system(client, g.GlomNetwork.commands.cleanup_ephemeral_commands);
-g.add_system(client, g.GlomNetwork.replicate.commit_pending_mutations);
-g.add_system(client, g.GlomNetwork.replicate.advance_world_tick);
-g.add_system(client, g.GlomNetwork.replicate.prune_temporal_buffers);
+g.add_system(client, g.cleanup_ephemeral_commands);
+g.add_system(client, g.commit_pending_mutations);
+g.add_system(client, g.advance_world_tick);
+g.add_system(client, g.prune_temporal_buffers);
 ```
 
 ## 10. Selective Replication (The `Replicated` Tag)

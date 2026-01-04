@@ -5,10 +5,10 @@ import { get_domain } from "../entity_registry"
 import { define_relation } from "../relation"
 import {
   apply_transaction,
-  Replicated,
   TRANSIENT_DOMAIN,
   type Transaction,
 } from "../replication"
+import { Replicated } from "../replication_config"
 import { sparse_map_get } from "../sparse_map"
 import { get_component_value, make_world } from "../world"
 import {

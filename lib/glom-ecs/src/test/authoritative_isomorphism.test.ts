@@ -1,41 +1,40 @@
 import { expect, test } from "bun:test"
+import * as commands from "../command"
 import * as g from "../index"
+import * as reconciliation from "../reconciliation"
+import * as replication from "../replication"
 
 // 1. Component Definitions (mirrored from example)
 const Position = g.define_component<{ x: number; y: number }>({
   bytes_per_element: 16,
-  encode: (val, buf, off) => {
-    const view = new DataView(buf.buffer, buf.byteOffset + off)
-    view.setFloat64(0, val.x, true)
-    view.setFloat64(8, val.y, true)
+  encode: (val, writer) => {
+    writer.write_float64(val.x)
+    writer.write_float64(val.y)
   },
-  decode: (buf, off) => {
-    const view = new DataView(buf.buffer, buf.byteOffset + off)
-    return { x: view.getFloat64(0, true), y: view.getFloat64(8, true) }
+  decode: (reader) => {
+    return { x: reader.read_float64(), y: reader.read_float64() }
   },
 })
 
 const MoveCommand = g.define_component<{ dx: number; dy: number }>({
   bytes_per_element: 16,
-  encode: (val, buf, off) => {
-    const view = new DataView(buf.buffer, buf.byteOffset + off)
-    view.setFloat64(0, val.dx, true)
-    view.setFloat64(8, val.dy, true)
+  encode: (val, writer) => {
+    writer.write_float64(val.dx)
+    writer.write_float64(val.dy)
   },
-  decode: (buf, off) => {
-    const view = new DataView(buf.buffer, buf.byteOffset + off)
-    return { dx: view.getFloat64(0, true), dy: view.getFloat64(8, true) }
+  decode: (reader) => {
+    return { dx: reader.read_float64(), dy: reader.read_float64() }
   },
 })
 
 const FireCommand = g.define_tag()
 const Pulse = g.define_component<number>({
   bytes_per_element: 8,
-  encode: (val, buf, off) => {
-    new DataView(buf.buffer, buf.byteOffset + off).setFloat64(0, val, true)
+  encode: (val, writer) => {
+    writer.write_float64(val)
   },
-  decode: (buf, off) => {
-    return new DataView(buf.buffer, buf.byteOffset + off).getFloat64(0, true)
+  decode: (reader) => {
+    return reader.read_float64()
   },
 })
 const PulseOf = g.define_relation()
@@ -59,7 +58,7 @@ const movement_system = g.define_system(
   {
     params: [
       g.All(
-        g.ENTITY,
+        g.Entity,
         g.Read(Position),
         g.Rel(g.CommandOf, g.Read(MoveCommand)),
       ),
@@ -124,7 +123,7 @@ const pulse_spawner_system = g.define_system(
   },
   {
     params: [
-      g.All(g.ENTITY, g.Read(Position), g.Rel(g.CommandOf, g.Has(FireCommand))),
+      g.All(g.Entity, g.Read(Position), g.Rel(g.CommandOf, g.Has(FireCommand))),
       g.WorldTerm(),
     ],
     name: "pulse_spawner_system",
@@ -146,7 +145,7 @@ const attached_pulse_system = g.define_system(
   },
   {
     params: [
-      g.All(g.ENTITY, g.Read(Position), g.Rel(PulseOf, g.Read(Position))),
+      g.All(g.Entity, g.Read(Position), g.Rel(PulseOf, g.Read(Position))),
       g.Add(Position),
     ],
     name: "attached_pulse_system",
@@ -185,14 +184,14 @@ function setup_server() {
     }),
   )
 
-  g.add_system(schedule, g.GlomNetwork.reconcile.apply_remote_transactions)
-  g.add_system(schedule, g.GlomNetwork.commands.spawn_ephemeral_commands)
+  g.add_system(schedule, reconciliation.apply_remote_transactions)
+  g.add_system(schedule, commands.spawn_ephemeral_commands)
   g.add_system(schedule, movement_system)
   g.add_system(schedule, pulse_spawner_system)
   g.add_system(schedule, attached_pulse_system)
-  g.add_system(schedule, g.GlomNetwork.commands.cleanup_ephemeral_commands)
-  g.add_system(schedule, g.GlomNetwork.replicate.commit_pending_mutations)
-  g.add_system(schedule, g.GlomNetwork.replicate.advance_world_tick)
+  g.add_system(schedule, commands.cleanup_ephemeral_commands)
+  g.add_system(schedule, replication.commit_pending_mutations)
+  g.add_system(schedule, replication.advance_world_tick)
 
   return { world, schedule }
 }
@@ -202,17 +201,11 @@ function setup_client(hi: number) {
   world.history = { snapshots: [], max_size: 120 }
 
   const reconcile_schedule = g.make_system_schedule()
-  g.add_system(
-    reconcile_schedule,
-    g.GlomNetwork.commands.spawn_ephemeral_commands,
-  )
+  g.add_system(reconcile_schedule, commands.spawn_ephemeral_commands)
   g.add_system(reconcile_schedule, movement_system)
   g.add_system(reconcile_schedule, pulse_spawner_system)
   g.add_system(reconcile_schedule, attached_pulse_system)
-  g.add_system(
-    reconcile_schedule,
-    g.GlomNetwork.commands.cleanup_ephemeral_commands,
-  )
+  g.add_system(reconcile_schedule, commands.cleanup_ephemeral_commands)
 
   const schedule = g.make_system_schedule()
 
@@ -225,16 +218,16 @@ function setup_client(hi: number) {
     }),
   )
 
-  g.add_system(schedule, g.GlomNetwork.reconcile.perform_rollback)
-  g.add_system(schedule, g.GlomNetwork.reconcile.cleanup_ghosts)
-  g.add_system(schedule, g.GlomNetwork.commands.spawn_ephemeral_commands)
+  g.add_system(schedule, reconciliation.perform_rollback)
+  g.add_system(schedule, reconciliation.cleanup_ghosts)
+  g.add_system(schedule, commands.spawn_ephemeral_commands)
   g.add_system(schedule, movement_system)
   g.add_system(schedule, pulse_spawner_system)
   g.add_system(schedule, attached_pulse_system)
-  g.add_system(schedule, g.GlomNetwork.reconcile.apply_remote_transactions)
-  g.add_system(schedule, g.GlomNetwork.commands.cleanup_ephemeral_commands)
-  g.add_system(schedule, g.GlomNetwork.replicate.commit_pending_mutations)
-  g.add_system(schedule, g.GlomNetwork.replicate.advance_world_tick)
+  g.add_system(schedule, reconciliation.apply_remote_transactions)
+  g.add_system(schedule, commands.cleanup_ephemeral_commands)
+  g.add_system(schedule, replication.commit_pending_mutations)
+  g.add_system(schedule, replication.advance_world_tick)
 
   return { world, schedule }
 }

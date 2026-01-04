@@ -1,14 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import {
-  type All,
+  All,
   define_component,
   define_relation,
   despawn,
-  ENTITY,
-  type Entity,
-  type Has,
+  Entity,
+  Has,
   make_world,
-  type Read,
+  Read,
   type Relation,
   type Relationship,
   spawn,
@@ -23,22 +22,22 @@ import {
 describe("relation", () => {
   const ChildOf = define_relation()
   const Name = define_component<string>()
-  const schema = [ChildOf, Name]
 
   test("all relation features", () => {
+    const schema = [Name, ChildOf]
     const world = make_world(0, schema)
     const parent = spawn(world, [Name("Parent")])
 
     // 1. Exact relation query
-    let foundChildName = ""
+    let child_name = ""
     const system1 = define_system(
       (query: All<Read<typeof Name>, Has<Relationship>>) => {
         for (const [name] of query) {
-          foundChildName = name
+          child_name = name
         }
       },
       {
-        params: [{ all: [{ read: Name }, { has: ChildOf(parent) }] }],
+        params: [All(Read(Name), Has(ChildOf(parent)))],
       },
     )
     const schedule1 = make_system_schedule()
@@ -47,7 +46,7 @@ describe("relation", () => {
     spawn(world, [Name("Child"), ChildOf(parent)])
     run_schedule(schedule1, world)
 
-    expect(foundChildName).toBe("Child")
+    expect(child_name).toBe("Child")
 
     // 2. Wildcard relation query
     const children: string[] = []
@@ -58,7 +57,7 @@ describe("relation", () => {
         }
       },
       {
-        params: [{ all: [ENTITY, { read: Name }, { has: ChildOf }] }],
+        params: [All(Entity, Read(Name), Has(ChildOf))],
       },
     )
     const schedule2 = make_system_schedule()
@@ -76,7 +75,7 @@ describe("relation", () => {
         }
       },
       {
-        params: [{ all: [ENTITY, { read: Name }, { has: ChildOf }] }],
+        params: [All(Entity, Read(Name), Has(ChildOf))],
       },
     )
     const schedule3 = make_system_schedule()

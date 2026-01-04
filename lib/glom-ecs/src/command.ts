@@ -1,8 +1,12 @@
-import type { ComponentInstance, ComponentLike } from "./component"
+import type { Component, ComponentInstance, ComponentLike } from "./component"
 import { define_component, define_tag } from "./component"
-import type { Entity } from "./entity"
+import { Entity } from "./entity"
+import { All } from "./query/all"
+import { Has, World as WorldTerm } from "./query/term"
 import { define_relation } from "./relation"
+import { define_system } from "./system"
 import type { World } from "./world"
+import { add_component, despawn, remove_component, spawn } from "./world_api"
 
 export const CommandOf = define_relation(2)
 export const CommandEntity = define_tag(3)
@@ -10,11 +14,11 @@ export const CommandEntity = define_tag(3)
 export const IntentTick = define_component<number>(
   {
     bytes_per_element: 4,
-    encode: (val, buf, off) => {
-      new DataView(buf.buffer, buf.byteOffset + off).setUint32(0, val, true)
+    encode: (val, writer) => {
+      writer.write_uint32(val)
     },
-    decode: (buf, off) => {
-      return new DataView(buf.buffer, buf.byteOffset + off).getUint32(0, true)
+    decode: (reader) => {
+      return reader.read_uint32()
     },
   },
   4,
@@ -75,3 +79,66 @@ export function prune_commands(world: World, min_tick: number) {
     }
   }
 }
+
+/**
+ * System: Spawns ephemeral command entities for the current tick and links them to targets.
+ */
+export const spawn_ephemeral_commands = define_system(
+  (world: World) => {
+    const commands = world.command_buffer.get(world.tick)
+    if (!commands) return
+
+    for (const cmd of commands) {
+      const comp = world.component_registry.get_component(cmd.component_id)
+      if (!comp) continue
+
+      let command_entity: Entity
+      const base_components = [IntentTick(cmd.intent_tick), CommandEntity]
+      if (cmd.data !== undefined) {
+        command_entity = spawn(
+          world,
+          [
+            { component: comp as Component<unknown>, value: cmd.data },
+            ...base_components,
+          ],
+          COMMAND_DOMAIN,
+        )
+      } else {
+        command_entity = spawn(
+          world,
+          [comp, ...base_components],
+          COMMAND_DOMAIN,
+        )
+      }
+
+      // Link to target
+      add_component(world, cmd.target, CommandOf(command_entity))
+    }
+  },
+  { params: [WorldTerm()], name: "spawn_ephemeral_commands" },
+)
+
+/**
+ * System: Despawns all entities tagged with CommandEntity and removes CommandOf relations.
+ */
+export const cleanup_ephemeral_commands = define_system(
+  (query: All<Entity, Has<typeof CommandEntity>>, world: World) => {
+    for (const [cmd_ent] of query) {
+      // Find who this command belongs to (incoming relations)
+      const incoming = world.relations.object_to_subjects.get(cmd_ent)
+      if (incoming) {
+        const command_of_id = world.component_registry.get_id(CommandOf)
+        for (const { subject, relation_id } of Array.from(incoming)) {
+          if (relation_id === command_of_id) {
+            remove_component(world, subject as Entity, CommandOf(cmd_ent))
+          }
+        }
+      }
+      despawn(world, cmd_ent)
+    }
+  },
+  {
+    params: [All(Entity, Has(CommandEntity)), WorldTerm()],
+    name: "cleanup_ephemeral_commands",
+  },
+)

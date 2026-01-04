@@ -1,16 +1,39 @@
 {
   "name": "@glom/ecs",
   "module": "dist/glom-ecs.esm.js",
+  "preconstruct": {
+    "entrypoints": [
+      "index.ts",
+      "reconciliation.ts",
+      "command.ts",
+      "replication.ts"
+    ]
+  },
   "exports": {
     ".": {
       "module": "./dist/glom-ecs.esm.js",
       "default": "./dist/glom-ecs.cjs.js"
     },
+    "./command": {
+      "module": "./command/dist/glom-ecs-command.esm.js",
+      "default": "./command/dist/glom-ecs-command.cjs.js"
+    },
+    "./replication": {
+      "module": "./replication/dist/glom-ecs-replication.esm.js",
+      "default": "./replication/dist/glom-ecs-replication.cjs.js"
+    },
+    "./reconciliation": {
+      "module": "./reconciliation/dist/glom-ecs-reconciliation.esm.js",
+      "default": "./reconciliation/dist/glom-ecs-reconciliation.cjs.js"
+    },
     "./package.json": "./package.json"
   },
   "type": "module",
   "files": [
-    "dist"
+    "dist",
+    "command",
+    "reconciliation",
+    "replication"
   ],
   "private": true,
   "devDependencies": {

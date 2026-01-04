@@ -1,9 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import type { ComponentSerde } from "./component"
+import type { ComponentSerde, ComponentResolver } from "./component"
 import type { Entity } from "./entity"
 import { ByteReader, ByteWriter } from "./lib/binary"
 import {
-  type ComponentResolver,
   MessageType,
   read_clocksync,
   read_handshake_client,
@@ -53,18 +52,15 @@ describe("protocol serialization", () => {
             bytes_per_element: 8,
             encode: (
               val: { x: number; y: number },
-              buf: Uint8Array,
-              off: number,
+              writer: ByteWriter,
             ) => {
-              const view = new DataView(buf.buffer, buf.byteOffset + off)
-              view.setFloat32(0, val.x, true)
-              view.setFloat32(4, val.y, true)
+              writer.write_float32(val.x)
+              writer.write_float32(val.y)
             },
-            decode: (buf: Uint8Array, off: number) => {
-              const view = new DataView(buf.buffer, buf.byteOffset + off)
+            decode: (reader: ByteReader) => {
               return {
-                x: view.getFloat32(0, true),
-                y: view.getFloat32(4, true),
+                x: reader.read_float32(),
+                y: reader.read_float32(),
               }
             },
           } as ComponentSerde<{ x: number; y: number }>

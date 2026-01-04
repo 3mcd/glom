@@ -1,16 +1,19 @@
 import { describe, expect, test } from "bun:test"
 import { record_command, prune_commands, CommandOf } from "./command"
-import { define_component, define_tag } from "./component"
+import { define_component, define_tag, type ComponentResolver } from "./component"
 import { define_system } from "./system"
 import { sparse_map_get } from "./sparse_map"
 import { make_world, get_component_value } from "./world"
 import { spawn } from "./world_api"
 import { ByteReader, ByteWriter } from "./lib/binary"
-import { write_commands, read_commands, read_message_header, type ComponentResolver } from "./protocol"
+import { write_commands, read_commands, read_message_header } from "./protocol"
 import type { ComponentSerde } from "./component"
 import { All } from "./query/all"
 import { Rel, Read, World as WorldTerm } from "./query/term"
-import { GlomNetwork } from "./netcode"
+import {
+  cleanup_ephemeral_commands,
+  spawn_ephemeral_commands,
+} from "./command"
 import { run_schedule, make_system_schedule, add_system } from "./system_schedule"
 
 describe("command api", () => {
@@ -33,7 +36,7 @@ describe("command api", () => {
     world.tick = 10
     
     const schedule = make_system_schedule()
-    add_system(schedule, GlomNetwork.commands.spawn_ephemeral_commands)
+    add_system(schedule, spawn_ephemeral_commands)
     
     const check_system = define_system((
       // @ts-ignore
@@ -67,7 +70,7 @@ describe("command api", () => {
     }, { params: [WorldTerm()], name: "check" })
 
     add_system(schedule, check_system)
-    add_system(schedule, GlomNetwork.commands.cleanup_ephemeral_commands)
+    add_system(schedule, cleanup_ephemeral_commands)
 
     run_schedule(schedule, world)
 
@@ -84,14 +87,12 @@ describe("command api", () => {
         if (id === 101) {
           return {
             bytes_per_element: 8,
-            encode: (val: { x: number; y: number }, buf: Uint8Array, off: number) => {
-              const view = new DataView(buf.buffer, buf.byteOffset + off)
-              view.setFloat32(0, val.x, true)
-              view.setFloat32(4, val.y, true)
+            encode: (val: { x: number; y: number }, writer: ByteWriter) => {
+              writer.write_float32(val.x)
+              writer.write_float32(val.y)
             },
-            decode: (buf: Uint8Array, off: number) => {
-              const view = new DataView(buf.buffer, buf.byteOffset + off)
-              return { x: view.getFloat32(0, true), y: view.getFloat32(4, true) }
+            decode: (reader: ByteReader) => {
+              return { x: reader.read_float32(), y: reader.read_float32() }
             }
           } as ComponentSerde<{ x: number; y: number }>
         }

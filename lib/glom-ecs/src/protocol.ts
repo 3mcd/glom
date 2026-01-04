@@ -132,9 +132,7 @@ export function write_commands(
     if (cmd.data !== undefined) {
       const serde = resolver.get_serde(cmd.component_id)
       if (serde) {
-        writer.ensure_capacity(serde.bytes_per_element)
-        serde.encode(cmd.data, writer.buffer, writer.cursor)
-        writer.cursor += serde.bytes_per_element
+        serde.encode(cmd.data, writer)
       }
     }
   }
@@ -155,8 +153,7 @@ export function read_commands(
     if (!resolver.is_tag(id)) {
       const serde = resolver.get_serde(id)
       if (serde) {
-        data = serde.decode(reader.buffer, reader.cursor, undefined as unknown)
-        reader.cursor += serde.bytes_per_element
+        data = serde.decode(reader, undefined as unknown)
       }
     }
     commands.push({ target, component_id: id, data })
@@ -188,9 +185,7 @@ export function write_snapshot(
     for (let i = 0; i < block.entities.length; i++) {
       writer.write_varint(block.entities[i]!)
       if (!is_tag && serde && block.data[i] !== undefined) {
-        writer.ensure_capacity(serde.bytes_per_element)
-        serde.encode(block.data[i], writer.buffer, writer.cursor)
-        writer.cursor += serde.bytes_per_element
+        serde.encode(block.data[i], writer)
       }
     }
   }
@@ -217,10 +212,7 @@ export function read_snapshot(
     for (let j = 0; j < entity_count; j++) {
       entities.push(reader.read_varint())
       if (!is_tag && serde) {
-        data.push(
-          serde.decode(reader.buffer, reader.cursor, undefined as unknown),
-        )
-        reader.cursor += serde.bytes_per_element
+        data.push(serde.decode(reader, undefined as unknown))
       } else {
         data.push(undefined)
       }
@@ -266,9 +258,7 @@ export function write_transaction(
           if (!resolver.is_tag(c.id)) {
             const serde = resolver.get_serde(c.id)
             if (serde) {
-              writer.ensure_capacity(serde.bytes_per_element)
-              serde.encode(c.data, writer.buffer, writer.cursor)
-              writer.cursor += serde.bytes_per_element
+              serde.encode(c.data, writer)
             }
           }
           if (c.rel) {
@@ -299,9 +289,7 @@ export function write_transaction(
         if (!resolver.is_tag(op.component_id)) {
           const serde = resolver.get_serde(op.component_id)
           if (serde) {
-            writer.ensure_capacity(serde.bytes_per_element)
-            serde.encode(op.data, writer.buffer, writer.cursor)
-            writer.cursor += serde.bytes_per_element
+            serde.encode(op.data, writer)
           }
         }
         if (op.version !== undefined) {
@@ -356,12 +344,7 @@ export function read_transaction(
           if (!resolver.is_tag(id)) {
             const serde = resolver.get_serde(id)
             if (serde) {
-              data = serde.decode(
-                reader.buffer,
-                reader.cursor,
-                undefined as unknown,
-              )
-              reader.cursor += serde.bytes_per_element
+              data = serde.decode(reader, undefined as unknown)
             }
           }
           let rel: { relation_id: number; object: number } | undefined
@@ -392,12 +375,7 @@ export function read_transaction(
         if (!resolver.is_tag(component_id)) {
           const serde = resolver.get_serde(component_id)
           if (serde) {
-            data = serde.decode(
-              reader.buffer,
-              reader.cursor,
-              undefined as unknown,
-            )
-            reader.cursor += serde.bytes_per_element
+            data = serde.decode(reader, undefined as unknown)
           }
         }
         let version: number | undefined

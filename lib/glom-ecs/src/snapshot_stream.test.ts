@@ -1,13 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { define_component, define_tag } from "./component"
-import { ByteReader, ByteWriter } from "./lib/binary"
 import {
   type ComponentResolver,
-  read_message_header,
-  read_snapshot,
-  write_snapshot,
-} from "./protocol"
-import { Replicated } from "./replication"
+  define_component,
+  define_tag,
+} from "./component"
+import { ByteReader, ByteWriter } from "./lib/binary"
+import { read_message_header, read_snapshot, write_snapshot } from "./protocol"
+import { Replicated } from "./replication_config"
 import {
   apply_snapshot_stream,
   capture_snapshot_stream,
@@ -18,14 +17,12 @@ import { add_component, advance_tick, spawn } from "./world_api"
 describe("snapshot streaming", () => {
   const Position = define_component<{ x: number; y: number }>({
     bytes_per_element: 8,
-    encode: (val, buf, off) => {
-      const view = new DataView(buf.buffer, buf.byteOffset + off)
-      view.setFloat32(0, val.x, true)
-      view.setFloat32(4, val.y, true)
+    encode: (val, writer) => {
+      writer.write_float32(val.x)
+      writer.write_float32(val.y)
     },
-    decode: (buf, off) => {
-      const view = new DataView(buf.buffer, buf.byteOffset + off)
-      return { x: view.getFloat32(0, true), y: view.getFloat32(4, true) }
+    decode: (reader) => {
+      return { x: reader.read_float32(), y: reader.read_float32() }
     },
   })
 

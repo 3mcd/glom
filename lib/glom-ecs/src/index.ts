@@ -1,8 +1,11 @@
+export { assert, assert_defined } from "./assert"
 export {
   CommandEntity,
   CommandOf,
+  cleanup_ephemeral_commands,
   IntentTick,
   record_command,
+  spawn_ephemeral_commands,
 } from "./command"
 export {
   type Component,
@@ -13,7 +16,7 @@ export {
   define_component,
   define_tag,
 } from "./component"
-export { ENTITY, Entity, get_hi, get_lo } from "./entity"
+export { Entity, get_hi, get_lo } from "./entity"
 export { get_domain } from "./entity_registry"
 export {
   capture_snapshot,
@@ -29,11 +32,9 @@ export {
   ByteWriter,
 } from "./lib/binary"
 export type { SnapshotBlock, SnapshotMessage } from "./net_types"
-export { GlomNetwork } from "./netcode"
 export {
   type ClockSync,
   type CommandMessage,
-  type ComponentResolver as ComponentResolverProtocol,
   type HandshakeClient,
   type HandshakeServer,
   type MessageHeader,
@@ -67,8 +68,12 @@ export {
   Write,
 } from "./query/term"
 export {
+  apply_remote_snapshots,
+  apply_remote_transactions,
+  cleanup_ghosts,
   cleanup_transient_entities,
   perform_batch_reconciliation,
+  perform_rollback,
   prune_buffers,
   receive_transaction,
   reconcile_transaction,
@@ -85,14 +90,17 @@ export {
   type Relationship,
 } from "./relation"
 export {
+  advance_world_tick,
   apply_transaction,
+  commit_pending_mutations,
+  emit_snapshots,
   make_causal_key,
-  Replicated,
-  ReplicationConfig,
+  prune_temporal_buffers,
   type ReplicationOp,
   rebind_entity,
   type Transaction,
 } from "./replication"
+export { Replicated, ReplicationConfig } from "./replication_config"
 export {
   apply_snapshot_stream,
   capture_snapshot_stream,

@@ -1,0 +1,4 @@
+{
+  "main": "dist/glom-ecs-reconciliation.cjs.js",
+  "module": "dist/glom-ecs-reconciliation.esm.js"
+}

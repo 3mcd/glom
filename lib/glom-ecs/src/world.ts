@@ -24,7 +24,7 @@ import type {
   ReplicationRecorder,
   Transaction,
 } from "./replication"
-import { Replicated, ReplicationConfig } from "./replication"
+import { Replicated, ReplicationConfig } from "./replication_config"
 
 export type SnapshotEmitter = (message: SnapshotMessage) => void
 
@@ -114,7 +114,7 @@ export function make_world(
   hi: number,
   schema: RegistrySchema | ComponentLike[] = {},
   recorder?: ReplicationRecorder,
-): World<never> {
+): World {
   const normalized_schema: RegistrySchema = Array.isArray(schema)
     ? { network: schema }
     : schema
@@ -152,7 +152,7 @@ export function make_world(
     _reduction_component_changes: new Map(),
     _reduction_component_removals: new Set(),
     _batch_map: new Map(),
-  } as unknown as World<never>
+  } as unknown as World
   world.index.index_to_entity[0] = RESOURCE_ENTITY
   return world
 }
