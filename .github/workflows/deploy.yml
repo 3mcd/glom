@@ -1,0 +1,52 @@
+name: deploy documentation
+
+on:
+  push:
+    branches: ["main"] # Update this if your default branch is different
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: install pandoc
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+
+      - name: install dependencies
+        run: bun install
+
+      - name: build documentation
+        run: bun docs.build
+
+      - name: setup pages
+        uses: actions/configure-pages@v4
+
+      - name: upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+      - name: deploy to github pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
