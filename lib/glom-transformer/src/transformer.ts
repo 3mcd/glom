@@ -715,7 +715,7 @@ function rewriteSystemFunction(
 
   const preambles: ts.Statement[] = []
   usedQueries.forEach((paramName) => {
-    const terms = queryMap.get(paramName)!
+    const terms = queryMap.get(paramName) as QueryTerm[]
     preambles.push(...generatePreamble(paramName, terms, factory))
   })
 
@@ -1055,10 +1055,6 @@ function generateLoops(
           factory.createIdentifier("join_on"),
         ),
         factory.createIdentifier("id"),
-      )
-
-      const objectsIdxIdent = factory.createIdentifier(
-        `_objects_idx${currentJoinLevel}_${queryParamName}`,
       )
 
       const relTargetsIdent = factory.createIdentifier(
