@@ -1,7 +1,19 @@
+import type {
+  Add,
+  All,
+  Component,
+  Entity,
+  Has,
+  Read,
+  Rel,
+  SystemSchedule,
+  World,
+  Write,
+} from "@glom/ecs"
 import * as g from "@glom/ecs"
 
 // 1. Components & Definitions with Serdes
-const Position = g.define_component<{ x: number; y: number }>(1, {
+const Position = g.define_component<{ x: number; y: number }>({
   bytes_per_element: 16,
   encode: (val, buf, off) => {
     const view = new DataView(buf.buffer, buf.byteOffset + off)
@@ -14,7 +26,7 @@ const Position = g.define_component<{ x: number; y: number }>(1, {
   },
 })
 
-const Color = g.define_component<number>(2, {
+const Color = g.define_component<number>({
   bytes_per_element: 4,
   encode: (val, buf, off) => {
     new DataView(buf.buffer, buf.byteOffset + off).setUint32(0, val, true)
@@ -24,7 +36,7 @@ const Color = g.define_component<number>(2, {
   },
 })
 
-const MoveCommand = g.define_component<{ dx: number; dy: number }>(3, {
+const MoveCommand = g.define_component<{ dx: number; dy: number }>({
   bytes_per_element: 16,
   encode: (val, buf, off) => {
     const view = new DataView(buf.buffer, buf.byteOffset + off)
@@ -37,7 +49,7 @@ const MoveCommand = g.define_component<{ dx: number; dy: number }>(3, {
   },
 })
 
-const Pulse = g.define_component<number>(10, {
+const Pulse = g.define_component<number>({
   bytes_per_element: 8,
   encode: (val, buf, off) => {
     new DataView(buf.buffer, buf.byteOffset + off).setFloat64(0, val, true)
@@ -47,8 +59,9 @@ const Pulse = g.define_component<number>(10, {
   },
 })
 
-const FireCommand = g.define_tag(11)
-const PulseOf = g.define_relation(12)
+const FireCommand = g.define_tag()
+const PulseOf = g.define_relation()
+const CanvasContext = g.define_component<CanvasRenderingContext2D>()
 
 const SPEED = 2
 const LATENCY_MS = 100 // One-way artificial latency
@@ -56,9 +69,17 @@ const HZ = 60
 const LAG_COMPENSATION_TICKS = 15 // Increased buffer to ensure commands are always "future"
 
 // 2. Shared Systems
-const schema = [Position, Color, MoveCommand, Pulse, FireCommand, PulseOf]
+const schema = [
+  Position,
+  Color,
+  MoveCommand,
+  Pulse,
+  FireCommand,
+  PulseOf,
+  CanvasContext,
+]
 
-function add_simulation_systems(schedule: g.SystemSchedule) {
+function add_simulation_systems(schedule: SystemSchedule) {
   g.add_system(schedule, movement_system)
   g.add_system(schedule, pulse_spawner_system)
   g.add_system(schedule, pulse_system)
@@ -67,12 +88,12 @@ function add_simulation_systems(schedule: g.SystemSchedule) {
 
 const pulse_spawner_system = g.define_system(
   (
-    query: g.All<
-      g.Entity,
-      g.Read<typeof Position>,
-      g.Rel<typeof g.CommandOf, g.Has<typeof FireCommand>>
+    query: All<
+      typeof g.ENTITY,
+      Read<typeof Position>,
+      Rel<typeof g.CommandOf, Has<typeof FireCommand>>
     >,
-    world: g.World,
+    world: World,
   ) => {
     for (const [player_ent, pos] of query) {
       // Find the intent tick from the command entity
@@ -80,10 +101,10 @@ const pulse_spawner_system = g.define_system(
       let intent_tick = world.tick
       if (incoming) {
         for (const { subject, relation_id } of incoming) {
-          if (relation_id === g.CommandOf.id) {
+          if (relation_id === world.component_registry.get_id(g.CommandOf)) {
             const it = g.get_component_value(
               world,
-              subject as g.Entity,
+              subject as Entity,
               g.IntentTick,
             )
             if (it !== undefined) {
@@ -97,7 +118,7 @@ const pulse_spawner_system = g.define_system(
       // Predict spawn into Local Domain (will be Domain 1 on client, Domain 0 on server)
       g.spawn(
         world,
-        [Position({ ...pos }), Pulse(5), PulseOf(player_ent), g.Replicated],
+        [Position(pos), Pulse(5), PulseOf(player_ent), g.Replicated],
         world.registry.hi,
         intent_tick,
       )
@@ -114,12 +135,12 @@ const pulse_spawner_system = g.define_system(
 
 const movement_system = g.define_system(
   (
-    query: g.All<
-      g.Entity,
-      g.Read<typeof Position>,
-      g.Rel<typeof g.CommandOf, g.Read<typeof MoveCommand>>
+    query: All<
+      typeof g.ENTITY,
+      Read<typeof Position>,
+      Rel<typeof g.CommandOf, Read<typeof MoveCommand>>
     >,
-    update: g.Add<typeof Position>,
+    update: Add<typeof Position>,
   ) => {
     for (const [entity, pos, move] of query) {
       let next_x = pos.x + move.dx * SPEED
@@ -149,12 +170,12 @@ const movement_system = g.define_system(
 
 const pulse_system = g.define_system(
   (
-    query: g.All<g.Entity, g.Read<typeof Pulse>>,
-    update: g.Add<typeof Pulse>,
+    query: All<typeof g.ENTITY, Read<typeof Pulse>>,
+    update: Add<typeof Pulse>,
     despawn: g.Despawn,
   ) => {
     for (const [entity, size] of query) {
-      const next_size = size + 1.5
+      const next_size = (size as number) + 1.5
       if (next_size > 40) {
         despawn(entity)
       } else {
@@ -170,12 +191,12 @@ const pulse_system = g.define_system(
 
 const attached_pulse_system = g.define_system(
   (
-    pulses: g.All<
-      g.Entity,
-      g.Read<typeof Position>,
-      g.Rel<typeof PulseOf, g.Read<typeof Position>>
+    pulses: All<
+      typeof g.ENTITY,
+      Read<typeof Position>,
+      Rel<typeof PulseOf, Read<typeof Position>>
     >,
-    update: g.Add<typeof Position>,
+    update: Add<typeof Position>,
   ) => {
     for (const [pulse_ent, _pos, parent_pos] of pulses) {
       update(pulse_ent, { x: parent_pos.x, y: parent_pos.y })
@@ -190,19 +211,17 @@ const attached_pulse_system = g.define_system(
   },
 )
 
-const CanvasContext = g.define_component<CanvasRenderingContext2D>(4)
-
 const render_system = g.define_system(
   (
-    query: g.All<g.Read<typeof Position>, g.Read<typeof Color>>,
-    pulses: g.All<g.Read<typeof Position>, g.Read<typeof Pulse>>,
-    ctx: g.Write<typeof CanvasContext>,
+    query: All<Read<typeof Position>, Read<typeof Color>>,
+    pulses: All<Read<typeof Position>, Read<typeof Pulse>>,
+    ctx: Write<typeof CanvasContext>,
   ) => {
     ctx.fillStyle = "black"
     ctx.fillRect(0, 0, 400, 400)
 
     for (const [pos, color_id] of query) {
-      ctx.fillStyle = color_id === 0 ? "#61dafb" : "#ff4444" // Server blue vs client red
+      ctx.fillStyle = (color_id as number) === 0 ? "#61dafb" : "#ff4444" // Server blue vs client red
       ctx.fillRect(pos.x - 10, pos.y - 10, 20, 20)
     }
 
@@ -228,7 +247,7 @@ const render_system = g.define_system(
 function create_server() {
   const canvas = document.getElementById("canvasServer") as HTMLCanvasElement
   const ctx = canvas.getContext("2d")!
-  const world = g.make_world(0, schema) // Server is always Domain 0
+  const world = g.make_world(0, schema) as World
   const schedule = g.make_system_schedule()
   const timestep = g.make_timestep(HZ)
 
@@ -254,14 +273,14 @@ function create_server() {
 }
 
 // 5. Client Setup
-function create_client(hi: number, reconcile_schedule: g.SystemSchedule) {
+function create_client(hi: number, reconcile_schedule: SystemSchedule) {
   const canvas = document.getElementById("canvasClient") as HTMLCanvasElement
   const ctx = canvas.getContext("2d")!
-  const world = g.make_world(hi, schema)
+  const world = g.make_world(hi, schema) as World
   const timestep = g.make_timestep(HZ)
 
   // Initialize history for reconciliation (Rollback Buffer)
-  world.history = { snapshots: [], max_size: 120 }
+  world.history = g.make_history_buffer(120)
 
   const schedule = g.make_system_schedule()
 
@@ -391,12 +410,12 @@ function loop() {
       for (const cmd of cmd_msg.commands) {
         g.record_command(
           server.world,
-          cmd.target as g.Entity,
+          cmd.target as Entity,
           {
             component: {
               id: cmd.component_id,
               __component_brand: true,
-            } as unknown as g.Component<unknown>,
+            } as unknown as Component<unknown>,
             value: cmd.data,
           },
           target_tick,
@@ -490,33 +509,36 @@ function loop() {
         })
       }
 
-      g.run_schedule(client.schedule, client.world)
+      g.run_schedule(client.schedule, client.world as World)
     })
   }
 
   // 4. Update Server
   g.timestep_update(server.timestep, now, () => {
-    g.run_schedule(server.schedule, server.world)
+    g.run_schedule(server.schedule, server.world as World)
   })
 
   // 5. Update Status
   const client_player_pos = g.get_component_value(
-    client.world,
+    client.world as World,
     player,
     Position,
   )
   const server_player_pos = g.get_component_value(
-    server.world,
+    server.world as World,
     player,
     Position,
   )
 
   const drift = client.world.tick - server.world.tick
 
-  document.getElementById("status")!.innerText =
-    `Latency: ${LATENCY_MS}ms | Drift: ${drift} ticks | ` +
-    `Server Tick: ${server.world.tick} (${server_player_pos ? Math.round(server_player_pos.x) : "?"}, ${server_player_pos ? Math.round(server_player_pos.y) : "?"}) | ` +
-    `Client Tick: ${client.world.tick} (${client_player_pos ? Math.round(client_player_pos.x) : "?"}, ${client_player_pos ? Math.round(client_player_pos.y) : "?"})`
+  const status_el = document.getElementById("status")
+  if (status_el) {
+    status_el.innerText =
+      `Latency: ${LATENCY_MS}ms | Drift: ${drift} ticks | ` +
+      `Server Tick: ${server.world.tick} (${server_player_pos ? Math.round(server_player_pos.x) : "?"}, ${server_player_pos ? Math.round(server_player_pos.y) : "?"}) | ` +
+      `Client Tick: ${client.world.tick} (${client_player_pos ? Math.round(client_player_pos.x) : "?"}, ${client_player_pos ? Math.round(client_player_pos.y) : "?"})`
+  }
 
   requestAnimationFrame(loop)
 }

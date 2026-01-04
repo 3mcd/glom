@@ -1,5 +1,5 @@
 import { COMMAND_DOMAIN, CommandEntity, CommandOf, IntentTick } from "./command"
-import { type ComponentLike, define_component } from "./component"
+import type { Component } from "./component"
 import { ENTITY, type Entity } from "./entity"
 import { All } from "./query/all"
 import { Has, Read, World as WorldTerm } from "./query/term"
@@ -8,14 +8,12 @@ import {
   perform_batch_reconciliation,
   prune_buffers,
 } from "./reconciliation"
-import { apply_transaction } from "./replication"
+import { apply_transaction, ReplicationConfig } from "./replication"
 import {
   apply_snapshot_stream,
   capture_snapshot_stream,
 } from "./snapshot_stream"
 import { define_system } from "./system"
-import type { SystemSchedule } from "./system_schedule"
-import { GlomMonitors } from "./systems/monitors"
 import type { World } from "./world"
 import {
   add_component,
@@ -25,13 +23,6 @@ import {
   remove_component,
   spawn,
 } from "./world_api"
-
-export const ReplicationConfig = define_component<{
-  history_window?: number
-  ghost_cleanup_window?: number
-  snapshot_components?: number[]
-  simulation_schedule?: SystemSchedule
-}>(1004)
 
 export const GlomNetwork = {
   reconcile: {
@@ -113,23 +104,24 @@ export const GlomNetwork = {
         if (!commands) return
 
         for (const cmd of commands) {
-          const comp: ComponentLike = {
-            id: cmd.component_id,
-            __component_brand: true,
-          }
+          const comp = world.component_registry.get_component(cmd.component_id)
+          if (!comp) continue
+
           let command_entity: Entity
           const base_components = [IntentTick(cmd.intent_tick), CommandEntity]
           if (cmd.data !== undefined) {
             command_entity = spawn(
               world,
-              [{ component: comp, value: cmd.data }, ...base_components],
+              [
+                { component: comp as Component<unknown>, value: cmd.data },
+                ...base_components,
+              ],
               COMMAND_DOMAIN,
             )
           } else {
-            const tag_comp: ComponentLike = { ...comp, is_tag: true }
             command_entity = spawn(
               world,
-              [tag_comp, ...base_components],
+              [comp, ...base_components],
               COMMAND_DOMAIN,
             )
           }
@@ -151,8 +143,9 @@ export const GlomNetwork = {
           // Find who this command belongs to (incoming relations)
           const incoming = world.relations.object_to_subjects.get(cmd_ent)
           if (incoming) {
+            const command_of_id = world.component_registry.get_id(CommandOf)
             for (const { subject, relation_id } of Array.from(incoming)) {
-              if (relation_id === CommandOf.id) {
+              if (relation_id === command_of_id) {
                 remove_component(world, subject as Entity, CommandOf(cmd_ent))
               }
             }

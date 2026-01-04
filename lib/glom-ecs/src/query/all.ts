@@ -4,7 +4,7 @@ import type { Term, TermValue } from "./term"
 export interface AnyAll {
   readonly __all: true
   readonly desc: AllDescriptor
-  [Symbol.iterator](): Iterator<unknown[]>
+  [Symbol.iterator](): Iterator<any>
 }
 
 export interface All<
@@ -19,16 +19,53 @@ export interface All<
 > extends AnyAll {
   readonly desc: AllDescriptor<T0, T1, T2, T3, T4, T5, T6, T7>
   [Symbol.iterator](): Iterator<
-    [
-      TermValue<T0>,
-      TermValue<T1>,
-      TermValue<T2>,
-      TermValue<T3>,
-      TermValue<T4>,
-      TermValue<T5>,
-      TermValue<T6>,
-      TermValue<T7>,
-    ]
+    [T0] extends [never]
+      ? []
+      : [T1] extends [never]
+        ? [TermValue<T0>]
+        : [T2] extends [never]
+          ? [TermValue<T0>, TermValue<T1>]
+          : [T3] extends [never]
+            ? [TermValue<T0>, TermValue<T1>, TermValue<T2>]
+            : [T4] extends [never]
+              ? [TermValue<T0>, TermValue<T1>, TermValue<T2>, TermValue<T3>]
+              : [T5] extends [never]
+                ? [
+                    TermValue<T0>,
+                    TermValue<T1>,
+                    TermValue<T2>,
+                    TermValue<T3>,
+                    TermValue<T4>,
+                  ]
+                : [T6] extends [never]
+                  ? [
+                      TermValue<T0>,
+                      TermValue<T1>,
+                      TermValue<T2>,
+                      TermValue<T3>,
+                      TermValue<T4>,
+                      TermValue<T5>,
+                    ]
+                  : [T7] extends [never]
+                    ? [
+                        TermValue<T0>,
+                        TermValue<T1>,
+                        TermValue<T2>,
+                        TermValue<T3>,
+                        TermValue<T4>,
+                        TermValue<T5>,
+                        TermValue<T6>,
+                      ]
+                    : [
+                        TermValue<T0>,
+                        TermValue<T1>,
+                        TermValue<T2>,
+                        TermValue<T3>,
+                        TermValue<T4>,
+                        TermValue<T5>,
+                        TermValue<T6>,
+                        TermValue<T7>,
+                      ]
   >
 }
 

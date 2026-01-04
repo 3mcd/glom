@@ -9,32 +9,37 @@ import {
   entity_graph_get_entity_node,
   entity_graph_node_add_listener,
   entity_graph_node_has_entity,
+  entity_graph_node_prune,
   entity_graph_set_entity_node,
   make_entity_graph,
   make_entity_graph_batch,
   make_entity_graph_node,
   PruneStrategy,
 } from "./entity_graph"
-import { EMPTY_VEC, make_vec } from "./vec"
+import { make_vec, make_vec_sorted } from "./vec"
+import { make_component_registry } from "./registry"
+import { sparse_set_size } from "./sparse_set"
 
 describe("entity_graph", () => {
-  const c1 = define_component(1)
-  const c2 = define_component(2)
-  const c3 = define_component(3)
+  const c1 = define_component(undefined, 1)
+  const c2 = define_component(undefined, 2)
+  const c3 = define_component(undefined, 3)
+  const registry = make_component_registry({}, [c1, c2, c3])
+  const empty_vec = make_vec_sorted([], registry)
 
-  const v1 = make_vec([c1])
-  const v12 = make_vec([c1, c2])
-  const v123 = make_vec([c1, c2, c3])
+  const v1 = make_vec([c1], registry)
+  const v12 = make_vec([c1, c2], registry)
+  const v123 = make_vec([c1, c2, c3], registry)
 
   test("make_entity_graph", () => {
-    const graph = make_entity_graph()
+    const graph = make_entity_graph(registry)
     expect(graph.root).toBeDefined()
     expect(graph.root.id).toBe(0)
     expect(graph.next_id).toBe(1)
   })
 
   test("find_or_create_node", () => {
-    const graph = make_entity_graph()
+    const graph = make_entity_graph(registry)
     const node1 = entity_graph_find_or_create_node(graph, v1)
     const node2 = entity_graph_find_or_create_node(graph, v1)
 
@@ -44,7 +49,7 @@ describe("entity_graph", () => {
   })
 
   test("linking logic (subset/superset)", () => {
-    const graph = make_entity_graph()
+    const graph = make_entity_graph(registry)
     const n1 = entity_graph_find_or_create_node(graph, v1)
     const n12 = entity_graph_find_or_create_node(graph, v12)
 
@@ -58,7 +63,7 @@ describe("entity_graph", () => {
   })
 
   test("set_entity_node", () => {
-    const graph = make_entity_graph()
+    const graph = make_entity_graph(registry)
     const n1 = entity_graph_find_or_create_node(graph, v1)
     const entity = 100 as Entity
 
@@ -74,7 +79,7 @@ describe("entity_graph", () => {
   })
 
   test("listeners and emit_spawned_entities", () => {
-    const graph = make_entity_graph()
+    const graph = make_entity_graph(registry)
     const n1 = entity_graph_find_or_create_node(graph, v1)
 
     const spawned: Entity[] = []
@@ -93,7 +98,7 @@ describe("entity_graph", () => {
   })
 
   test("emit_moved_entities", () => {
-    const graph = make_entity_graph()
+    const graph = make_entity_graph(registry)
     const n1 = entity_graph_find_or_create_node(graph, v1)
     const n12 = entity_graph_find_or_create_node(graph, v12)
 
@@ -107,18 +112,18 @@ describe("entity_graph", () => {
 
     const batch1 = make_entity_graph_batch(graph.root, n12)
     entity_graph_batch_add(batch1, 1 as Entity)
-    emit_moved_entities(batch1)
+    emit_moved_entities(batch1, registry)
     expect(moved_in).toEqual([1 as Entity])
 
     moved_in.length = 0
     const batch2 = make_entity_graph_batch(n12, n1)
     entity_graph_batch_add(batch2, 1 as Entity)
-    emit_moved_entities(batch2)
+    emit_moved_entities(batch2, registry)
     expect(moved_out).toEqual([1 as Entity])
   })
 
   test("node pruning when empty", () => {
-    const graph = make_entity_graph()
+    const graph = make_entity_graph(registry)
     const n1 = entity_graph_find_or_create_node(
       graph,
       v1,
@@ -129,13 +134,14 @@ describe("entity_graph", () => {
     entity_graph_set_entity_node(graph, entity, n1)
     expect(graph.by_hash.has(v1.hash)).toBe(true)
 
-    // Move away from n1 - should prune it
+    // Move away from n1 - should prune it (manually triggered here as it is deferred in World)
     entity_graph_set_entity_node(graph, entity, graph.root)
+    entity_graph_node_prune(graph, n1)
     expect(graph.by_hash.has(v1.hash)).toBe(false)
   })
 
   test("neighbor reconnection after pruning", () => {
-    const graph = make_entity_graph()
+    const graph = make_entity_graph(registry)
     const n1 = entity_graph_find_or_create_node(graph, v1) // Strategy None
     const n12 = entity_graph_find_or_create_node(
       graph,
@@ -150,8 +156,9 @@ describe("entity_graph", () => {
     const entity = 1 as Entity
     entity_graph_set_entity_node(graph, entity, n12)
 
-    // Prune n12 by moving entity away
+    // Prune n12 by moving entity away (manually triggered here)
     entity_graph_set_entity_node(graph, entity, graph.root)
+    entity_graph_node_prune(graph, n12)
 
     expect(graph.by_hash.has(v12.hash)).toBe(false)
 
@@ -161,7 +168,7 @@ describe("entity_graph", () => {
   })
 
   test("root node is never pruned", () => {
-    const graph = make_entity_graph()
+    const graph = make_entity_graph(registry)
     // Root doesn't have entities normally but let's test the strategy if it were set
     // @ts-ignore: private access for test
     graph.root.strategy = PruneStrategy.WhenEmpty
@@ -170,11 +177,11 @@ describe("entity_graph", () => {
     entity_graph_set_entity_node(graph, entity, graph.root)
     entity_graph_set_entity_node(graph, entity, make_entity_graph_node(99, v1))
 
-    expect(graph.by_hash.has(EMPTY_VEC.hash)).toBe(true)
+    expect(graph.by_hash.has(empty_vec.hash)).toBe(true)
   })
 
   test("node_destroyed callback when pruned", () => {
-    const graph = make_entity_graph()
+    const graph = make_entity_graph(registry)
     const n1 = entity_graph_find_or_create_node(
       graph,
       v1,
@@ -190,7 +197,8 @@ describe("entity_graph", () => {
     })
 
     entity_graph_set_entity_node(graph, entity, n1)
-    entity_graph_set_entity_node(graph, entity, graph.root) // triggers prune
+    entity_graph_set_entity_node(graph, entity, graph.root) // triggers prune candidacy
+    entity_graph_node_prune(graph, n1) // manual trigger
 
     expect(destroyed_node).toBe(n1)
   })

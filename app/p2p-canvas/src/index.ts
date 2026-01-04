@@ -1,7 +1,7 @@
 import * as g from "@glom/ecs"
 
 // 1. Components & Definitions with Serdes for binary transport
-const Position = g.define_component<{ x: number; y: number }>(1, {
+const Position = g.define_component<{ x: number; y: number }>({
   bytes_per_element: 8,
   encode: (val, buf, off) => {
     const view = new DataView(buf.buffer, buf.byteOffset + off)
@@ -15,7 +15,7 @@ const Position = g.define_component<{ x: number; y: number }>(1, {
 })
 
 // Color as an integer ID (1=Red, 2=Blue) to keep it simple for serialization
-const Color = g.define_component<number>(2, {
+const Color = g.define_component<number>({
   bytes_per_element: 4,
   encode: (val, buf, off) => {
     new DataView(buf.buffer, buf.byteOffset + off).setUint32(0, val, true)
@@ -25,7 +25,7 @@ const Color = g.define_component<number>(2, {
   },
 })
 
-const MoveCommand = g.define_component<{ dx: number; dy: number }>(3, {
+const MoveCommand = g.define_component<{ dx: number; dy: number }>({
   bytes_per_element: 8,
   encode: (val, buf, off) => {
     const view = new DataView(buf.buffer, buf.byteOffset + off)
@@ -111,7 +111,7 @@ function create_peer(
     g.ReplicationConfig({
       history_window: 64,
       ghost_cleanup_window: 60,
-      snapshot_components: [Position.id],
+      snapshot_components: [world.component_registry.get_id(Position)],
     }),
   )
 
@@ -156,7 +156,7 @@ function create_peer(
         g.record_command(world, my_entity, MoveCommand({ dx, dy }))
       }
 
-      g.run_schedule(schedule, world as g.World)
+      g.run_schedule(schedule, world)
     },
   }
 }

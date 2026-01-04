@@ -10,8 +10,9 @@ import { AllRuntime, make_all, setup_all, teardown_all } from "./all_runtime"
 import { spawn } from "../world_api"
 
 describe("all_runtime", () => {
-  const c1 = define_component<{ val: number }>(1)
-  const c2 = define_component<{ name: string }>(2)
+  const c1 = define_component<{ val: number }>()
+  const c2 = define_component<{ name: string }>()
+  const schema = [c1, c2]
   const desc: AllDescriptor<unknown, unknown> = {
     all: [{ read: c1 }, { write: c2 }],
   } as unknown as AllDescriptor<unknown, unknown>
@@ -22,7 +23,7 @@ describe("all_runtime", () => {
   })
 
   test("setup_all adds listener and populates nodes", () => {
-    const world = make_world(0)
+    const world = make_world(0, schema)
     const all = make_all(desc) as AllRuntime
 
     setup_all(all, world)
@@ -32,7 +33,7 @@ describe("all_runtime", () => {
   })
 
   test("iterator yields component values", () => {
-    const world = make_world(0)
+    const world = make_world(0, schema)
     const all = make_all(desc) as AllRuntime
     setup_all(all, world)
 
@@ -69,7 +70,7 @@ describe("all_runtime", () => {
     const descWithEntity: AllDescriptor<unknown, unknown> = {
       all: [{ entity: true }, { read: c1 }],
     } as unknown as AllDescriptor<unknown, unknown>
-    const world = make_world(0)
+    const world = make_world(0, schema)
     const all = make_all(descWithEntity) as AllRuntime
     setup_all(all, world)
 
@@ -92,7 +93,7 @@ describe("all_runtime", () => {
     const descWithEntity: AllDescriptor<unknown, unknown> = {
       all: [ENTITY, { read: c1 }],
     } as unknown as AllDescriptor<unknown, unknown>
-    const world = make_world(0)
+    const world = make_world(0, schema)
     const all = make_all(descWithEntity) as AllRuntime
     setup_all(all, world)
 
@@ -111,11 +112,11 @@ describe("all_runtime", () => {
   })
 
   test("iterator with tags (ZSTs)", () => {
-    const t1 = define_tag(10)
+    const t1 = define_tag()
     const descWithTag: AllDescriptor<unknown, unknown, unknown> = {
       all: [ENTITY, { has: t1 }, { read: c1 }],
     } as unknown as AllDescriptor<unknown, unknown, unknown>
-    const world = make_world(0)
+    const world = make_world(0, [c1, t1])
     const all = make_all(descWithTag) as AllRuntime
     setup_all(all, world)
 
@@ -135,12 +136,12 @@ describe("all_runtime", () => {
   })
 
   test("iterator with Not filter", () => {
-    const c3 = define_component<{ val: number }>(3)
+    const c3 = define_component<{ val: number }>()
     const descWithNot: AllDescriptor<unknown, unknown> = {
       all: [{ read: c1 }, { not: c3 }],
     } as unknown as AllDescriptor<unknown, unknown>
 
-    const world = make_world(0)
+    const world = make_world(0, [c1, c3])
     const all = make_all(descWithNot) as AllRuntime
     setup_all(all, world)
 
@@ -159,9 +160,9 @@ describe("all_runtime", () => {
   })
 
   test("iterator with Rel and Not filter", () => {
-    const world = make_world(0)
-    const rel = define_tag(100)
-    const c3 = define_component<{ val: number }>(3)
+    const rel = define_tag()
+    const c3 = define_component<{ val: number }>()
+    const world = make_world(0, [rel, c3])
 
     // Rel(rel, Not(c3))
     const descWithRelNot: AllDescriptor<unknown> = {
@@ -191,7 +192,7 @@ describe("all_runtime", () => {
   })
 
   test("teardown_all removes listener and clears nodes", () => {
-    const world = make_world(0)
+    const world = make_world(0, schema)
     const all = make_all(desc) as AllRuntime
 
     setup_all(all, world)

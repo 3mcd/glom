@@ -2,11 +2,13 @@ import { describe, expect, test } from "bun:test"
 import * as g from "../index"
 
 describe("relation integration", () => {
-  const Position = g.define_component<{ x: number }>(1000)
-  const ChildOf = g.define_relation(1001)
+  const Position = g.define_component<{ x: number }>()
+  const ChildOf = g.define_relation()
+  const Name = g.define_component<string>()
+  const schema = [Position, ChildOf, Name]
 
   test("simple rel join", () => {
-    const world = g.make_world(0)
+    const world = g.make_world(0, schema)
     const parent = g.spawn(world, [Position({ x: 10 })])
     g.spawn(world, [Position({ x: 1 }), ChildOf(parent)])
 
@@ -41,7 +43,7 @@ describe("relation integration", () => {
   })
 
   test("inner join logic (missing component on object)", () => {
-    const world = g.make_world(0)
+    const world = g.make_world(0, schema)
     const parent = g.spawn(world, []) // Parent has NO Position
     g.spawn(world, [Position({ x: 1 }), ChildOf(parent)]) // child
 
@@ -72,7 +74,7 @@ describe("relation integration", () => {
   })
 
   test("multiple objects for same relationship", () => {
-    const world = g.make_world(0)
+    const world = g.make_world(0, schema)
     const p1 = g.spawn(world, [Position({ x: 10 })])
     const p2 = g.spawn(world, [Position({ x: 20 })])
     g.spawn(world, [Position({ x: 1 }), ChildOf(p1), ChildOf(p2)]) // child
@@ -107,8 +109,7 @@ describe("relation integration", () => {
   })
 
   test("nested rel join", () => {
-    const world = g.make_world(0)
-    const Name = g.define_component<string>(1002)
+    const world = g.make_world(0, schema)
 
     const grandparent = g.spawn(world, [Name("Grandparent")])
     const parent = g.spawn(world, [Name("Parent"), ChildOf(grandparent)])

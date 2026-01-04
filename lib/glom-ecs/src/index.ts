@@ -29,11 +29,11 @@ export {
   ByteWriter,
 } from "./lib/binary"
 export type { SnapshotBlock, SnapshotMessage } from "./net_types"
-export { GlomNetwork, ReplicationConfig } from "./netcode"
+export { GlomNetwork } from "./netcode"
 export {
   type ClockSync,
   type CommandMessage,
-  type ComponentResolver,
+  type ComponentResolver as ComponentResolverProtocol,
   type HandshakeClient,
   type HandshakeServer,
   type MessageHeader,
@@ -77,6 +77,7 @@ export {
 export {
   ComponentRegistry,
   make_component_registry,
+  type RegistrySchema,
 } from "./registry"
 export {
   define_relation,
@@ -87,6 +88,7 @@ export {
   apply_transaction,
   make_causal_key,
   Replicated,
+  ReplicationConfig,
   type ReplicationOp,
   rebind_entity,
   type Transaction,

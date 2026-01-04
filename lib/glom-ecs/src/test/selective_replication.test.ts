@@ -5,11 +5,12 @@ import { get_component_value, make_world } from "../world"
 import { add_component, commit_transaction, despawn, spawn } from "../world_api"
 
 describe("selective replication", () => {
-  const Position = define_component<{ x: number; y: number }>(1)
+  const Position = define_component<{ x: number; y: number }>()
+  const schema = [Position]
 
   test("only record mutations for entities with Replicated tag", () => {
-    const world_a = make_world(1)
-    const world_b = make_world(2)
+    const world_a = make_world(1, schema)
+    const world_b = make_world(2, schema)
 
     let tx_count = 0
     world_a.recorder = (tx: Transaction) => {

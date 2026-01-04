@@ -10,7 +10,11 @@ import {
 import { type EntityRegistry, make_entity_registry } from "./entity_registry"
 import type { HistoryBuffer } from "./history"
 import type { SnapshotMessage } from "./net_types"
-import { type ComponentRegistry, make_component_registry } from "./registry"
+import {
+  type ComponentRegistry,
+  make_component_registry,
+  type RegistrySchema,
+} from "./registry"
 import {
   make_relation_registry,
   type RelationRegistry,
@@ -20,7 +24,7 @@ import type {
   ReplicationRecorder,
   Transaction,
 } from "./replication"
-import { Replicated } from "./replication"
+import { Replicated, ReplicationConfig } from "./replication"
 
 export type SnapshotEmitter = (message: SnapshotMessage) => void
 
@@ -67,7 +71,7 @@ export type GraphMove = {
   to?: EntityGraphNode
 }
 
-export type World<R extends ComponentLike = never> = {
+export type World<R extends ComponentLike = any> = {
   readonly __resources: (val: R) => void
   readonly registry: EntityRegistry
   readonly component_registry: ComponentRegistry
@@ -75,6 +79,7 @@ export type World<R extends ComponentLike = never> = {
   readonly graph_changes: SparseMap<GraphMove>
   readonly pending_deletions: Set<Entity>
   readonly pending_component_removals: Map<Entity, ComponentLike[]>
+  readonly pending_node_pruning: Set<EntityGraphNode>
   readonly components: ComponentStore
   readonly index: EntityIndex
   readonly relations: RelationRegistry
@@ -107,24 +112,29 @@ export type World<R extends ComponentLike = never> = {
 
 export function make_world(
   hi: number,
-  schema: ComponentLike[] = [],
+  schema: RegistrySchema | ComponentLike[] = {},
   recorder?: ReplicationRecorder,
 ): World<never> {
-  const component_registry = make_component_registry([
+  const normalized_schema: RegistrySchema = Array.isArray(schema)
+    ? { network: schema }
+    : schema
+
+  const component_registry = make_component_registry(normalized_schema, [
     Replicated,
     IntentTick,
     CommandOf,
     CommandEntity,
-    ...schema,
+    ReplicationConfig,
   ])
 
   const world = {
     registry: make_entity_registry(hi),
     component_registry,
-    entity_graph: make_entity_graph(),
+    entity_graph: make_entity_graph(component_registry),
     graph_changes: make_sparse_map<GraphMove>(),
     pending_deletions: new Set<Entity>(),
     pending_component_removals: new Map<Entity, ComponentLike[]>(),
+    pending_node_pruning: new Set<EntityGraphNode>(),
     components: make_component_store(),
     index: make_entity_index(),
     relations: make_relation_registry(),
@@ -148,7 +158,7 @@ export function make_world(
 }
 
 export function world_get_or_create_index(
-  world: World,
+  world: World<any>,
   entity: number,
 ): number {
   if (entity === RESOURCE_ENTITY) {
@@ -164,40 +174,42 @@ export function world_get_or_create_index(
 }
 
 export function get_component_store<T>(
-  world: World,
+  world: World<any>,
   component: ComponentLike,
 ): (T | undefined)[] | undefined {
   if (component.is_tag) {
     return undefined
   }
-  let store = world.components.storage.get(component.id)
+  const component_id = world.component_registry.get_id(component)
+  let store = world.components.storage.get(component_id)
   if (!store) {
     store = []
-    world.components.storage.set(component.id, store)
+    world.components.storage.set(component_id, store)
   }
   return store as (T | undefined)[]
 }
 
 export function set_component_value<T>(
-  world: World,
+  world: World<any>,
   entity: number,
   component: Component<T> | ComponentLike,
   value: T,
   version = world.tick,
 ): void {
+  const component_id = world.component_registry.get_id(component)
   if (component.is_tag) {
     if (entity === RESOURCE_ENTITY) {
-      world.components.resource_tags.add(component.id)
+      world.components.resource_tags.add(component_id)
     }
     return
   }
   const index = world_get_or_create_index(world, entity)
 
   // Last-Write-Wins check
-  let versions = world.components.versions.get(component.id)
+  let versions = world.components.versions.get(component_id)
   if (!versions) {
     versions = new Uint32Array(1024) // Initial capacity
-    world.components.versions.set(component.id, versions)
+    world.components.versions.set(component_id, versions)
   }
 
   // Ensure versions array is large enough
@@ -205,7 +217,7 @@ export function set_component_value<T>(
     const next = new Uint32Array(Math.max(versions.length * 2, index + 1))
     next.set(versions)
     versions = next
-    world.components.versions.set(component.id, versions)
+    world.components.versions.set(component_id, versions)
   }
 
   const current_version = versions[index]
@@ -221,7 +233,7 @@ export function set_component_value<T>(
 }
 
 export function get_component_value<T>(
-  world: World,
+  world: World<any>,
   entity: number,
   component: Component<T> | ComponentLike,
 ): T | undefined {
@@ -231,12 +243,17 @@ export function get_component_value<T>(
   const pending_removals = world.pending_component_removals.get(
     entity as Entity,
   )
-  if (pending_removals?.some((c) => c.id === component.id)) {
+  const component_id = world.component_registry.get_id(component)
+  if (
+    pending_removals?.some(
+      (c) => world.component_registry.get_id(c) === component_id,
+    )
+  ) {
     return undefined
   }
   if (component.is_tag) {
     if (entity === RESOURCE_ENTITY) {
-      return world.components.resource_tags.has(component.id)
+      return world.components.resource_tags.has(component_id)
         ? (undefined as T)
         : undefined
     }
@@ -250,7 +267,7 @@ export function get_component_value<T>(
   if (index === undefined) {
     return undefined
   }
-  const store = world.components.storage.get(component.id)
+  const store = world.components.storage.get(component_id)
   if (!store) {
     return undefined
   }
@@ -258,12 +275,13 @@ export function get_component_value<T>(
 }
 
 export function delete_component_value<T>(
-  world: World,
+  world: World<any>,
   entity: number,
   component: ComponentLike,
 ): void {
+  const component_id = world.component_registry.get_id(component)
   if (component.is_tag && entity === RESOURCE_ENTITY) {
-    world.components.resource_tags.delete(component.id)
+    world.components.resource_tags.delete(component_id)
     return
   }
   const index =
@@ -303,10 +321,14 @@ export function has_resource<T extends ComponentLike>(
 ): boolean {
   const component = resource as Component<unknown>
   if (component.is_tag) {
-    return world.components.resource_tags.has(component.id)
+    return world.components.resource_tags.has(
+      world.component_registry.get_id(component),
+    )
   }
   const index = sparse_map_get(world.index.entity_to_index, RESOURCE_ENTITY)
   if (index === undefined) return false
-  const store = world.components.storage.get(component.id)
+  const store = world.components.storage.get(
+    world.component_registry.get_id(component),
+  )
   return store !== undefined && store[index] !== undefined
 }

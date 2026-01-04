@@ -20,6 +20,7 @@ import {
   setup_system_executor,
 } from "./system_executor"
 import type { World } from "./world"
+import { world_flush_deletions, world_flush_graph_changes } from "./world_api"
 
 enum SystemSchedulePhase {
   Setup,
@@ -70,35 +71,35 @@ export function make_system_schedule(): SystemSchedule<never> {
 type NoInfer<T> = [T][T extends unknown ? 0 : never]
 
 type SystemDeps = {
-  reads: Set<number>
-  writes: Set<number>
+  reads: Set<ComponentLike>
+  writes: Set<ComponentLike>
 }
 
 function extract_system_deps(exec: SystemExecutor): SystemDeps {
-  const reads = new Set<number>()
-  const writes = new Set<number>()
+  const reads = new Set<ComponentLike>()
+  const writes = new Set<ComponentLike>()
 
   function add_term_deps(term: unknown) {
     if (!term || typeof term !== "object") return
 
     if (is_read_descriptor(term)) {
       const c = term.read
-      if (c && typeof c.id === "number") reads.add(c.id)
+      if (c) reads.add(c)
     } else if (is_write_descriptor(term)) {
       const c = term.write
-      if (c && typeof c.id === "number") writes.add(c.id)
+      if (c) writes.add(c)
     } else if (is_add_descriptor(term)) {
       const c = term.add
-      if (c && typeof c.id === "number") writes.add(c.id)
+      if (c) writes.add(c)
     } else if (is_remove_descriptor(term)) {
       const c = term.remove
-      if (c && typeof c.id === "number") writes.add(c.id)
+      if (c) writes.add(c)
     } else if (is_has_descriptor(term)) {
-      const c = term.has as Component<unknown>
-      if (c && typeof c.id === "number") reads.add(c.id)
+      const c = term.has as ComponentLike
+      if (c) reads.add(c)
     } else if (is_rel_descriptor(term)) {
       const [rel, object] = term.rel
-      if (rel && typeof rel.id === "number") reads.add(rel.id)
+      if (rel) reads.add(rel as ComponentLike)
       add_term_deps(object)
     }
   }
@@ -125,25 +126,25 @@ function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
   const adj: number[][] = Array.from({ length: n }, () => [])
   const in_degree = new Array(n).fill(0)
 
-  const component_writers: Map<number, number[]> = new Map()
-  const component_readers: Map<number, number[]> = new Map()
+  const component_writers: Map<ComponentLike, number[]> = new Map()
+  const component_readers: Map<ComponentLike, number[]> = new Map()
 
   for (let i = 0; i < n; i++) {
     const d = deps[i]
     assert_defined(d)
-    for (const write_id of d.writes) {
-      let writers = component_writers.get(write_id)
+    for (const write_comp of d.writes) {
+      let writers = component_writers.get(write_comp)
       if (!writers) {
         writers = []
-        component_writers.set(write_id, writers)
+        component_writers.set(write_comp, writers)
       }
       writers.push(i)
     }
-    for (const read_id of d.reads) {
-      let readers = component_readers.get(read_id)
+    for (const read_comp of d.reads) {
+      let readers = component_readers.get(read_comp)
       if (!readers) {
         readers = []
-        component_readers.set(read_id, readers)
+        component_readers.set(read_comp, readers)
       }
       readers.push(i)
     }
@@ -158,7 +159,7 @@ function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
     }
   }
 
-  for (const [component_id, writers] of component_writers.entries()) {
+  for (const [component, writers] of component_writers.entries()) {
     // Rule 1: Writers in registration order
     for (let j = 0; j < writers.length - 1; j++) {
       const u = writers[j]
@@ -169,13 +170,13 @@ function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
     }
 
     // Rule 2: All writers before all readers (excluding readers that are also writers)
-    const readers = component_readers.get(component_id)
+    const readers = component_readers.get(component)
     if (readers) {
       for (const writer of writers) {
         for (const reader of readers) {
           if (writer !== reader) {
             const reader_deps = deps[reader]
-            if (reader_deps && !reader_deps.writes.has(component_id)) {
+            if (reader_deps && !reader_deps.writes.has(component)) {
               add_edge(writer, reader)
             }
           }
@@ -279,6 +280,8 @@ export function run_schedule<T extends ComponentLike, U extends ComponentLike>(
   for (const exec of schedule.execs) {
     run_system_executor(exec)
   }
+  world_flush_graph_changes(world as World)
+  world_flush_deletions(world as World)
   for (const exec of schedule.execs) {
     clear_system_executor_monitors(exec)
   }

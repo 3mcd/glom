@@ -49,15 +49,27 @@ export class MonitorRuntime extends AllRuntime {
     const world = this._world
     if (!world) return
 
+    // Refresh store references to handle rollback/snapshot replacements
+    const refresh_stores = (infos: TermInfo[]) => {
+      for (let i = 0; i < infos.length; i++) {
+        const info = infos[i]!
+        if (info.type === "component") {
+          info.store = world.components.storage.get(info.component_id)
+        } else if (info.type === "rel") {
+          refresh_stores([info.object_term])
+        }
+      }
+    }
+    refresh_stores(this._term_infos)
+
     const targets = this._mode === "in" ? this.added : this.removed
     const entities = sparse_set_values(targets)
-    const results = new Array(this._term_infos.length)
 
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i]!
       // For monitors, we bypass the node-matching check in the iterator
       // because the entity is either just entering or just leaving.
-      yield* this._yield_entity_monitor(entity, 0, results)
+      yield* this._yield_entity_monitor(entity, 0, new Array(this._term_infos.length))
     }
   }
 
@@ -68,7 +80,7 @@ export class MonitorRuntime extends AllRuntime {
   ): IterableIterator<unknown[]> {
     const term_infos = this._term_infos
     if (term_idx === term_infos.length) {
-      yield current_result
+      yield [...current_result]
       return
     }
 
@@ -99,7 +111,18 @@ export class MonitorRuntime extends AllRuntime {
       return val === undefined ? [] : [val]
     }
     if (info.type === "has" || info.type === "not") {
-      return [undefined]
+      const world = this._world
+      if (!world) return []
+      const node = sparse_map_get(
+        world.entity_graph.by_entity,
+        entity as number,
+      )
+      const has_component = node ? node.vec.sparse.has(info.component_id) : false
+      if (info.type === "has") {
+        return has_component ? [undefined] : []
+      } else {
+        return has_component ? [] : [undefined]
+      }
     }
     if (info.type === "rel") {
       const world = this._world
@@ -110,7 +133,7 @@ export class MonitorRuntime extends AllRuntime {
       )
       if (!node) return []
 
-      const objects = this._get_rel_objects(entity, node, info.relation)
+      const objects = this._get_rel_objects(entity, node, info.relation_id)
       const results: unknown[] = []
       for (let i = 0; i < objects.length; i++) {
         const object = objects[i]!

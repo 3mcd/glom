@@ -11,11 +11,12 @@ import { All } from "../query/all"
 import { Rel, Read } from "../query/term"
 
 describe("netcode orchestration", () => {
-  const Position = define_component<{ x: number; y: number }>(1)
-  const Jump = define_tag(100)
+  const Position = define_component<{ x: number; y: number }>()
+  const Jump = define_tag()
+  const schema = [Position, Jump]
 
   test("networked schedule lifecycle", () => {
-    const world = make_world(1)
+    const world = make_world(1, schema)
     const player = spawn(world, [Position({ x: 0, y: 0 }), Replicated])
     
     // Setup schedule
@@ -54,7 +55,8 @@ describe("netcode orchestration", () => {
     
     // Verify cleanup: player should no longer have CommandOf
     const node = sparse_map_get(world.entity_graph.by_entity, player as number)
-    expect(node?.vec.elements.some(c => c.id === CommandOf.id)).toBe(false)
+    const command_of_id = world.component_registry.get_id(CommandOf)
+    expect(node?.vec.elements.some(c => world.component_registry.get_id(c) === command_of_id)).toBe(false)
   })
 })
 

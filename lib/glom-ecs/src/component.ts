@@ -7,7 +7,7 @@ export type ComponentEncode<T> = (
 export type ComponentDecode<T> = (
   buffer: Uint8Array,
   offset: number,
-  value: T,
+  value?: T,
 ) => T
 
 export type ComponentSerde<T> = {
@@ -23,7 +23,7 @@ export type ComponentInstance<T> = {
 
 export type ComponentLike = {
   readonly __component_brand: true
-  readonly id: number
+  readonly id?: number
   readonly is_tag?: boolean
 }
 
@@ -42,28 +42,28 @@ export interface ComponentResolver {
 }
 
 export function define_component<T>(
-  id: number,
   serde?: ComponentSerde<T>,
+  id?: number,
 ): Component<T> {
   const component = ((value: T): ComponentInstance<T> => ({
     component: component as unknown as ComponentLike,
     value,
   })) as unknown as Record<string, unknown>
 
-  component["id"] = id
+  if (id !== undefined) component["id"] = id
   component["serde"] = serde
   component["__component_brand"] = true
 
   return component as unknown as Component<T>
 }
 
-export function define_tag(id: number): Component<void> {
+export function define_tag(id?: number): Component<void> {
   const component = ((value: void): ComponentInstance<void> => ({
     component: component as unknown as ComponentLike,
     value,
   })) as unknown as Record<string, unknown>
 
-  component["id"] = id
+  if (id !== undefined) component["id"] = id
   component["is_tag"] = true
   component["__component_brand"] = true
 

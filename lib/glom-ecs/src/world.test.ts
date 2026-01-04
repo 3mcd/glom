@@ -14,11 +14,12 @@ import {
 } from "./world"
 
 describe("world_storage", () => {
-  const Position = define_component<{ x: number; y: number }>(1)
-  const Velocity = define_component<{ x: number; y: number }>(2)
+  const Position = define_component<{ x: number; y: number }>()
+  const Velocity = define_component<{ x: number; y: number }>()
+  const schema = [Position, Velocity]
 
   test("set and get component values", () => {
-    const world = make_world(0)
+    const world = make_world(0, schema)
     const entity = make_entity(10, 0)
 
     set_component_value(world, entity, Position, { x: 1, y: 2 })
@@ -31,7 +32,7 @@ describe("world_storage", () => {
   })
 
   test("handle hi/lo ID collisions via dense mapping", () => {
-    const world = make_world(0)
+    const world = make_world(0, schema)
     const e1 = make_entity(100, 1) // Agent 1, ID 100
     const e2 = make_entity(100, 2) // Agent 2, ID 100
 
@@ -48,13 +49,13 @@ describe("world_storage", () => {
   })
 
   test("get undefined for missing component", () => {
-    const world = make_world(0)
+    const world = make_world(0, schema)
     const entity = make_entity(10, 0)
     expect(get_component_value(world, entity, Position)).toBeUndefined()
   })
 
   test("remove component value", () => {
-    const world = make_world(0)
+    const world = make_world(0, schema)
     const entity = make_entity(10, 0)
 
     set_component_value(world, entity, Position, { x: 1, y: 2 })
@@ -64,7 +65,7 @@ describe("world_storage", () => {
   })
 
   test("multiple components for same entity", () => {
-    const world = make_world(0)
+    const world = make_world(0, schema)
     const entity = make_entity(10, 0)
 
     set_component_value(world, entity, Position, { x: 1, y: 2 })
@@ -75,20 +76,21 @@ describe("world_storage", () => {
   })
 
   test("tag components as resources", () => {
-    const world = make_world(0)
-    const IsRunning = define_tag(100)
+    const IsRunning = define_tag()
+    const world = make_world(0, [IsRunning])
 
     add_resource(world, IsRunning())
     expect(get_resource(world, IsRunning)).toBeUndefined() // void value is undefined
-    expect(world.components.resource_tags.has(IsRunning.id)).toBe(true)
+    const id = world.component_registry.get_id(IsRunning)
+    expect(world.components.resource_tags.has(id)).toBe(true)
 
     delete_component_value(world, RESOURCE_ENTITY, IsRunning)
-    expect(world.components.resource_tags.has(IsRunning.id)).toBe(false)
+    expect(world.components.resource_tags.has(id)).toBe(false)
   })
 
   test("regular components as resources", () => {
-    const world = make_world(0)
-    const Config = define_component<{ api: string }>(101)
+    const Config = define_component<{ api: string }>()
+    const world = make_world(0, [Config])
 
     add_resource(world, Config({ api: "localhost" }))
     expect(get_resource(world, Config)).toEqual({ api: "localhost" })

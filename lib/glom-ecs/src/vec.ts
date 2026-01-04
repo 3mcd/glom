@@ -1,6 +1,7 @@
 import { assert_defined } from "./assert"
 import type { ComponentLike } from "./component"
 import { hash_word, hash_words } from "./lib/hash"
+import type { ComponentRegistry } from "./registry"
 
 export type Vec = {
   readonly elements: ComponentLike[]
@@ -12,28 +13,35 @@ export type Vec = {
   readonly intersections: WeakMap<Vec, Vec>
 }
 
-export function make_vec(components: ComponentLike[]): Vec {
+export function make_vec(
+  components: ComponentLike[],
+  registry: ComponentRegistry,
+): Vec {
   const elements: ComponentLike[] = []
   const seen = new Set<number>()
   for (let i = 0; i < components.length; i++) {
     const c = components[i]
     assert_defined(c)
-    if (!seen.has(c.id)) {
+    const id = registry.get_id(c)
+    if (!seen.has(id)) {
       elements.push(c)
-      seen.add(c.id)
+      seen.add(id)
     }
   }
-  elements.sort((a, b) => a.id - b.id)
-  return make_vec_sorted(elements)
+  elements.sort((a, b) => registry.get_id(a) - registry.get_id(b))
+  return make_vec_sorted(elements, registry)
 }
 
-export function make_vec_sorted(elements: ComponentLike[]): Vec {
-  const ids = elements.map((c) => c.id)
+export function make_vec_sorted(
+  elements: ComponentLike[],
+  registry: ComponentRegistry,
+): Vec {
+  const ids = elements.map((c) => registry.get_id(c))
   const sparse = new Map<number, number>()
   for (let i = 0; i < elements.length; i++) {
     const component = elements[i]
     assert_defined(component)
-    sparse.set(component.id, i)
+    sparse.set(registry.get_id(component), i)
   }
   return {
     elements,
@@ -46,10 +54,12 @@ export function make_vec_sorted(elements: ComponentLike[]): Vec {
   }
 }
 
-export const EMPTY_VEC = make_vec_sorted([])
-
-export function vec_has(vec: Vec, component: ComponentLike): boolean {
-  return vec.ids.includes(component.id)
+export function vec_has(
+  vec: Vec,
+  component: ComponentLike,
+  registry: ComponentRegistry,
+): boolean {
+  return vec.ids.includes(registry.get_id(component))
 }
 
 export function vec_xor_hash(a: Vec, b: Vec): number {
@@ -123,7 +133,7 @@ export function vec_is_superset_of(a: Vec, b: Vec): boolean {
   return b_idx === b.ids.length
 }
 
-export function vec_sum(a: Vec, b: Vec): Vec {
+export function vec_sum(a: Vec, b: Vec, registry: ComponentRegistry): Vec {
   let cached = a.sums.get(b)
   if (cached) {
     return cached
@@ -168,13 +178,17 @@ export function vec_sum(a: Vec, b: Vec): Vec {
     sum.push(element)
     b_idx++
   }
-  cached = make_vec_sorted(sum)
+  cached = make_vec_sorted(sum, registry)
   a.sums.set(b, cached)
   b.sums.set(a, cached)
   return cached
 }
 
-export function vec_difference(a: Vec, b: Vec): Vec {
+export function vec_difference(
+  a: Vec,
+  b: Vec,
+  registry: ComponentRegistry,
+): Vec {
   let cached = a.differences.get(b)
   if (cached) {
     return cached
@@ -207,13 +221,17 @@ export function vec_difference(a: Vec, b: Vec): Vec {
     difference.push(element)
     a_idx++
   }
-  cached = make_vec_sorted(difference)
+  cached = make_vec_sorted(difference, registry)
   a.differences.set(b, cached)
   b.differences.set(a, cached)
   return cached
 }
 
-export function vec_intersection(a: Vec, b: Vec): Vec {
+export function vec_intersection(
+  a: Vec,
+  b: Vec,
+  registry: ComponentRegistry,
+): Vec {
   let cached = a.intersections.get(b)
   if (cached) {
     return cached
@@ -240,7 +258,7 @@ export function vec_intersection(a: Vec, b: Vec): Vec {
       b_idx++
     }
   }
-  cached = make_vec_sorted(intersection)
+  cached = make_vec_sorted(intersection, registry)
   a.intersections.set(b, cached)
   b.intersections.set(a, cached)
   return cached

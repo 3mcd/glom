@@ -8,7 +8,7 @@ import {
 } from "./replication"
 import { run_schedule, type SystemSchedule } from "./system_schedule"
 import type { World } from "./world"
-import { advance_tick, commit_transaction, despawn } from "./world_api"
+import { advance_tick, commit_transaction, despawn, world_flush_graph_changes } from "./world_api"
 
 export function receive_transaction(world: World, tx: Transaction) {
   let list = world.remote_transactions.get(tx.tick)
@@ -32,6 +32,7 @@ export function resimulate_with_transactions(
       for (const tx of transactions) {
         apply_transaction(world, tx)
       }
+      world_flush_graph_changes(world)
     }
 
     // 2. Advance to next state using local inputs
@@ -63,6 +64,7 @@ export function reconcile_transaction(
   } else {
     // Fallback: Apply directly to current state if rollback fails
     apply_transaction(world, tx)
+    world_flush_graph_changes(world)
     world.remote_transactions.delete(tx.tick)
   }
 }
@@ -147,6 +149,7 @@ export function perform_batch_reconciliation(
         for (const tx of transactions) {
           apply_transaction(world, tx)
         }
+        world_flush_graph_changes(world)
         world.remote_transactions.delete(world.tick)
       }
 
@@ -181,6 +184,7 @@ export function perform_batch_reconciliation(
           for (const tx of txs) {
             apply_transaction(world, tx)
           }
+          world_flush_graph_changes(world)
           world.remote_transactions.delete(tick)
         }
       } else {

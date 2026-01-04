@@ -20,10 +20,10 @@ import {
 } from "../world_api"
 
 describe("reconciliation", () => {
-  const Position = define_component<{ x: number; y: number }>(1)
+  const Position = define_component<{ x: number; y: number }>()
 
   test("reconcile late arriving transaction", () => {
-    const world = make_world(1)
+    const world = make_world(1, [Position])
     world.history = make_history_buffer(10)
     // Snapshot at start of tick 0
     push_snapshot(world, world.history)
@@ -61,7 +61,7 @@ describe("reconciliation", () => {
         {
           type: "set",
           entity,
-          component_id: Position.id,
+          component_id: world.component_registry.get_id(Position),
           data: { x: 10, y: 0 },
           version: 1, // Authoritative tick
         },
@@ -91,7 +91,7 @@ describe("reconciliation", () => {
   })
 
   test("prune buffers", () => {
-    const world = make_world(1)
+    const world = make_world(1, [Position])
     world.history = make_history_buffer(10)
 
     // Fill buffers
@@ -121,7 +121,7 @@ describe("reconciliation", () => {
   })
 
   test("cleanup rejected transient entities (ghosts)", () => {
-    const world = make_world(1) // Client
+    const world = make_world(1, [Position]) // Client
 
     // 1. Predict a spawn at tick 10
     world.tick = 10

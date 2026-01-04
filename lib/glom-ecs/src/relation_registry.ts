@@ -26,10 +26,11 @@ export function get_or_create_virtual_id(
   object: Entity,
 ): number {
   const registry = world.relations
-  let objects = registry.rel_to_virtual.get(relation.id)
+  const relation_id = world.component_registry.get_id(relation)
+  let objects = registry.rel_to_virtual.get(relation_id)
   if (!objects) {
     objects = new Map()
-    registry.rel_to_virtual.set(relation.id, objects)
+    registry.rel_to_virtual.set(relation_id, objects)
   }
 
   let virtual_id = objects.get(object)
@@ -37,7 +38,7 @@ export function get_or_create_virtual_id(
     virtual_id = world.component_registry.alloc_virtual_id()
     objects.set(object, virtual_id)
     registry.virtual_to_rel.set(virtual_id, {
-      relation_id: relation.id,
+      relation_id,
       object,
     })
   }

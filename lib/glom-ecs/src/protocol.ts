@@ -217,7 +217,9 @@ export function read_snapshot(
     for (let j = 0; j < entity_count; j++) {
       entities.push(reader.read_varint())
       if (!is_tag && serde) {
-        data.push(serde.decode(reader.buffer, reader.cursor, undefined as unknown))
+        data.push(
+          serde.decode(reader.buffer, reader.cursor, undefined as unknown),
+        )
         reader.cursor += serde.bytes_per_element
       } else {
         data.push(undefined)
@@ -261,7 +263,7 @@ export function write_transaction(
         writer.write_uint16(op.components.length)
         for (const c of op.components) {
           writer.write_varint(c.id)
-          if (c.data !== undefined) {
+          if (!resolver.is_tag(c.id)) {
             const serde = resolver.get_serde(c.id)
             if (serde) {
               writer.ensure_capacity(serde.bytes_per_element)
@@ -294,7 +296,7 @@ export function write_transaction(
         writer.write_uint8(OpCode.Set)
         writer.write_varint(op.entity as number)
         writer.write_varint(op.component_id)
-        if (op.data !== undefined) {
+        if (!resolver.is_tag(op.component_id)) {
           const serde = resolver.get_serde(op.component_id)
           if (serde) {
             writer.ensure_capacity(serde.bytes_per_element)
@@ -390,7 +392,11 @@ export function read_transaction(
         if (!resolver.is_tag(component_id)) {
           const serde = resolver.get_serde(component_id)
           if (serde) {
-            data = serde.decode(reader.buffer, reader.cursor, undefined as unknown)
+            data = serde.decode(
+              reader.buffer,
+              reader.cursor,
+              undefined as unknown,
+            )
             reader.cursor += serde.bytes_per_element
           }
         }

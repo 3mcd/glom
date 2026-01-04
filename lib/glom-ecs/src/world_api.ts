@@ -15,7 +15,10 @@ import {
   entity_graph_batch_add,
   entity_graph_find_or_create_node,
   entity_graph_get_entity_node,
+  entity_graph_node_prune,
+  entity_graph_node_remove_entity,
   entity_graph_set_entity_node,
+  PruneStrategy,
   pool_get_batch,
   pool_return_batch,
 } from "./entity_graph"
@@ -49,7 +52,7 @@ import {
   sparse_map_get,
   sparse_map_set,
 } from "./sparse_map"
-import { sparse_set_delete } from "./sparse_set"
+import { sparse_set_delete, sparse_set_size } from "./sparse_set"
 import { make_vec, vec_difference, vec_sum } from "./vec"
 import {
   delete_component_value,
@@ -60,11 +63,14 @@ import {
 } from "./world"
 
 function record_graph_move(
-  world: World,
+  world: World<any>,
   entity: Entity,
   prev_node: EntityGraphNode | undefined,
   next_node: EntityGraphNode | undefined,
 ) {
+  if (prev_node) {
+    world.pending_node_pruning.add(prev_node)
+  }
   let move = sparse_map_get(world.graph_changes, entity as number)
   if (!move) {
     move = { entity, from: prev_node, to: next_node }
@@ -75,7 +81,7 @@ function record_graph_move(
 }
 
 export function spawn(
-  world: World,
+  world: World<any>,
   components: (ComponentInstance<unknown> | ComponentLike)[],
   hi = world.registry.hi,
   intent_tick = world.tick,
@@ -84,12 +90,18 @@ export function spawn(
   for (let i = 0; i < components.length; i++) {
     const c = components[i]
     if (c && typeof c === "object" && "component" in c) {
-      if ((c as ComponentInstance<unknown>).component.id === Replicated.id) {
+      if (
+        world.component_registry.get_id(
+          (c as ComponentInstance<unknown>).component,
+        ) === Replicated.id
+      ) {
         is_replicated = true
         break
       }
-    } else if (c) {
-      if ((c as ComponentLike).id === Replicated.id) {
+    } else if (c && !is_relationship(c)) {
+      if (
+        world.component_registry.get_id(c as ComponentLike) === Replicated.id
+      ) {
         is_replicated = true
         break
       }
@@ -131,7 +143,12 @@ export function spawn(
           world.component_registry.get_virtual_component(vid),
         )
         resolved_components.push(item.relation)
-        register_incoming_relation(world, entity, item.relation.id, item.object)
+        register_incoming_relation(
+          world,
+          entity,
+          world.component_registry.get_id(item.relation),
+          item.object,
+        )
       } else {
         resolved_components.push(item)
       }
@@ -148,7 +165,10 @@ export function spawn(
   if (world.recorder && hi === world.registry.hi) {
     let replicated_check = false
     for (let i = 0; i < resolved_components.length; i++) {
-      if (resolved_components[i]!.id === Replicated.id) {
+      if (
+        world.component_registry.get_id(resolved_components[i]!) ===
+        Replicated.id
+      ) {
         replicated_check = true
         break
       }
@@ -160,17 +180,18 @@ export function spawn(
       op.components = []
       for (let i = 0; i < resolved_components.length; i++) {
         const c = resolved_components[i]!
+        const id = world.component_registry.get_id(c)
         op.components.push({
-          id: c.id,
+          id,
           data: get_component_value(world, entity, c),
-          rel: world.relations.virtual_to_rel.get(c.id),
+          rel: world.relations.virtual_to_rel.get(id),
         })
       }
       world.pending_ops.push(op)
     }
   }
 
-  const vec = make_vec(resolved_components)
+  const vec = make_vec(resolved_components, world.component_registry)
   const node = entity_graph_find_or_create_node(world.entity_graph, vec)
   const prev_node = entity_graph_set_entity_node(
     world.entity_graph,
@@ -183,7 +204,7 @@ export function spawn(
   return entity
 }
 
-export function despawn(world: World, entity: Entity): void {
+export function despawn(world: World<any>, entity: Entity): void {
   const node = entity_graph_get_entity_node(world.entity_graph, entity)
   if (!node) {
     return
@@ -194,7 +215,7 @@ export function despawn(world: World, entity: Entity): void {
     let is_replicated = false
     const elements = node.vec.elements
     for (let i = 0; i < elements.length; i++) {
-      if (elements[i]!.id === Replicated.id) {
+      if (world.component_registry.get_id(elements[i]!) === Replicated.id) {
         is_replicated = true
         break
       }
@@ -218,7 +239,8 @@ export function despawn(world: World, entity: Entity): void {
   const elements = node.vec.elements
   for (let i = 0; i < elements.length; i++) {
     const comp = elements[i]!
-    const rel = world.relations.virtual_to_rel.get(comp.id)
+    const comp_id = world.component_registry.get_id(comp)
+    const rel = world.relations.virtual_to_rel.get(comp_id)
     if (rel) {
       unregister_incoming_relation(
         world,
@@ -236,14 +258,14 @@ export function despawn(world: World, entity: Entity): void {
     entity as number,
   )
   if (prev_node) {
-    sparse_set_delete(prev_node.entities, entity)
+    entity_graph_node_remove_entity(prev_node, entity)
     sparse_map_delete(world.entity_graph.by_entity, entity as number)
     record_graph_move(world, entity, prev_node, undefined)
   }
 }
 
 function remove_relation(
-  world: World,
+  world: World<any>,
   entity: Entity,
   relation_id: number,
   object: Entity,
@@ -257,14 +279,17 @@ function remove_relation(
   const vid_comp = world.component_registry.get_virtual_component(virtual_id)
   let next_vec = vec_difference(
     node.vec,
-    make_vec([vid_comp as Component<unknown>]),
+    make_vec([vid_comp as Component<unknown>], world.component_registry),
+    world.component_registry,
   )
 
   let has_other_relations = false
   const elements = next_vec.elements
   for (let i = 0; i < elements.length; i++) {
     const comp = elements[i]!
-    const rel = world.relations.virtual_to_rel.get(comp.id)
+    const rel = world.relations.virtual_to_rel.get(
+      world.component_registry.get_id(comp),
+    )
     if (rel && rel.relation_id === relation_id) {
       has_other_relations = true
       break
@@ -272,11 +297,14 @@ function remove_relation(
   }
 
   if (!has_other_relations) {
-    const rel_tag = define_tag(relation_id)
-    next_vec = vec_difference(
-      next_vec,
-      make_vec([rel_tag as Component<unknown>]),
-    )
+    const rel_tag = world.component_registry.get_component(relation_id)
+    if (rel_tag) {
+      next_vec = vec_difference(
+        next_vec,
+        make_vec([rel_tag], world.component_registry),
+        world.component_registry,
+      )
+    }
   }
 
   const next_node = entity_graph_find_or_create_node(
@@ -292,7 +320,7 @@ function remove_relation(
 }
 
 export function add_component(
-  world: World,
+  world: World<any>,
   entity: Entity,
   item: ComponentInstance<unknown> | ComponentLike,
 ): void {
@@ -314,7 +342,12 @@ export function add_component(
       const vid = get_or_create_virtual_id(world, item.relation, item.object)
       to_add.push(world.component_registry.get_virtual_component(vid))
       to_add.push(item.relation)
-      register_incoming_relation(world, entity, item.relation.id, item.object)
+      register_incoming_relation(
+        world,
+        entity,
+        world.component_registry.get_id(item.relation),
+        item.object,
+      )
     } else {
       to_add.push(item)
     }
@@ -325,7 +358,7 @@ export function add_component(
       let already_replicated = false
       const elements = node.vec.elements
       for (let i = 0; i < elements.length; i++) {
-        if (elements[i]!.id === Replicated.id) {
+        if (world.component_registry.get_id(elements[i]!) === Replicated.id) {
           already_replicated = true
           break
         }
@@ -333,7 +366,7 @@ export function add_component(
 
       let adding_replicated = false
       for (let i = 0; i < to_add.length; i++) {
-        if (to_add[i]!.id === Replicated.id) {
+        if (world.component_registry.get_id(to_add[i]!) === Replicated.id) {
           adding_replicated = true
           break
         }
@@ -342,11 +375,12 @@ export function add_component(
       if (already_replicated) {
         for (let i = 0; i < to_add.length; i++) {
           const c = to_add[i]!
+          const id = world.component_registry.get_id(c)
           const op = pool_get_op("set")
           op.entity = entity
-          op.component_id = c.id
+          op.component_id = id
           op.data = get_component_value(world, entity, c)
-          op.rel = world.relations.virtual_to_rel.get(c.id)
+          op.rel = world.relations.virtual_to_rel.get(id)
           world.pending_ops.push(op)
         }
       } else if (adding_replicated) {
@@ -357,17 +391,22 @@ export function add_component(
         op.components = []
         for (let i = 0; i < all_components.length; i++) {
           const c = all_components[i]!
+          const id = world.component_registry.get_id(c)
           op.components.push({
-            id: c.id,
+            id,
             data: get_component_value(world, entity, c),
-            rel: world.relations.virtual_to_rel.get(c.id),
+            rel: world.relations.virtual_to_rel.get(id),
           })
         }
         world.pending_ops.push(op)
       }
     }
 
-    const next_vec = vec_sum(node.vec, make_vec(to_add))
+    const next_vec = vec_sum(
+      node.vec,
+      make_vec(to_add, world.component_registry),
+      world.component_registry,
+    )
     const next_node = entity_graph_find_or_create_node(
       world.entity_graph,
       next_vec,
@@ -382,7 +421,7 @@ export function add_component(
 }
 
 export function remove_component(
-  world: World,
+  world: World<any>,
   entity: Entity,
   item: ComponentLike,
 ): void {
@@ -393,22 +432,36 @@ export function remove_component(
   if (is_relationship(item)) {
     const virtual_id = get_virtual_id(
       world.relations,
-      item.relation.id,
+      world.component_registry.get_id(item.relation),
       item.object,
     )
     if (virtual_id !== undefined) {
       const vid_comp =
         world.component_registry.get_virtual_component(virtual_id)
       to_remove.push(vid_comp)
-      unregister_incoming_relation(world, entity, item.relation.id, item.object)
+      unregister_incoming_relation(
+        world,
+        entity,
+        world.component_registry.get_id(item.relation),
+        item.object,
+      )
 
       let has_other_relations = false
       const elements = node.vec.elements
       for (let i = 0; i < elements.length; i++) {
         const comp = elements[i]!
-        if (comp.id === vid_comp.id) continue
-        const rel = world.relations.virtual_to_rel.get(comp.id)
-        if (rel && rel.relation_id === item.relation.id) {
+        if (
+          world.component_registry.get_id(comp) ===
+          world.component_registry.get_id(vid_comp)
+        )
+          continue
+        const rel = world.relations.virtual_to_rel.get(
+          world.component_registry.get_id(comp),
+        )
+        if (
+          rel &&
+          rel.relation_id === world.component_registry.get_id(item.relation)
+        ) {
           has_other_relations = true
           break
         }
@@ -427,7 +480,7 @@ export function remove_component(
       let is_replicated = false
       const elements = node.vec.elements
       for (let i = 0; i < elements.length; i++) {
-        if (elements[i]!.id === Replicated.id) {
+        if (world.component_registry.get_id(elements[i]!) === Replicated.id) {
           is_replicated = true
           break
         }
@@ -437,7 +490,7 @@ export function remove_component(
           const c = to_remove[i]!
           const op = pool_get_op("remove")
           op.entity = entity
-          op.component_id = c.id
+          op.component_id = world.component_registry.get_id(c)
           world.pending_ops.push(op)
         }
       }
@@ -455,7 +508,11 @@ export function remove_component(
       }
     }
 
-    const next_vec = vec_difference(node.vec, make_vec(to_remove))
+    const next_vec = vec_difference(
+      node.vec,
+      make_vec(to_remove, world.component_registry),
+      world.component_registry,
+    )
     const next_node = entity_graph_find_or_create_node(
       world.entity_graph,
       next_vec,
@@ -469,7 +526,7 @@ export function remove_component(
   }
 }
 
-export function commit_transaction(world: World): void {
+export function commit_transaction(world: World<any>): void {
   if (!world.recorder || world.pending_ops.length === 0) {
     for (let i = 0; i < world.pending_ops.length; i++) {
       pool_return_op(world.pending_ops[i]!)
@@ -535,10 +592,11 @@ export function commit_transaction(world: World): void {
       const elements = node.vec.elements
       for (let j = 0; j < elements.length; j++) {
         const c = elements[j]!
+        const id = world.component_registry.get_id(c)
         op.components.push({
-          id: c.id,
+          id,
           data: get_component_value(world, entity, c),
-          rel: world.relations.virtual_to_rel.get(c.id),
+          rel: world.relations.virtual_to_rel.get(id),
         })
       }
       reduced_ops.push(op)
@@ -608,7 +666,7 @@ export function commit_transaction(world: World): void {
   world.pending_ops.length = 0
 }
 
-export function advance_tick(world: World, skip_snapshot = false): void {
+export function advance_tick(world: World<any>, skip_snapshot = false): void {
   world.tick++
   if (!skip_snapshot && world.history) {
     push_snapshot(world, world.history)
@@ -616,7 +674,7 @@ export function advance_tick(world: World, skip_snapshot = false): void {
   world.tick_spawn_count = 0
 }
 
-export function world_flush_graph_changes(world: World) {
+export function world_flush_graph_changes(world: World<any>) {
   const batches = world._batch_map as Map<number, EntityGraphBatch>
   batches.clear()
 
@@ -638,15 +696,25 @@ export function world_flush_graph_changes(world: World) {
     } else if (!batch.next_node) {
       emit_despawned_entities(batch)
     } else {
-      emit_moved_entities(batch)
+      emit_moved_entities(batch, world.component_registry)
     }
     pool_return_batch(batch)
   })
 
   sparse_map_clear(world.graph_changes)
+
+  world.pending_node_pruning.forEach((node) => {
+    if (
+      node.strategy === PruneStrategy.WhenEmpty &&
+      sparse_set_size(node.entities) === 0
+    ) {
+      entity_graph_node_prune(world.entity_graph, node)
+    }
+  })
+  world.pending_node_pruning.clear()
 }
 
-export function world_flush_deletions(world: World) {
+export function world_flush_deletions(world: World<any>) {
   world.pending_deletions.forEach((entity) => {
     world.relations.object_to_subjects.delete(entity)
 

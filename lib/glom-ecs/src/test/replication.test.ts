@@ -20,10 +20,11 @@ import {
 } from "../world_api"
 
 describe("replication", () => {
-  const Position = define_component<{ x: number; y: number }>(1)
-  const Velocity = define_component<{ dx: number; dy: number }>(3)
-  const IsStatic = define_tag(4)
-  const ChildOf = define_relation(5)
+  const Position = define_component<{ x: number; y: number }>()
+  const Velocity = define_component<{ dx: number; dy: number }>()
+  const IsStatic = define_tag()
+  const ChildOf = define_relation()
+  const schema = [Position, Velocity, IsStatic, ChildOf]
 
   function create_link(
     source: ReturnType<typeof make_world>,
@@ -35,8 +36,8 @@ describe("replication", () => {
   }
 
   test("basic spawn replication", () => {
-    const world_a = make_world(1) // Domain 1
-    const world_b = make_world(2) // Domain 2
+    const world_a = make_world(1, schema) // Domain 1
+    const world_b = make_world(2, schema) // Domain 2
     create_link(world_a, world_b)
 
     const entity_a = spawn(world_a, [Position({ x: 10, y: 20 }), Replicated])
@@ -53,8 +54,8 @@ describe("replication", () => {
   })
 
   test("basic component update replication", () => {
-    const world_a = make_world(1)
-    const world_b = make_world(2)
+    const world_a = make_world(1, schema)
+    const world_b = make_world(2, schema)
     create_link(world_a, world_b)
 
     const entity_a = spawn(world_a, [Position({ x: 10, y: 20 }), Replicated])
@@ -69,8 +70,8 @@ describe("replication", () => {
   })
 
   test("tag replication", () => {
-    const world_a = make_world(1)
-    const world_b = make_world(2)
+    const world_a = make_world(1, schema)
+    const world_b = make_world(2, schema)
     create_link(world_a, world_b)
 
     const entity_a = spawn(world_a, [IsStatic, Replicated])
@@ -82,12 +83,12 @@ describe("replication", () => {
       entity_a as number,
     )
     expect(node_b).toBeDefined()
-    expect(node_b?.vec.ids).toContain(IsStatic.id)
+    expect(node_b?.vec.ids).toContain(world_b.component_registry.get_id(IsStatic))
   })
 
   test("relationship replication", () => {
-    const world_a = make_world(1)
-    const world_b = make_world(2)
+    const world_a = make_world(1, schema)
+    const world_b = make_world(2, schema)
     create_link(world_a, world_b)
 
     const parent = spawn(world_a, [Position({ x: 10, y: 10 }), Replicated])
@@ -100,15 +101,15 @@ describe("replication", () => {
     if (incoming) {
       expect(
         Array.from(incoming).some(
-          (r) => r.subject === child && r.relation_id === ChildOf.id,
+          (r) => r.subject === child && r.relation_id === world_b.component_registry.get_id(ChildOf),
         ),
       ).toBe(true)
     }
   })
 
   test("relationship removal replication", () => {
-    const world_a = make_world(1)
-    const world_b = make_world(2)
+    const world_a = make_world(1, schema)
+    const world_b = make_world(2, schema)
     create_link(world_a, world_b)
 
     const parent = spawn(world_a, [Position({ x: 10, y: 10 }), Replicated])
@@ -124,8 +125,8 @@ describe("replication", () => {
   })
 
   test("add_component replication", () => {
-    const world_a = make_world(1)
-    const world_b = make_world(2)
+    const world_a = make_world(1, schema)
+    const world_b = make_world(2, schema)
     create_link(world_a, world_b)
 
     const entity_a = spawn(world_a, [Position({ x: 10, y: 20 }), Replicated])
@@ -141,8 +142,8 @@ describe("replication", () => {
   })
 
   test("remove_component replication", () => {
-    const world_a = make_world(1)
-    const world_b = make_world(2)
+    const world_a = make_world(1, schema)
+    const world_b = make_world(2, schema)
     create_link(world_a, world_b)
 
     const entity_a = spawn(world_a, [
@@ -161,8 +162,8 @@ describe("replication", () => {
   })
 
   test("basic despawn replication", () => {
-    const world_a = make_world(1)
-    const world_b = make_world(2)
+    const world_a = make_world(1, schema)
+    const world_b = make_world(2, schema)
     create_link(world_a, world_b)
 
     const entity_a = spawn(world_a, [Position({ x: 10, y: 20 }), Replicated])
@@ -175,8 +176,8 @@ describe("replication", () => {
   })
 
   test("LWW conflict resolution (newer tick wins)", () => {
-    const world_a = make_world(1)
-    const world_b = make_world(2)
+    const world_a = make_world(1, schema)
+    const world_b = make_world(2, schema)
     create_link(world_a, world_b)
 
     // 1. Initial spawn in world A and replicate to B
@@ -193,7 +194,7 @@ describe("replication", () => {
         {
           type: "set",
           entity,
-          component_id: Position.id,
+          component_id: world_b.component_registry.get_id(Position),
           data: { x: 10, y: 10 },
         },
       ],
@@ -208,7 +209,7 @@ describe("replication", () => {
         {
           type: "set",
           entity,
-          component_id: Position.id,
+          component_id: world_b.component_registry.get_id(Position),
           data: { x: 20, y: 20 },
         },
       ],
@@ -224,8 +225,8 @@ describe("replication", () => {
   })
 
   test("P2P multi-agent replication", () => {
-    const world_a = make_world(1)
-    const world_b = make_world(2)
+    const world_a = make_world(1, schema)
+    const world_b = make_world(2, schema)
 
     // Bidirectional link
     create_link(world_a, world_b)
@@ -250,7 +251,7 @@ describe("replication", () => {
   })
 
   test("predictive shadowing and rebinding", () => {
-    const world = make_world(1) // Client domain
+    const world = make_world(1, schema) // Client domain
     const causal_key = 12345
 
     // 1. Client predicts a spawn in a "transient" domain
@@ -282,7 +283,7 @@ describe("replication", () => {
           type: "spawn",
           entity: serverEntity,
           causal_key: causal_key,
-          components: [{ id: Position.id, data: { x: 105, y: 105 } }],
+          components: [{ id: world.component_registry.get_id(Position), data: { x: 105, y: 105 } }],
         },
       ],
     }
@@ -305,8 +306,8 @@ describe("replication", () => {
   })
 
   test("automatic causal key generation and rebinding", () => {
-    const world_client = make_world(1)
-    const world_server = make_world(0)
+    const world_client = make_world(1, schema)
+    const world_server = make_world(0, schema)
 
     // 1. Align ticks
     world_client.tick = 100

@@ -23,7 +23,7 @@ export function capture_snapshot_stream(
     let is_replicated = false
     const elements = node.vec.elements
     for (let j = 0; j < elements.length; j++) {
-      if (elements[j]!.id === Replicated.id) {
+      if (world.component_registry.get_id(elements[j]!) === Replicated.id) {
         is_replicated = true
         break
       }

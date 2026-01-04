@@ -33,10 +33,12 @@ const system = g.define_system(
 
 g.add_system(system_schedule, system)
 
-const world = g.make_world(1)
+const schema = [A, B, C, D, Rel]
+const world = g.make_world(1, schema)
+
+g.add_resource(world, C({ x: 1 }))
 
 const parent = g.spawn(world, [B("parent"), A(10)], 2)
 g.spawn(world, [A(1), D, Rel(parent)], 1)
 
-g.add_resource(world, C({ x: 1 }))
 g.run_schedule(system_schedule, world)

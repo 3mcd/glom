@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import * as g from "../index"
 
 // 1. Component Definitions (mirrored from example)
-const Position = g.define_component<{ x: number; y: number }>(1, {
+const Position = g.define_component<{ x: number; y: number }>({
   bytes_per_element: 16,
   encode: (val, buf, off) => {
     const view = new DataView(buf.buffer, buf.byteOffset + off)
@@ -15,7 +15,7 @@ const Position = g.define_component<{ x: number; y: number }>(1, {
   },
 })
 
-const MoveCommand = g.define_component<{ dx: number; dy: number }>(3, {
+const MoveCommand = g.define_component<{ dx: number; dy: number }>({
   bytes_per_element: 16,
   encode: (val, buf, off) => {
     const view = new DataView(buf.buffer, buf.byteOffset + off)
@@ -28,8 +28,8 @@ const MoveCommand = g.define_component<{ dx: number; dy: number }>(3, {
   },
 })
 
-const FireCommand = g.define_tag(11)
-const Pulse = g.define_component<number>(10, {
+const FireCommand = g.define_tag()
+const Pulse = g.define_component<number>({
   bytes_per_element: 8,
   encode: (val, buf, off) => {
     new DataView(buf.buffer, buf.byteOffset + off).setFloat64(0, val, true)
@@ -38,7 +38,7 @@ const Pulse = g.define_component<number>(10, {
     return new DataView(buf.buffer, buf.byteOffset + off).getFloat64(0, true)
   },
 })
-const PulseOf = g.define_relation(12)
+const PulseOf = g.define_relation()
 
 const SPEED = 2
 
@@ -87,14 +87,23 @@ const pulse_spawner_system = g.define_system(
       )
       if (node) {
         for (const comp of node.vec.elements) {
-          const rel = world.relations.virtual_to_rel.get(comp.id)
-          if (rel && rel.relation_id === g.CommandOf.id) {
+          const comp_id = world.component_registry.get_id(comp)
+          const rel = world.relations.virtual_to_rel.get(comp_id)
+          if (
+            rel &&
+            rel.relation_id === world.component_registry.get_id(g.CommandOf)
+          ) {
             const cmd_ent = rel.object as g.Entity
             const cmd_node = g.sparse_map_get(
               world.entity_graph.by_entity,
               cmd_ent as number,
             )
-            if (cmd_node?.vec.elements.some((c) => c.id === FireCommand.id)) {
+            const fire_command_id = world.component_registry.get_id(FireCommand)
+            if (
+              cmd_node?.vec.elements.some(
+                (c) => world.component_registry.get_id(c) === fire_command_id,
+              )
+            ) {
               const it = g.get_component_value(world, cmd_ent, g.IntentTick)
               if (it !== undefined) {
                 intent_tick = it
@@ -349,7 +358,9 @@ test("rigorous straight-line movement isomorphism", () => {
 
         if (s_pos && snapshot) {
           const player_idx = snapshot.entity_to_index.get(player)
-          const pos_store = snapshot.component_data.get(Position.id)
+          const pos_store = snapshot.component_data.get(
+            client.world.component_registry.get_id(Position),
+          )
           if (player_idx !== undefined && pos_store) {
             const reconciled_pos = pos_store[player_idx] as {
               x: number
@@ -472,7 +483,9 @@ test("stop-and-go movement isomorphism", () => {
 
         if (s_pos && snapshot) {
           const player_idx = snapshot.entity_to_index.get(player)
-          const pos_store = snapshot.component_data.get(Position.id)
+          const pos_store = snapshot.component_data.get(
+            client.world.component_registry.get_id(Position),
+          )
           if (player_idx !== undefined && pos_store) {
             const reconciled_pos = pos_store[player_idx] as {
               x: number
@@ -600,7 +613,7 @@ test("predictive spawning and rebinding isomorphism", () => {
             e as number,
           )
           console.log(
-            `  Entity ${e}: hi=${g.get_hi(e as g.Entity)}, lo=${g.get_lo(e as g.Entity)}, replicated=${node?.vec.elements.some((c) => c.id === g.Replicated.id)}`,
+            `  Entity ${e}: hi=${g.get_hi(e as g.Entity)}, lo=${g.get_lo(e as g.Entity)}, replicated=${node?.vec.elements.some((c) => client.world.component_registry.get_id(c) === g.Replicated.id)}`,
           )
         }
       }

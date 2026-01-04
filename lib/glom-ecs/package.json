@@ -21,6 +21,7 @@
   },
   "main": "dist/glom-ecs.cjs.js",
   "scripts": {
+    "build": "bun build ./src/index.ts --outfile ./dist/glom-ecs.esm.js --format esm && bun build ./src/index.ts --outfile ./dist/glom-ecs.cjs.js --format cjs",
     "bench": "for f in src/*.bench.ts; do bun run $f; done"
   }
 }

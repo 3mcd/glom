@@ -14,11 +14,12 @@ import { GlomNetwork } from "./netcode"
 import { run_schedule, make_system_schedule, add_system } from "./system_schedule"
 
 describe("command api", () => {
-  const Jump = define_tag(100)
-  const Move = define_component<{ x: number; y: number }>(101)
+  const Jump = define_tag()
+  const Move = define_component<{ x: number; y: number }>()
+  const schema = [Jump, Move]
 
   test("record and execute relational commands", () => {
-    const world = make_world(1)
+    const world = make_world(1, schema)
     const player = spawn(world, [])
     
     record_command(world, player, Jump, 10)
@@ -42,17 +43,23 @@ describe("command api", () => {
       expect(node).toBeDefined()
       if (node) {
         for (const comp of node.vec.elements) {
-          const rel = world.relations.virtual_to_rel.get(comp.id)
-          if (rel && rel.relation_id === CommandOf.id) {
+          const comp_id = world.component_registry.get_id(comp)
+          const rel = world.relations.virtual_to_rel.get(comp_id)
+          if (rel && rel.relation_id === world.component_registry.get_id(CommandOf)) {
             const cmd_ent = rel.object
             
             // Check if cmd_ent has the tag Jump
             const cmd_node = sparse_map_get(world.entity_graph.by_entity, cmd_ent as number)
-            if (cmd_node && cmd_node.vec.elements.some(c => c.id === Jump.id)) {
+            const jump_id = world.component_registry.get_id(Jump)
+            if (cmd_node && cmd_node.vec.elements.some(c => world.component_registry.get_id(c) === jump_id)) {
               jump_found = true
             }
             
-            const move = get_component_value(world, cmd_ent as g.Entity, Move)
+              const move = get_component_value(
+                world,
+                cmd_ent as g.Entity,
+                Move,
+              )
             if (move !== undefined) move_val = move
           }
         }
@@ -62,7 +69,7 @@ describe("command api", () => {
     add_system(schedule, check_system)
     add_system(schedule, GlomNetwork.commands.cleanup_ephemeral_commands)
 
-    run_schedule(schedule, world as g.World)
+    run_schedule(schedule, world)
 
     expect(jump_found).toBe(true)
     expect(move_val).toEqual({ x: 5, y: 10 })
@@ -114,7 +121,7 @@ describe("command api", () => {
   })
 
   test("pruning", () => {
-    const world = make_world(1)
+    const world = make_world(1, schema)
     const player = spawn(world, [])
     record_command(world, player, Jump, 10)
     record_command(world, player, Jump, 20)

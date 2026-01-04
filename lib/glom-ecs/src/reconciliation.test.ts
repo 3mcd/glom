@@ -20,7 +20,7 @@ import {
 } from "./world_api"
 
 describe("reconciliation", () => {
-  const Position = define_component<{ x: number; y: number }>(1)
+  const Position = define_component<{ x: number; y: number }>()
   const schema = [Position]
 
   test("reconcile late arriving transaction", () => {
@@ -62,7 +62,7 @@ describe("reconciliation", () => {
         {
           type: "set",
           entity,
-          component_id: Position.id,
+          component_id: world.component_registry.get_id(Position),
           data: { x: 10, y: 0 },
           version: 1, // Authoritative tick
         },

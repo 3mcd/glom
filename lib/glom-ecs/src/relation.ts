@@ -8,14 +8,14 @@ export type Relationship = ComponentLike & {
   object: Entity
 }
 
-export function define_relation(id: number): Relation {
+export function define_relation(id?: number): Relation {
   const rel = ((object: Entity): Relationship => {
     return {
       relation: rel as unknown as Relation,
       object,
     } as Relationship
   }) as unknown as Record<string, unknown>
-  rel.id = id
+  if (id !== undefined) rel.id = id
   rel.is_tag = true
   rel.__component_brand = true
   return rel as unknown as Relation
@@ -25,7 +25,8 @@ export function is_relation(component: unknown): component is Relation {
   return (
     typeof component === "function" &&
     component !== null &&
-    "id" in (component as Record<string, unknown>)
+    ("__component_brand" in (component as Record<string, unknown>) ||
+      "id" in (component as Record<string, unknown>))
   )
 }
 

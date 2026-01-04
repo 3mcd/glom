@@ -21,11 +21,12 @@ import {
 } from "./system_schedule"
 
 describe("relation", () => {
-  const ChildOf = define_relation(100)
-  const Name = define_component<string>(101)
+  const ChildOf = define_relation()
+  const Name = define_component<string>()
+  const schema = [ChildOf, Name]
 
   test("all relation features", () => {
-    const world = make_world(0)
+    const world = make_world(0, schema)
     const parent = spawn(world, [Name("Parent")])
 
     // 1. Exact relation query

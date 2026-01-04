@@ -24,13 +24,13 @@ import {
   sparse_set_values,
 } from "./sparse_set"
 import {
-  EMPTY_VEC,
   make_vec,
+  make_vec_sorted,
   type Vec,
   vec_intersection,
   vec_is_superset_of,
-  vec_xor_hash,
 } from "./vec"
+import type { ComponentRegistry } from "./registry"
 
 // biome-ignore lint/suspicious/noConfusingVoidType: void is the most accurate return type here
 type EntityGraphNodeIteratee = (node: EntityGraphNode) => boolean | void
@@ -59,7 +59,7 @@ export type EntityGraphNode = {
 export function make_entity_graph_node(
   id: number,
   vec: Vec,
-  strategy = PruneStrategy.None,
+  strategy = PruneStrategy.WhenEmpty,
 ): EntityGraphNode {
   return {
     id,
@@ -75,19 +75,17 @@ export function make_entity_graph_node(
 export function entity_graph_node_link(
   node: EntityGraphNode,
   prev: EntityGraphNode,
-  xor = vec_xor_hash(node.vec, prev.vec),
 ): void {
-  sparse_map_set(node.prev_nodes, xor, prev)
-  sparse_map_set(prev.next_nodes, xor, node)
+  sparse_map_set(node.prev_nodes, prev.id, prev)
+  sparse_map_set(prev.next_nodes, node.id, node)
 }
 
 export function entity_graph_node_unlink(
   node: EntityGraphNode,
   prev: EntityGraphNode,
-  xor = vec_xor_hash(node.vec, prev.vec),
 ): void {
-  sparse_map_delete(node.prev_nodes, xor)
-  sparse_map_delete(prev.next_nodes, xor)
+  sparse_map_delete(node.prev_nodes, prev.id)
+  sparse_map_delete(prev.next_nodes, node.id)
 }
 
 // Use local stacks and Sets to avoid re-entrancy issues with global state
@@ -298,10 +296,11 @@ export type EntityGraph = {
   readonly root: EntityGraphNode
 }
 
-export function make_entity_graph(): EntityGraph {
-  const root = make_entity_graph_node(0, EMPTY_VEC)
+export function make_entity_graph(registry: ComponentRegistry): EntityGraph {
+  const empty_vec = make_vec_sorted([], registry)
+  const root = make_entity_graph_node(0, empty_vec, PruneStrategy.None)
   const by_hash = new Map<number, EntityGraphNode>()
-  by_hash.set(EMPTY_VEC.hash, root)
+  by_hash.set(empty_vec.hash, root)
   return {
     next_id: 1,
     by_hash,
@@ -314,6 +313,10 @@ export function entity_graph_link_nodes_traverse(
   graph: EntityGraph,
   node: EntityGraphNode,
 ): void {
+  const parents_to_link: EntityGraphNode[] = []
+  const children_to_link: EntityGraphNode[] = []
+  const children_to_unlink: [EntityGraphNode, EntityGraphNode][] = []
+
   entity_graph_node_traverse_right(graph.root, (visited) => {
     if (node === visited) {
       return true
@@ -328,21 +331,32 @@ export function entity_graph_link_nodes_traverse(
         }
       })
       if (!has_more_specific_subset) {
-        entity_graph_node_link(node, visited)
+        parents_to_link.push(visited)
       }
       return true
     }
     if (is_superset) {
-      sparse_map_for_each(visited.prev_nodes, (xor, prev_node) => {
+      children_to_link.push(visited)
+      sparse_map_for_each_value(visited.prev_nodes, (prev_node) => {
         if (vec_is_superset_of(node.vec, prev_node.vec)) {
-          entity_graph_node_unlink(visited, prev_node, xor)
+          children_to_unlink.push([visited, prev_node])
         }
       })
-      entity_graph_node_link(visited, node)
       return false
     }
     return true
   })
+
+  for (let i = 0; i < parents_to_link.length; i++) {
+    entity_graph_node_link(node, parents_to_link[i]!)
+  }
+  for (let i = 0; i < children_to_unlink.length; i++) {
+    const [child, parent] = children_to_unlink[i]!
+    entity_graph_node_unlink(child, parent)
+  }
+  for (let i = 0; i < children_to_link.length; i++) {
+    entity_graph_node_link(children_to_link[i]!, node)
+  }
 }
 
 export function entity_graph_emit_nodes_traverse(node: EntityGraphNode): void {
@@ -364,7 +378,7 @@ export function entity_graph_insert_node(
 export function entity_graph_find_or_create_node(
   graph: EntityGraph,
   vec: Vec,
-  strategy = PruneStrategy.None,
+  strategy = PruneStrategy.WhenEmpty,
 ): EntityGraphNode {
   return (
     graph.by_hash.get(vec.hash) ??
@@ -378,13 +392,18 @@ export function entity_graph_find_or_create_node(
 export function entity_graph_find_or_create_node_single(
   graph: EntityGraph,
   component: Component<unknown>,
-  strategy = PruneStrategy.None,
+  registry: ComponentRegistry,
+  strategy = PruneStrategy.WhenEmpty,
 ): EntityGraphNode {
   return (
-    graph.by_hash.get(hash_word(undefined, component.id)) ??
+    graph.by_hash.get(hash_word(undefined, registry.get_id(component))) ??
     entity_graph_insert_node(
       graph,
-      make_entity_graph_node(graph.next_id++, make_vec([component]), strategy),
+      make_entity_graph_node(
+        graph.next_id++,
+        make_vec([component], registry),
+        strategy,
+      ),
     )
   )
 }
@@ -419,14 +438,9 @@ export function entity_graph_set_entity_node(
   if (prev_node === next_node) {
     return prev_node
   }
+  
   if (prev_node) {
     entity_graph_node_remove_entity(prev_node, entity)
-    if (
-      prev_node.strategy === PruneStrategy.WhenEmpty &&
-      sparse_set_size(prev_node.entities) === 0
-    ) {
-      entity_graph_node_prune(graph, prev_node)
-    }
   }
   entity_graph_node_add_entity(next_node, entity)
   sparse_map_set(graph.by_entity, entity as number, next_node)
@@ -521,17 +535,17 @@ export const emit_despawned_entities = (batch: EntityGraphBatch) => {
   })
 }
 
-export const emit_moved_entities = (batch: EntityGraphBatch) => {
+export const emit_moved_entities = (
+  batch: EntityGraphBatch,
+  registry: ComponentRegistry,
+) => {
   const prev_node = batch.prev_node
   const next_node = batch.next_node
   assert_defined(prev_node)
   assert_defined(next_node)
-  const intersection = vec_intersection(prev_node.vec, next_node.vec)
+  const intersection = vec_intersection(prev_node.vec, next_node.vec, registry)
   entity_graph_node_traverse_left(next_node, (visit) => {
-    if (
-      intersection.hash === visit.vec.hash ||
-      vec_is_superset_of(intersection, visit.vec)
-    ) {
+    if (vec_is_superset_of(intersection, visit.vec)) {
       return false
     }
     entity_graph_node_emit_entities_in(
@@ -541,10 +555,7 @@ export const emit_moved_entities = (batch: EntityGraphBatch) => {
     )
   })
   entity_graph_node_traverse_left(prev_node, (node) => {
-    if (
-      intersection.hash === node.vec.hash ||
-      vec_is_superset_of(intersection, node.vec)
-    ) {
+    if (vec_is_superset_of(intersection, node.vec)) {
       return false
     }
     entity_graph_node_emit_entities_out(

@@ -1,4 +1,9 @@
-import { define_tag, type Component, type ComponentLike } from "./component"
+import {
+  type Component,
+  type ComponentLike,
+  define_component,
+  define_tag,
+} from "./component"
 import type { Entity } from "./entity"
 import {
   entity_graph_find_or_create_node,
@@ -7,11 +12,7 @@ import {
   entity_graph_node_remove_entity,
   entity_graph_set_entity_node,
 } from "./entity_graph"
-import {
-  get_domain,
-  next_op_seq,
-  remove_entity,
-} from "./entity_registry"
+import { get_domain, next_op_seq, remove_entity } from "./entity_registry"
 import {
   add_domain_entity,
   make_entity_registry_domain,
@@ -26,6 +27,7 @@ import {
   unregister_incoming_relation,
 } from "./relation_registry"
 import { sparse_map_delete, sparse_map_get, sparse_map_set } from "./sparse_map"
+import type { SystemSchedule } from "./system_schedule"
 import { make_vec, vec_difference, vec_sum } from "./vec"
 import {
   delete_component_value,
@@ -36,7 +38,21 @@ import {
 } from "./world"
 import { add_component, remove_component } from "./world_api"
 
-export const Replicated = define_tag(1000)
+export const Replicated = define_tag(0)
+
+export const ReplicationConfig = define_component<{
+  history_window?: number
+  ghost_cleanup_window?: number
+  snapshot_components?: number[]
+  simulation_schedule?: SystemSchedule
+}>(
+  {
+    bytes_per_element: 0,
+    encode: () => {},
+    decode: () => ({}),
+  },
+  1,
+)
 
 export const TRANSIENT_DOMAIN = 2046 // Reserved domain for predicted spawns
 
@@ -103,7 +119,7 @@ export function make_causal_key(tick: number, spawn_index: number): number {
 
 /**
  * Transitions an entity from a transient (predicted) ID to an
- * authoritative ID while preserving its component data and 
+ * authoritative ID while preserving its component data and
  * position in the entity graph.
  */
 export function rebind_entity(
@@ -111,12 +127,10 @@ export function rebind_entity(
   transient: Entity,
   authoritative: Entity,
 ) {
-  console.log(`[REBIND] ${transient} -> ${authoritative}`);
   if (transient === authoritative) return
 
   const index = sparse_map_get(world.index.entity_to_index, transient)
   if (index === undefined) {
-    console.log(`[REBIND FAILED] ${transient} not in index`);
     return
   }
 
@@ -144,7 +158,9 @@ export function rebind_entity(
     for (let i = 0; i < relations_to_move.length; i++) {
       const { subject, relation_id } = relations_to_move[i]!
       const relation = ((object: Entity) => ({
-        relation: { id: relation_id, __relation_brand: true } as unknown as ComponentLike,
+        relation: world.component_registry.get_component(
+          relation_id,
+        ) as Relation,
         object,
       })) as unknown as (object: Entity) => ComponentLike
       // 1. Remove the relationship pointing to the old (transient) ID
@@ -184,7 +200,7 @@ export function apply_transaction(world: World, batch: Transaction) {
     const op = ops[i]!
     switch (op.type) {
       case "spawn": {
-        let entity = op.entity
+        const entity = op.entity
 
         // Handle rebind if causal key matches a transient entity
         if (op.causal_key !== undefined) {
@@ -204,12 +220,17 @@ export function apply_transaction(world: World, batch: Transaction) {
         const components = op.components
         for (let j = 0; j < components.length; j++) {
           const { id, data, rel } = components[j]!
-          const comp = { id, __component_brand: true } as unknown as ComponentLike
+          const comp = world.component_registry.get_component(id)
+          if (!comp) continue
+
           if (data !== undefined) {
-            set_component_value(world, entity, comp, data, batch.tick)
-          } else {
-            const mutable_comp = comp as { is_tag?: boolean }
-            mutable_comp.is_tag = true
+            set_component_value(
+              world,
+              entity,
+              comp as Component<unknown>,
+              data,
+              batch.tick,
+            )
           }
           resolved.push(comp)
 
@@ -234,7 +255,7 @@ export function apply_transaction(world: World, batch: Transaction) {
         }
         const node = entity_graph_find_or_create_node(
           world.entity_graph,
-          make_vec(resolved),
+          make_vec(resolved, world.component_registry),
         )
         // if (batch.hi === 0) console.log(`Entity ${entity} spawned in node ${node.id} (${node.vec.ids})`);
         entity_graph_set_entity_node(world.entity_graph, entity, node)
@@ -258,7 +279,8 @@ export function apply_transaction(world: World, batch: Transaction) {
         const elements = node.vec.elements
         for (let j = 0; j < elements.length; j++) {
           const comp = elements[j]!
-          const rel = world.relations.virtual_to_rel.get(comp.id)
+          const comp_id = world.component_registry.get_id(comp)
+          const rel = world.relations.virtual_to_rel.get(comp_id)
           if (rel) {
             unregister_incoming_relation(
               world,
@@ -270,24 +292,28 @@ export function apply_transaction(world: World, batch: Transaction) {
           delete_component_value(world, op.entity, comp)
         }
 
-        entity_graph_set_entity_node(
+        const prev_node = entity_graph_set_entity_node(
           world.entity_graph,
           op.entity,
           world.entity_graph.root,
         )
+        if (prev_node) {
+          world.pending_node_pruning.add(prev_node)
+        }
         remove_domain_entity(domain, op.entity)
         break
       }
       case "set": {
         const entity = op.entity
-        const comp = { id: op.component_id, __component_brand: true } as unknown as ComponentLike
+        const comp = world.component_registry.get_component(op.component_id)
+        if (!comp) break
         const node = entity_graph_get_entity_node(world.entity_graph, entity)
         if (!node) break
 
         set_component_value(
           world,
           entity,
-          comp,
+          comp as Component<unknown>,
           op.data,
           op.version ?? batch.tick,
         )
@@ -317,7 +343,9 @@ export function apply_transaction(world: World, batch: Transaction) {
         let has_comp = false
         const elements = node.vec.elements
         for (let j = 0; j < elements.length; j++) {
-          if (elements[j]!.id === op.component_id) {
+          if (
+            world.component_registry.get_id(elements[j]!) === op.component_id
+          ) {
             has_comp = true
             break
           }
@@ -326,16 +354,28 @@ export function apply_transaction(world: World, batch: Transaction) {
         if (!has_comp) {
           const next_node = entity_graph_find_or_create_node(
             world.entity_graph,
-            vec_sum(node.vec, make_vec([comp])),
+            vec_sum(
+              node.vec,
+              make_vec([comp], world.component_registry),
+              world.component_registry,
+            ),
           )
-          entity_graph_set_entity_node(world.entity_graph, entity, next_node)
+          const prev_node = entity_graph_set_entity_node(
+            world.entity_graph,
+            entity,
+            next_node,
+          )
+          if (prev_node) {
+            world.pending_node_pruning.add(prev_node)
+          }
         }
         break
       }
       case "remove": {
         const entity = op.entity
         const id = op.component_id
-        const comp = { id, __component_brand: true } as unknown as ComponentLike
+        const comp = world.component_registry.get_component(id)
+        if (!comp) break
         const node = entity_graph_get_entity_node(world.entity_graph, entity)
         if (!node) break
 
@@ -353,9 +393,20 @@ export function apply_transaction(world: World, batch: Transaction) {
 
         const next_node = entity_graph_find_or_create_node(
           world.entity_graph,
-          vec_difference(node.vec, make_vec([comp])),
+          vec_difference(
+            node.vec,
+            make_vec([comp], world.component_registry),
+            world.component_registry,
+          ),
         )
-        entity_graph_set_entity_node(world.entity_graph, entity, next_node)
+        const prev_node = entity_graph_set_entity_node(
+          world.entity_graph,
+          entity,
+          next_node,
+        )
+        if (prev_node) {
+          world.pending_node_pruning.add(prev_node)
+        }
         break
       }
     }

@@ -33,7 +33,9 @@ export function make_has<T extends ComponentLike>(
 ): Has<T> {
   const exists = has_resource(world, desc.has)
   if (!exists) {
-    throw new Error(`Resource ${desc.has.id} not found`)
+    throw new Error(
+      `Resource ${world.component_registry.get_id(desc.has)} not found`,
+    )
   }
   return undefined as unknown as Has<T>
 }
@@ -44,7 +46,9 @@ export function make_not<T extends ComponentLike>(
 ): Not<T> {
   const exists = has_resource(world, desc.not)
   if (exists) {
-    throw new Error(`Resource ${desc.not.id} should not exist`)
+    throw new Error(
+      `Resource ${world.component_registry.get_id(desc.not)} should not exist`,
+    )
   }
   return undefined as unknown as Not<T>
 }

@@ -143,7 +143,7 @@ export function capture_snapshot(world: World): Snapshot {
       rel_to_virtual,
       virtual_to_rel,
       object_to_subjects,
-      next_virtual_id: world.relations.next_virtual_id,
+      next_virtual_id: world.component_registry.get_next_virtual_id(),
     },
   }
 }
@@ -253,7 +253,9 @@ export function rollback_to_snapshot(world: World, snapshot: Snapshot) {
     }
     world.relations.object_to_subjects.set(obj, restored_subjects)
   }
-  world.relations.next_virtual_id = snapshot.relations.next_virtual_id
+  world.component_registry.set_next_virtual_id(
+    snapshot.relations.next_virtual_id,
+  )
 
   // Restore entity graph state
   for (const node of world.entity_graph.by_hash.values()) {

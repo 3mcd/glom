@@ -4,18 +4,21 @@ import type { Entity } from "./entity"
 import { define_relation } from "./relation"
 import type { World } from "./world"
 
-export const CommandOf = define_relation(1001)
-export const CommandEntity = define_tag(1002)
+export const CommandOf = define_relation(2)
+export const CommandEntity = define_tag(3)
 
-export const IntentTick = define_component<number>(1003, {
-  bytes_per_element: 4,
-  encode: (val, buf, off) => {
-    new DataView(buf.buffer, buf.byteOffset + off).setUint32(0, val, true)
+export const IntentTick = define_component<number>(
+  {
+    bytes_per_element: 4,
+    encode: (val, buf, off) => {
+      new DataView(buf.buffer, buf.byteOffset + off).setUint32(0, val, true)
+    },
+    decode: (buf, off) => {
+      return new DataView(buf.buffer, buf.byteOffset + off).getUint32(0, true)
+    },
   },
-  decode: (buf, off) => {
-    return new DataView(buf.buffer, buf.byteOffset + off).getUint32(0, true)
-  },
-})
+  4,
+)
 
 export type CommandInstance = {
   target: Entity
@@ -45,7 +48,7 @@ export function record_command<T>(
     const inst = command as ComponentInstance<T>
     list.push({
       target,
-      component_id: inst.component.id,
+      component_id: world.component_registry.get_id(inst.component),
       data: inst.value,
       intent_tick,
     })
@@ -53,7 +56,7 @@ export function record_command<T>(
     const comp = command as ComponentLike
     list.push({
       target,
-      component_id: comp.id,
+      component_id: world.component_registry.get_id(comp),
       data: undefined,
       intent_tick,
     })

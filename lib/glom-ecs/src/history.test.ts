@@ -16,10 +16,10 @@ import {
 } from "./world_api"
 
 describe("history", () => {
-  const Position = define_component<{ x: number; y: number }>(1)
+  const Position = define_component<{ x: number; y: number }>()
 
   test("capture and rollback component data", () => {
-    const world = make_world(1)
+    const world = make_world(1, [Position])
     world.history = make_history_buffer(10)
     push_snapshot(world, world.history) // Snapshot at tick 0
 
@@ -43,7 +43,7 @@ describe("history", () => {
   })
 
   test("rollback entity spawn", () => {
-    const world = make_world(1)
+    const world = make_world(1, [Position])
     world.history = make_history_buffer(10)
     push_snapshot(world, world.history) // Snapshot at tick 0 (empty world)
 
@@ -59,7 +59,7 @@ describe("history", () => {
   })
 
   test("rollback entity despawn", () => {
-    const world = make_world(1)
+    const world = make_world(1, [Position])
     world.history = make_history_buffer(10)
 
     const entity = spawn(world, [Position({ x: 10, y: 10 })])
@@ -82,7 +82,7 @@ describe("history", () => {
   })
 
   test("resimulate forward after rollback", () => {
-    const world = make_world(1)
+    const world = make_world(1, [Position])
     world.history = make_history_buffer(10)
 
     const entity = spawn(world, [Position({ x: 0, y: 0 })])

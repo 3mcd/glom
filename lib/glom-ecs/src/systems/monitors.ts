@@ -1,7 +1,7 @@
-import { define_system } from "../system"
 import { World as WorldTerm } from "../query/term"
+import { define_system } from "../system"
 import type { World } from "../world"
-import { world_flush_graph_changes, world_flush_deletions } from "../world_api"
+import { world_flush_deletions, world_flush_graph_changes } from "../world_api"
 
 export const GlomMonitors = {
   /**
@@ -29,4 +29,3 @@ export const GlomMonitors = {
     { params: [WorldTerm()], name: "flush_deletions" },
   ),
 }
-
