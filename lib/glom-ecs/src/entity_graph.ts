@@ -1,13 +1,12 @@
-import { assert_defined } from "./assert"
-import type { Component } from "./component"
-import type { Entity } from "./entity"
-import { hash_to_uint, hash_word } from "./lib/hash"
+import {assert_defined} from "./assert"
+import type {Component} from "./component"
+import type {Entity} from "./entity"
+import {hash_to_uint, hash_word} from "./lib/hash"
+import type {ComponentRegistry} from "./registry"
 import {
   make_sparse_map,
   type SparseMap,
-  sparse_map_clear,
   sparse_map_delete,
-  sparse_map_for_each,
   sparse_map_for_each_value,
   sparse_map_get,
   sparse_map_set,
@@ -20,7 +19,6 @@ import {
   sparse_set_delete,
   sparse_set_for_each,
   sparse_set_has,
-  sparse_set_size,
   sparse_set_values,
 } from "./sparse_set"
 import {
@@ -30,9 +28,7 @@ import {
   vec_intersection,
   vec_is_superset_of,
 } from "./vec"
-import type { ComponentRegistry } from "./registry"
 
-// biome-ignore lint/suspicious/noConfusingVoidType: void is the most accurate return type here
 type EntityGraphNodeIteratee = (node: EntityGraphNode) => boolean | void
 export type EntityGraphNodeListener = {
   node_created?: (node: EntityGraphNode) => void
@@ -257,19 +253,19 @@ export function entity_graph_node_prune(
 
   // Unlink from all parents
   for (let i = 0; i < parents.length; i++) {
-    entity_graph_node_unlink(node, parents[i]!)
+    entity_graph_node_unlink(node, parents[i] as EntityGraphNode)
   }
 
   // Unlink from all children
   for (let i = 0; i < children.length; i++) {
-    entity_graph_node_unlink(children[i]!, node)
+    entity_graph_node_unlink(children[i] as EntityGraphNode, node)
   }
 
   // For each child, potentially link to parents of the pruned node
   for (let i = 0; i < children.length; i++) {
-    const child = children[i]!
+    const child = children[i] as EntityGraphNode
     for (let j = 0; j < parents.length; j++) {
-      const parent = parents[j]!
+      const parent = parents[j] as EntityGraphNode
       if (vec_is_superset_of(child.vec, parent.vec)) {
         // Check if any other next_nodes of parent are also subsets of child
         let has_more_specific_subset = false
@@ -348,14 +344,17 @@ export function entity_graph_link_nodes_traverse(
   })
 
   for (let i = 0; i < parents_to_link.length; i++) {
-    entity_graph_node_link(node, parents_to_link[i]!)
+    entity_graph_node_link(node, parents_to_link[i] as EntityGraphNode)
   }
   for (let i = 0; i < children_to_unlink.length; i++) {
-    const [child, parent] = children_to_unlink[i]!
+    const [child, parent] = children_to_unlink[i] as [
+      EntityGraphNode,
+      EntityGraphNode,
+    ]
     entity_graph_node_unlink(child, parent)
   }
   for (let i = 0; i < children_to_link.length; i++) {
-    entity_graph_node_link(children_to_link[i]!, node)
+    entity_graph_node_link(children_to_link[i] as EntityGraphNode, node)
   }
 }
 
@@ -438,7 +437,7 @@ export function entity_graph_set_entity_node(
   if (prev_node === next_node) {
     return prev_node
   }
-  
+
   if (prev_node) {
     entity_graph_node_remove_entity(prev_node, entity)
   }

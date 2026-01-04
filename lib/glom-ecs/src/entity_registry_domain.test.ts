@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test"
-import { type Entity, get_hi, get_lo } from "./entity"
+import {describe, expect, test} from "bun:test"
+import {type Entity, get_hi, get_lo} from "./entity"
 import {
   alloc_domain_entity,
   make_entity_registry_domain,
@@ -36,7 +36,7 @@ describe("entity_registry_domain", () => {
     expect(domain.dense).toContain(e2)
 
     remove_domain_entity(domain, e1)
-    
+
     expect(domain.entity_count).toBe(1)
     expect(domain.dense[0]).toBe(e2)
     expect(domain.sparse.get(get_lo(e2))).toBe(0)

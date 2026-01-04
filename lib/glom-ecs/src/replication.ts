@@ -1,8 +1,8 @@
-import type { Component, ComponentLike } from "./component"
-import { Replicated, ReplicationConfig } from "./replication_config"
-export { Replicated, ReplicationConfig }
+import type {Component, ComponentLike} from "./component"
+import {Replicated, ReplicationConfig} from "./replication_config"
+export {Replicated, ReplicationConfig}
 
-import type { Entity } from "./entity"
+import type {Entity} from "./entity"
 import {
   entity_graph_find_or_create_node,
   entity_graph_get_entity_node,
@@ -10,27 +10,25 @@ import {
   entity_graph_node_remove_entity,
   entity_graph_set_entity_node,
 } from "./entity_graph"
-import { get_domain, remove_entity } from "./entity_registry"
+import {get_domain, remove_entity} from "./entity_registry"
+import {add_domain_entity, remove_domain_entity} from "./entity_registry_domain"
+import {hash_word} from "./lib/hash"
+import {Read, World as WorldTerm} from "./query/term"
+import {prune_buffers} from "./reconciliation"
+import type {Relation} from "./relation"
 import {
-  add_domain_entity,
-  remove_domain_entity,
-} from "./entity_registry_domain"
-import { hash_word } from "./lib/hash"
-import { Read, World as WorldTerm } from "./query/term"
-import { prune_buffers } from "./reconciliation"
-import type { Relation } from "./relation"
-import {
+  type RelationPair,
+  type RelationSubject,
   register_incoming_relation,
   unregister_incoming_relation,
 } from "./relation_registry"
-import { capture_snapshot_stream } from "./snapshot_stream"
-import { sparse_map_delete, sparse_map_get, sparse_map_set } from "./sparse_map"
-import { define_system } from "./system"
-import type { SystemSchedule } from "./system_schedule"
-import { make_vec, vec_difference, vec_sum } from "./vec"
+import {capture_snapshot_stream} from "./snapshot_stream"
+import {sparse_map_delete, sparse_map_get, sparse_map_set} from "./sparse_map"
+import {define_system} from "./system"
+import {make_vec, vec_difference, vec_sum} from "./vec"
 import {
+  type Command,
   delete_component_value,
-  get_component_value,
   set_component_value,
   type World,
 } from "./world"
@@ -43,27 +41,33 @@ import {
 
 export const TRANSIENT_DOMAIN = 2046 // Reserved domain for predicted spawns
 
-export type ReplicationOp =
-  | {
-      type: "spawn"
-      entity: Entity
-      components: {
-        id: number
-        data?: unknown
-        rel?: { relation_id: number; object: number }
-      }[]
-      causal_key?: number
-    }
-  | { type: "despawn"; entity: Entity }
-  | {
-      type: "set"
-      entity: Entity
-      component_id: number
-      data: unknown
-      version?: number
-      rel?: { relation_id: number; object: number }
-    }
-  | { type: "remove"; entity: Entity; component_id: number }
+export type SpawnComponent = {
+  id: number
+  data?: unknown
+  rel?: RelationPair
+}
+
+export type SpawnOp = {
+  type: "spawn"
+  entity: Entity
+  components: SpawnComponent[]
+  causal_key?: number
+}
+
+export type DespawnOp = {type: "despawn"; entity: Entity}
+
+export type SetOp = {
+  type: "set"
+  entity: Entity
+  component_id: number
+  data: unknown
+  version?: number
+  rel?: RelationPair
+}
+
+export type RemoveOp = {type: "remove"; entity: Entity; component_id: number}
+
+export type ReplicationOp = SpawnOp | DespawnOp | SetOp | RemoveOp
 
 export type Transaction = {
   hi: number // Domain/Agent ID
@@ -78,14 +82,14 @@ const OP_POOL: ReplicationOp[] = []
 
 export function pool_get_op<T extends ReplicationOp["type"]>(
   type: T,
-): Extract<ReplicationOp, { type: T }> {
+): Extract<ReplicationOp, {type: T}> {
   const op = OP_POOL.pop()
   if (op) {
-    const mutable_op = op as { type: string }
+    const mutable_op = op as {type: string}
     mutable_op.type = type
-    return op as Extract<ReplicationOp, { type: T }>
+    return op as Extract<ReplicationOp, {type: T}>
   }
-  return { type } as unknown as Extract<ReplicationOp, { type: T }>
+  return {type} as unknown as Extract<ReplicationOp, {type: T}>
 }
 
 export function pool_return_op(op: ReplicationOp) {
@@ -143,7 +147,7 @@ export function rebind_entity(
   if (incoming) {
     const relations_to_move = Array.from(incoming)
     for (let i = 0; i < relations_to_move.length; i++) {
-      const { subject, relation_id } = relations_to_move[i]!
+      const {subject, relation_id} = relations_to_move[i] as RelationSubject
       const relation = ((object: Entity) => ({
         relation: world.component_registry.get_component(
           relation_id,
@@ -161,9 +165,9 @@ export function rebind_entity(
   // 4. Update command buffer (patch existing commands to point to the new ID)
   const cmd_buffers = Array.from(world.command_buffer.values())
   for (let i = 0; i < cmd_buffers.length; i++) {
-    const commands = cmd_buffers[i]!
+    const commands = cmd_buffers[i] as Command[]
     for (let j = 0; j < commands.length; j++) {
-      const cmd = commands[j]!
+      const cmd = commands[j] as Command
       if (cmd.target === transient) {
         cmd.target = authoritative
       }
@@ -184,7 +188,7 @@ export function apply_transaction(world: World, batch: Transaction) {
 
   const ops = batch.ops
   for (let i = 0; i < ops.length; i++) {
-    const op = ops[i]!
+    const op = ops[i] as ReplicationOp
     switch (op.type) {
       case "spawn": {
         const entity = op.entity
@@ -206,7 +210,7 @@ export function apply_transaction(world: World, batch: Transaction) {
         const resolved: ComponentLike[] = []
         const components = op.components
         for (let j = 0; j < components.length; j++) {
-          const { id, data, rel } = components[j]!
+          const {id, data, rel} = components[j] as SpawnComponent
           const comp = world.component_registry.get_component(id)
           if (!comp) continue
 
@@ -255,17 +259,17 @@ export function apply_transaction(world: World, batch: Transaction) {
         // Clean up relations where this entity is the object
         const incoming = world.relations.object_to_subjects.get(op.entity)
         if (incoming) {
-          incoming.forEach(({ subject, relation_id }) => {
-            // This is complex because we need to move the subject to a new node
-            // For now, let's keep it simple and just delete the storage
-          })
+          // incoming.forEach(({subject, relation_id}) => {
+          // This is complex because we need to move the subject to a new node
+          // For now, let's keep it simple and just delete the storage
+          // })
           world.relations.object_to_subjects.delete(op.entity)
         }
 
         // Clean up outgoing relations
         const elements = node.vec.elements
         for (let j = 0; j < elements.length; j++) {
-          const comp = elements[j]!
+          const comp = elements[j] as ComponentLike
           const comp_id = world.component_registry.get_id(comp)
           const rel = world.relations.virtual_to_rel.get(comp_id)
           if (rel) {
@@ -331,7 +335,8 @@ export function apply_transaction(world: World, batch: Transaction) {
         const elements = node.vec.elements
         for (let j = 0; j < elements.length; j++) {
           if (
-            world.component_registry.get_id(elements[j]!) === op.component_id
+            world.component_registry.get_id(elements[j] as ComponentLike) ===
+            op.component_id
           ) {
             has_comp = true
             break
@@ -409,7 +414,7 @@ export const commit_pending_mutations = define_system(
   (world: World) => {
     commit_transaction(world)
   },
-  { params: [WorldTerm()], name: "commit_pending_mutations" },
+  {params: [WorldTerm()], name: "commit_pending_mutations"},
 )
 
 /**
@@ -457,5 +462,5 @@ export const advance_world_tick = define_system(
   (world: World) => {
     advance_tick(world)
   },
-  { params: [WorldTerm()], name: "advance_world_tick" },
+  {params: [WorldTerm()], name: "advance_world_tick"},
 )

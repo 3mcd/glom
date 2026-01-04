@@ -1,4 +1,4 @@
-import type { ByteReader, ByteWriter } from "./lib/binary"
+import type {ByteReader, ByteWriter} from "./lib/binary"
 
 export type ComponentEncode<T> = (value: T, writer: ByteWriter) => void
 

@@ -1,11 +1,5 @@
-import { describe, expect, test } from "bun:test"
-import {
-  HASH_BASE,
-  hash_to_uint,
-  hash_word,
-  hash_words,
-  init_hash,
-} from "./hash"
+import {describe, expect, test} from "bun:test"
+import {HASH_BASE, hash_to_uint, hash_word, hash_words, init_hash} from "./hash"
 
 describe("hash", () => {
   test("init_hash returns HASH_BASE", () => {

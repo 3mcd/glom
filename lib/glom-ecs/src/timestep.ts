@@ -82,4 +82,3 @@ export function timestep_update(
 export function timestep_set_offset(timestep: Timestep, offset: number) {
   timestep.offset = offset
 }
-

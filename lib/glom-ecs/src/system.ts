@@ -1,8 +1,5 @@
-import type { SystemArgument } from "./system_argument"
-import {
-  type SystemDescriptor,
-  system_descriptor_key,
-} from "./system_descriptor"
+import type {SystemArgument} from "./system_argument"
+import {type SystemDescriptor, system_descriptor_key} from "./system_descriptor"
 
 export type System<T extends SystemArgument[] = SystemArgument[]> = (
   ...args: T

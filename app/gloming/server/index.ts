@@ -2,7 +2,7 @@ import * as g from "@glom/ecs"
 
 const A = g.define_component<number>()
 const B = g.define_component<string>()
-const C = g.define_component<{ x: number }>()
+const C = g.define_component<{x: number}>()
 const D = g.define_tag()
 const Rel = g.define_relation()
 
@@ -36,7 +36,7 @@ g.add_system(system_schedule, system)
 const schema = [A, B, C, D, Rel]
 const world = g.make_world(1, schema)
 
-g.add_resource(world, C({ x: 1 }))
+g.add_resource(world, C({x: 1}))
 
 const parent = g.spawn(world, [B("parent"), A(10)], 2)
 g.spawn(world, [A(1), D, Rel(parent)], 1)

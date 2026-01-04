@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import {describe, expect, test} from "bun:test"
 import {
   make_sparse_set,
   sparse_set_add,
@@ -54,7 +54,7 @@ describe("sparse_set", () => {
     sparse_set_delete(set, 2)
     expect(sparse_set_has(set, 2)).toBe(false)
     expect(sparse_set_size(set)).toBe(2)
-    
+
     // Check swap-and-pop
     expect(sparse_set_at(set, 0)).toBe(1)
     expect(sparse_set_at(set, 1)).toBe(3)
@@ -95,4 +95,3 @@ describe("sparse_set", () => {
     expect(results).toEqual([2, 1])
   })
 })
-

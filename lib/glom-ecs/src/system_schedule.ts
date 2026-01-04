@@ -1,7 +1,7 @@
-import { assert_defined } from "./assert"
-import type { Component, ComponentLike } from "./component"
-import type { DefinedSystem } from "./system"
-import type { SystemArgument } from "./system_argument"
+import {assert_defined} from "./assert"
+import type {ComponentLike} from "./component"
+import type {DefinedSystem} from "./system"
+import type {SystemArgument} from "./system_argument"
 import {
   is_add_descriptor,
   is_all_descriptor,
@@ -19,8 +19,8 @@ import {
   type SystemExecutor,
   setup_system_executor,
 } from "./system_executor"
-import type { World } from "./world"
-import { world_flush_deletions, world_flush_graph_changes } from "./world_api"
+import type {World} from "./world"
+import {world_flush_deletions, world_flush_graph_changes} from "./world_api"
 
 enum SystemSchedulePhase {
   Setup,
@@ -33,22 +33,22 @@ export type SystemSchedule<Requirements extends ComponentLike = never> = {
   phase: SystemSchedulePhase
 }
 
-type ExtractComponent<T> = T extends { readonly __read: infer C }
+type ExtractComponent<T> = T extends {readonly __read: infer C}
   ? C
-  : T extends { readonly __write: infer C }
+  : T extends {readonly __write: infer C}
     ? C
-    : T extends { readonly __has: infer C }
+    : T extends {readonly __has: infer C}
       ? C
-      : T extends { readonly __add: infer C }
+      : T extends {readonly __add: infer C}
         ? C
-        : T extends { readonly __remove: infer C }
+        : T extends {readonly __remove: infer C}
           ? C
           : T extends ComponentLike
             ? T
             : never
 
 type SystemResources<T extends SystemArgument[]> = {
-  [K in keyof T]: T[K] extends { readonly __all: true }
+  [K in keyof T]: T[K] extends {readonly __all: true}
     ? never
     : ExtractComponent<T[K]>
 }[number]
@@ -115,7 +115,7 @@ function extract_system_deps(exec: SystemExecutor): SystemDeps {
     }
   }
 
-  return { reads, writes }
+  return {reads, writes}
 }
 
 function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
@@ -123,7 +123,7 @@ function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
   if (n <= 1) return execs
 
   const deps = execs.map(extract_system_deps)
-  const adj: number[][] = Array.from({ length: n }, () => [])
+  const adj: number[][] = Array.from({length: n}, () => [])
   const in_degree = new Array(n).fill(0)
 
   const component_writers: Map<ComponentLike, number[]> = new Map()

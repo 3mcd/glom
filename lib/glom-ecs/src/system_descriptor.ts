@@ -1,4 +1,4 @@
-import type { Component, ComponentLike } from "./component"
+import type {Component, ComponentLike} from "./component"
 import type {
   AddDescriptor,
   DespawnDescriptor,
@@ -14,8 +14,8 @@ import type {
   WorldDescriptor,
   WriteDescriptor,
 } from "./descriptors"
-import type { All } from "./query/all"
-import type { Has, Not, Read, Write } from "./query/term"
+import type {All} from "./query/all"
+import type {Has, Not, Read, Write} from "./query/term"
 import type {
   Add,
   Despawn,
@@ -23,7 +23,7 @@ import type {
   Spawn,
   SystemArgument,
 } from "./system_argument"
-import type { World as WorldType } from "./world"
+import type {World as WorldType} from "./world"
 
 export * from "./descriptors"
 
@@ -31,29 +31,29 @@ type TermDescriptor<T> = [T] extends [never]
   ? never
   : T extends WorldType
     ? WorldDescriptor
-    : T extends { readonly __read: infer U }
+    : T extends {readonly __read: infer U}
       ? ReadDescriptor<U extends Component<infer V> ? V : unknown>
-      : T extends { readonly __write: infer U }
+      : T extends {readonly __write: infer U}
         ? WriteDescriptor<U extends Component<infer V> ? V : unknown>
-        : T extends { readonly __has: infer U }
+        : T extends {readonly __has: infer U}
           ? HasDescriptor<U extends ComponentLike ? U : never>
-          : T extends { readonly __not: infer U }
+          : T extends {readonly __not: infer U}
             ? NotDescriptor<U extends ComponentLike ? U : never>
-            : T extends { readonly __spawn: true }
+            : T extends {readonly __spawn: true}
               ? SpawnDescriptor
-              : T extends { readonly __despawn: true }
+              : T extends {readonly __despawn: true}
                 ? DespawnDescriptor
-                : T extends { readonly __add: infer U }
+                : T extends {readonly __add: infer U}
                   ? AddDescriptor<U extends ComponentLike ? U : never>
-                  : T extends { readonly __remove: infer U }
+                  : T extends {readonly __remove: infer U}
                     ? RemoveDescriptor<U extends ComponentLike ? U : never>
-                    : T extends { readonly __rel: [infer R, infer U] }
-                      ? { rel: [R, TermDescriptor<U>] }
+                    : T extends {readonly __rel: [infer R, infer U]}
+                      ? {rel: [R, TermDescriptor<U>]}
                       : T extends number
                         ? EntityDescriptor
-                        : T extends { readonly entity: true }
+                        : T extends {readonly entity: true}
                           ? EntityDescriptor
-                          : T extends { readonly __component_brand: true }
+                          : T extends {readonly __component_brand: true}
                             ?
                                 | WriteDescriptor<
                                     T extends Component<infer V> ? V : unknown
@@ -98,7 +98,7 @@ export type AllDescriptor<
   all: MapTerms<ParamsToTuple<T0, T1, T2, T3, T4, T5, T6, T7>>
 }
 
-type SystemParameterDescriptor<T> = T extends { __all: true }
+type SystemParameterDescriptor<T> = T extends {__all: true}
   ? T extends All<
       infer T0,
       infer T1,
@@ -111,7 +111,7 @@ type SystemParameterDescriptor<T> = T extends { __all: true }
     >
     ? AllDescriptor<T0, T1, T2, T3, T4, T5, T6, T7>
     : never
-  : T extends { readonly __in: infer U }
+  : T extends {readonly __in: infer U}
     ? U extends All<
         infer T0,
         infer T1,
@@ -124,7 +124,7 @@ type SystemParameterDescriptor<T> = T extends { __all: true }
       >
       ? InDescriptor<AllDescriptor<T0, T1, T2, T3, T4, T5, T6, T7>>
       : never
-    : T extends { readonly __out: infer U }
+    : T extends {readonly __out: infer U}
       ? U extends All<
           infer T0,
           infer T1,

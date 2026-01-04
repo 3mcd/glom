@@ -1,7 +1,7 @@
 // biome-ignore-all lint/style/noNonNullAssertion: tests
-import { bench, group, run } from "mitata"
-import { define_component } from "./component"
-import type { Entity } from "./entity"
+import {bench, group, run} from "mitata"
+import {define_component} from "./component"
+import type {Entity} from "./entity"
 import {
   type EntityGraphNode,
   entity_graph_find_or_create_node,
@@ -10,10 +10,10 @@ import {
   entity_graph_set_entity_node,
   make_entity_graph,
 } from "./entity_graph"
-import { make_vec } from "./vec"
+import {make_vec} from "./vec"
 
 const component_count = 200
-const components = Array.from({ length: component_count }, (_, i) =>
+const components = Array.from({length: component_count}, (_, i) =>
   define_component(i),
 )
 const node_count = 100
@@ -34,7 +34,7 @@ for (let i = 0; i < node_count; i++) {
   )
 }
 
-const entities = Array.from({ length: entity_count }, (_, i) => i as Entity)
+const entities = Array.from({length: entity_count}, (_, i) => i as Entity)
 
 group("entity operations", () => {
   bench("add 10,000 entities to random nodes", () => {

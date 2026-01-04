@@ -10,7 +10,9 @@ export class ByteWriter {
 
   public ensure_capacity(additional: number) {
     if (this.cursor + additional > this.buffer.length) {
-      const next = new Uint8Array(Math.max(this.buffer.length * 2, this.cursor + additional))
+      const next = new Uint8Array(
+        Math.max(this.buffer.length * 2, this.cursor + additional),
+      )
       next.set(this.buffer)
       this.buffer = next
       this.view = new DataView(this.buffer.buffer)
@@ -82,12 +84,20 @@ export class ByteReader {
   public cursor = 0
 
   constructor(public buffer: Uint8Array) {
-    this.view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+    this.view = new DataView(
+      buffer.buffer,
+      buffer.byteOffset,
+      buffer.byteLength,
+    )
   }
 
   public reset(buffer: Uint8Array) {
     this.buffer = buffer
-    this.view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+    this.view = new DataView(
+      buffer.buffer,
+      buffer.byteOffset,
+      buffer.byteLength,
+    )
     this.cursor = 0
   }
 

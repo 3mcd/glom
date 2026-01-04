@@ -16,14 +16,14 @@ import * as reconciliation from "@glom/ecs/reconciliation"
 import * as replication from "@glom/ecs/replication"
 
 // 1. Components & Definitions with Serdes
-const Position = g.define_component<{ x: number; y: number }>({
+const Position = g.define_component<{x: number; y: number}>({
   bytes_per_element: 16,
   encode: (val, writer) => {
     writer.write_float64(val.x)
     writer.write_float64(val.y)
   },
   decode: (reader) => {
-    return { x: reader.read_float64(), y: reader.read_float64() }
+    return {x: reader.read_float64(), y: reader.read_float64()}
   },
 })
 
@@ -37,14 +37,14 @@ const Color = g.define_component<number>({
   },
 })
 
-const MoveCommand = g.define_component<{ dx: number; dy: number }>({
+const MoveCommand = g.define_component<{dx: number; dy: number}>({
   bytes_per_element: 16,
   encode: (val, writer) => {
     writer.write_float64(val.dx)
     writer.write_float64(val.dy)
   },
   decode: (reader) => {
-    return { dx: reader.read_float64(), dy: reader.read_float64() }
+    return {dx: reader.read_float64(), dy: reader.read_float64()}
   },
 })
 
@@ -99,7 +99,7 @@ const pulse_spawner_system = g.define_system(
       const incoming = world.relations.object_to_subjects.get(player_ent)
       let intent_tick = world.tick
       if (incoming) {
-        for (const { subject, relation_id } of incoming) {
+        for (const {subject, relation_id} of incoming) {
           if (relation_id === world.component_registry.get_id(g.CommandOf)) {
             const it = g.get_component_value(
               world,
@@ -151,7 +151,7 @@ const movement_system = g.define_system(
       if (next_y < 0) next_y = 400
       if (next_y > 400) next_y = 0
 
-      update(entity, { x: next_x, y: next_y })
+      update(entity, {x: next_x, y: next_y})
     }
   },
   {
@@ -198,7 +198,7 @@ const attached_pulse_system = g.define_system(
     update: Add<typeof Position>,
   ) => {
     for (const [pulse_ent, _pos, parent_pos] of pulses) {
-      update(pulse_ent, { x: parent_pos.x, y: parent_pos.y })
+      update(pulse_ent, {x: parent_pos.x, y: parent_pos.y})
     }
   },
   {
@@ -268,7 +268,7 @@ function create_server() {
   g.add_system(schedule, replication.advance_world_tick)
   g.add_system(schedule, replication.prune_temporal_buffers)
 
-  return { world, schedule, timestep }
+  return {world, schedule, timestep}
 }
 
 // 5. Client Setup
@@ -337,8 +337,8 @@ g.add_system(reconcile_schedule, commands.cleanup_ephemeral_commands)
 const client = create_client(1, reconcile_schedule)
 
 // Artificial latency pipes
-const client_to_server = [] as { time: number; packet: Uint8Array }[]
-const server_to_client = [] as { time: number; packet: Uint8Array }[]
+const client_to_server = [] as {time: number; packet: Uint8Array}[]
+const server_to_client = [] as {time: number; packet: Uint8Array}[]
 
 // Server broadcasts transactions to client
 server.world.recorder = (tx) => {
@@ -352,7 +352,7 @@ server.world.recorder = (tx) => {
 
 // Spawn the player on the server AFTER the recorder is established
 const player = g.spawn(server.world, [
-  Position({ x: 200, y: 200 }),
+  Position({x: 200, y: 200}),
   Color(0),
   g.Replicated,
 ])
@@ -389,7 +389,7 @@ function loop() {
 
   // 1. Process Client -> Server (Commands)
   while (client_to_server.length > 0 && client_to_server[0].time <= now) {
-    const { packet } = client_to_server.shift() as {
+    const {packet} = client_to_server.shift() as {
       time: number
       packet: Uint8Array
     }
@@ -423,7 +423,7 @@ function loop() {
 
   // 2. Process Server -> Client (Handshake & Sync)
   while (server_to_client.length > 0 && server_to_client[0].time <= now) {
-    const { packet } = server_to_client.shift() as {
+    const {packet} = server_to_client.shift() as {
       time: number
       packet: Uint8Array
     }
@@ -483,7 +483,7 @@ function loop() {
       if (client.active_keys.has("KeyD")) dx += 1
 
       if (dx !== 0 || dy !== 0) {
-        g.record_command(client.world, player, MoveCommand({ dx, dy }))
+        g.record_command(client.world, player, MoveCommand({dx, dy}))
       }
 
       if (client.just_pressed.has("Space")) {
@@ -499,7 +499,7 @@ function loop() {
         const writer = new g.ByteWriter()
         g.write_commands(
           writer,
-          { tick: client.world.tick, commands },
+          {tick: client.world.tick, commands},
           client.world,
         )
         client_to_server.push({

@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test"
-import { get_hi, get_lo, make_entity, RESOURCE_ENTITY } from "./entity"
+import {describe, expect, test} from "bun:test"
+import {get_hi, get_lo, make_entity, RESOURCE_ENTITY} from "./entity"
 
 describe("entity", () => {
   test("make_entity and getters", () => {

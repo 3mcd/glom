@@ -1,13 +1,14 @@
-import type { Entity } from "./entity"
-import type { EntityGraphNode } from "./entity_graph"
+import type {Entity} from "./entity"
+import type {EntityGraphNode} from "./entity_graph"
+import type {RelationPair, RelationSubject} from "./relation_registry"
 import {
   sparse_map_clear,
   sparse_map_for_each,
   sparse_map_get,
   sparse_map_set,
 } from "./sparse_map"
-import { sparse_set_add, sparse_set_clear, sparse_set_size } from "./sparse_set"
-import type { World } from "./world"
+import {sparse_set_add, sparse_set_clear, sparse_set_size} from "./sparse_set"
+import type {World} from "./world"
 
 export type RegistryDomainSnapshot = {
   readonly hi: number
@@ -31,14 +32,8 @@ export type Snapshot = {
   readonly next_index: number
   readonly relations: {
     readonly rel_to_virtual: Map<number, Map<number, number>>
-    readonly virtual_to_rel: Map<
-      number,
-      { relation_id: number; object: number }
-    >
-    readonly object_to_subjects: Map<
-      number,
-      Set<{ subject: number; relation_id: number }>
-    >
+    readonly virtual_to_rel: Map<number, RelationPair>
+    readonly object_to_subjects: Map<number, Set<RelationSubject>>
     readonly next_virtual_id: number
   }
 }
@@ -108,22 +103,16 @@ export function capture_snapshot(world: World): Snapshot {
     rel_to_virtual.set(rel_id, new Map(obj_map))
   }
 
-  const virtual_to_rel = new Map<
-    number,
-    { relation_id: number; object: number }
-  >()
+  const virtual_to_rel = new Map<number, RelationPair>()
   for (const [vid, rel_info] of world.relations.virtual_to_rel) {
-    virtual_to_rel.set(vid, { ...rel_info })
+    virtual_to_rel.set(vid, {...rel_info} as RelationPair)
   }
 
-  const object_to_subjects = new Map<
-    number,
-    Set<{ subject: number; relation_id: number }>
-  >()
+  const object_to_subjects = new Map<number, Set<RelationSubject>>()
   for (const [obj, subjects] of world.relations.object_to_subjects) {
-    const cloned_subjects = new Set<{ subject: number; relation_id: number }>()
+    const cloned_subjects = new Set<RelationSubject>()
     for (const item of subjects) {
-      cloned_subjects.add({ ...item })
+      cloned_subjects.add({...item} as RelationSubject)
     }
     object_to_subjects.set(obj, cloned_subjects)
   }
@@ -239,17 +228,14 @@ export function rollback_to_snapshot(world: World, snapshot: Snapshot) {
 
   world.relations.virtual_to_rel.clear()
   for (const [vid, rel_info] of snapshot.relations.virtual_to_rel) {
-    world.relations.virtual_to_rel.set(vid, { ...rel_info })
+    world.relations.virtual_to_rel.set(vid, {...rel_info})
   }
 
   world.relations.object_to_subjects.clear()
   for (const [obj, subjects] of snapshot.relations.object_to_subjects) {
-    const restored_subjects = new Set<{
-      subject: number
-      relation_id: number
-    }>()
+    const restored_subjects = new Set<RelationSubject>()
     for (const item of subjects) {
-      restored_subjects.add({ ...item })
+      restored_subjects.add({...item} as RelationSubject)
     }
     world.relations.object_to_subjects.set(obj, restored_subjects)
   }

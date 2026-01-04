@@ -1,6 +1,6 @@
-import { describe, expect, test } from "bun:test"
-import { define_component } from "./component"
-import { make_history_buffer, push_snapshot } from "./history"
+import {describe, expect, test} from "bun:test"
+import {define_component} from "./component"
+import {make_history_buffer, push_snapshot} from "./history"
 import {
   cleanup_transient_entities,
   prune_buffers,
@@ -11,7 +11,7 @@ import {
   TRANSIENT_DOMAIN,
   type Transaction,
 } from "./replication"
-import { get_component_value, make_world } from "./world"
+import {get_component_value, make_world} from "./world"
 import {
   add_component,
   advance_tick,
@@ -20,7 +20,7 @@ import {
 } from "./world_api"
 
 describe("reconciliation", () => {
-  const Position = define_component<{ x: number; y: number }>()
+  const Position = define_component<{x: number; y: number}>()
   const schema = [Position]
 
   test("reconcile late arriving transaction", () => {
@@ -29,20 +29,20 @@ describe("reconciliation", () => {
     // Snapshot at start of tick 0
     push_snapshot(world, world.history)
 
-    const entity = spawn(world, [Position({ x: 0, y: 0 })])
+    const entity = spawn(world, [Position({x: 0, y: 0})])
     commit_transaction(world)
     advance_tick(world) // Tick 0 -> 1
 
     // Simulate local prediction for Ticks 1 and 2
     // Tick 1
-    world.input_buffer.set(1, { dx: 1 })
-    add_component(world, entity, Position({ x: 1, y: 0 }))
+    world.input_buffer.set(1, {dx: 1})
+    add_component(world, entity, Position({x: 1, y: 0}))
     commit_transaction(world)
     advance_tick(world) // Tick 1 -> 2
 
     // Tick 2
-    world.input_buffer.set(2, { dx: 1 })
-    add_component(world, entity, Position({ x: 2, y: 0 }))
+    world.input_buffer.set(2, {dx: 1})
+    add_component(world, entity, Position({x: 2, y: 0}))
     commit_transaction(world)
     advance_tick(world) // Tick 2 -> 3
 
@@ -63,7 +63,7 @@ describe("reconciliation", () => {
           type: "set",
           entity,
           component_id: world.component_registry.get_id(Position),
-          data: { x: 10, y: 0 },
+          data: {x: 10, y: 0},
           version: 1, // Authoritative tick
         },
       ],
@@ -72,9 +72,9 @@ describe("reconciliation", () => {
     // Tick function used during resimulation
     const tick_fn = (w: typeof world, input: unknown) => {
       const pos = get_component_value(w, entity, Position)
-      const dx = (input as { dx: number } | undefined)?.dx ?? 0
+      const dx = (input as {dx: number} | undefined)?.dx ?? 0
       if (pos) {
-        add_component(w, entity, Position({ x: pos.x + dx, y: pos.y }))
+        add_component(w, entity, Position({x: pos.x + dx, y: pos.y}))
       }
     }
 
@@ -98,8 +98,8 @@ describe("reconciliation", () => {
 
     // Fill buffers
     for (let i = 0; i < 5; i++) {
-      world.input_buffer.set(i, { dx: i })
-      world.remote_transactions.set(i, [{ hi: 0, seq: i, tick: i, ops: [] }])
+      world.input_buffer.set(i, {dx: i})
+      world.remote_transactions.set(i, [{hi: 0, seq: i, tick: i, ops: []}])
       advance_tick(world)
     }
 
@@ -124,7 +124,7 @@ describe("reconciliation", () => {
 
     // 1. Predict a spawn at tick 10
     world.tick = 10
-    const entity = spawn(world, [Position({ x: 0, y: 0 })], TRANSIENT_DOMAIN)
+    const entity = spawn(world, [Position({x: 0, y: 0})], TRANSIENT_DOMAIN)
     expect(world.transient_registry.size).toBe(1)
 
     // 2. Advance time

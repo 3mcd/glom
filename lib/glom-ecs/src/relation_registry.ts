@@ -1,15 +1,21 @@
-import { type Component, define_tag } from "./component"
-import type { Entity } from "./entity"
-import type { Relation } from "./relation"
-import type { World } from "./world"
+import type {Entity} from "./entity"
+import type {Relation} from "./relation"
+import type {World} from "./world"
+
+export type RelationSubject = {
+  subject: Entity
+  relation_id: number
+}
+
+export type RelationPair = {
+  relation_id: number
+  object: Entity
+}
 
 export type RelationRegistry = {
   readonly rel_to_virtual: Map<number, Map<number, number>>
-  readonly virtual_to_rel: Map<number, { relation_id: number; object: number }>
-  readonly object_to_subjects: Map<
-    number,
-    Set<{ subject: number; relation_id: number }>
-  >
+  readonly virtual_to_rel: Map<number, RelationPair>
+  readonly object_to_subjects: Map<number, Set<RelationSubject>>
 }
 
 export function make_relation_registry(): RelationRegistry {
@@ -54,10 +60,10 @@ export function register_incoming_relation(
 ): void {
   let incoming = world.relations.object_to_subjects.get(object)
   if (!incoming) {
-    incoming = new Set()
+    incoming = new Set<RelationSubject>()
     world.relations.object_to_subjects.set(object, incoming)
   }
-  incoming.add({ subject, relation_id })
+  incoming.add({subject, relation_id})
 }
 
 export function unregister_incoming_relation(

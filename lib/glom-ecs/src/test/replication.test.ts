@@ -1,16 +1,16 @@
-import { describe, expect, test } from "bun:test"
-import { define_component, define_tag } from "../component"
-import { type Entity, get_hi } from "../entity"
-import { get_domain } from "../entity_registry"
-import { define_relation } from "../relation"
+import {describe, expect, test} from "bun:test"
+import {define_component, define_tag} from "../component"
+import {type Entity, get_hi} from "../entity"
+import {get_domain} from "../entity_registry"
+import {define_relation} from "../relation"
 import {
   apply_transaction,
   TRANSIENT_DOMAIN,
   type Transaction,
 } from "../replication"
-import { Replicated } from "../replication_config"
-import { sparse_map_get } from "../sparse_map"
-import { get_component_value, make_world } from "../world"
+import {Replicated} from "../replication_config"
+import {sparse_map_get} from "../sparse_map"
+import {get_component_value, make_world} from "../world"
 import {
   add_component,
   commit_transaction,
@@ -20,8 +20,8 @@ import {
 } from "../world_api"
 
 describe("replication", () => {
-  const Position = define_component<{ x: number; y: number }>()
-  const Velocity = define_component<{ dx: number; dy: number }>()
+  const Position = define_component<{x: number; y: number}>()
+  const Velocity = define_component<{dx: number; dy: number}>()
   const IsStatic = define_tag()
   const ChildOf = define_relation()
   const schema = [Position, Velocity, IsStatic, ChildOf]
@@ -40,7 +40,7 @@ describe("replication", () => {
     const world_b = make_world(2, schema) // Domain 2
     create_link(world_a, world_b)
 
-    const entity_a = spawn(world_a, [Position({ x: 10, y: 20 }), Replicated])
+    const entity_a = spawn(world_a, [Position({x: 10, y: 20}), Replicated])
     commit_transaction(world_a)
 
     // Check world B
@@ -58,8 +58,8 @@ describe("replication", () => {
     const world_b = make_world(2, schema)
     create_link(world_a, world_b)
 
-    const entity_a = spawn(world_a, [Position({ x: 10, y: 20 }), Replicated])
-    add_component(world_a, entity_a, Position({ x: 30, y: 40 }))
+    const entity_a = spawn(world_a, [Position({x: 10, y: 20}), Replicated])
+    add_component(world_a, entity_a, Position({x: 30, y: 40}))
     commit_transaction(world_a)
 
     const pos_b = get_component_value(world_b, entity_a, Position)
@@ -83,7 +83,9 @@ describe("replication", () => {
       entity_a as number,
     )
     expect(node_b).toBeDefined()
-    expect(node_b?.vec.ids).toContain(world_b.component_registry.get_id(IsStatic))
+    expect(node_b?.vec.ids).toContain(
+      world_b.component_registry.get_id(IsStatic),
+    )
   })
 
   test("relationship replication", () => {
@@ -91,7 +93,7 @@ describe("replication", () => {
     const world_b = make_world(2, schema)
     create_link(world_a, world_b)
 
-    const parent = spawn(world_a, [Position({ x: 10, y: 10 }), Replicated])
+    const parent = spawn(world_a, [Position({x: 10, y: 10}), Replicated])
     const child = spawn(world_a, [ChildOf(parent), Replicated])
     commit_transaction(world_a)
 
@@ -101,7 +103,9 @@ describe("replication", () => {
     if (incoming) {
       expect(
         Array.from(incoming).some(
-          (r) => r.subject === child && r.relation_id === world_b.component_registry.get_id(ChildOf),
+          (r) =>
+            r.subject === child &&
+            r.relation_id === world_b.component_registry.get_id(ChildOf),
         ),
       ).toBe(true)
     }
@@ -112,7 +116,7 @@ describe("replication", () => {
     const world_b = make_world(2, schema)
     create_link(world_a, world_b)
 
-    const parent = spawn(world_a, [Position({ x: 10, y: 10 }), Replicated])
+    const parent = spawn(world_a, [Position({x: 10, y: 10}), Replicated])
     const child = spawn(world_a, [ChildOf(parent), Replicated])
     commit_transaction(world_a)
 
@@ -129,8 +133,8 @@ describe("replication", () => {
     const world_b = make_world(2, schema)
     create_link(world_a, world_b)
 
-    const entity_a = spawn(world_a, [Position({ x: 10, y: 20 }), Replicated])
-    add_component(world_a, entity_a, Velocity({ dx: 1, dy: 1 }))
+    const entity_a = spawn(world_a, [Position({x: 10, y: 20}), Replicated])
+    add_component(world_a, entity_a, Velocity({dx: 1, dy: 1}))
     commit_transaction(world_a)
 
     const vel_b = get_component_value(world_b, entity_a, Velocity)
@@ -147,8 +151,8 @@ describe("replication", () => {
     create_link(world_a, world_b)
 
     const entity_a = spawn(world_a, [
-      Position({ x: 10, y: 20 }),
-      Velocity({ dx: 1, dy: 1 }),
+      Position({x: 10, y: 20}),
+      Velocity({dx: 1, dy: 1}),
       Replicated,
     ])
     commit_transaction(world_a)
@@ -166,7 +170,7 @@ describe("replication", () => {
     const world_b = make_world(2, schema)
     create_link(world_a, world_b)
 
-    const entity_a = spawn(world_a, [Position({ x: 10, y: 20 }), Replicated])
+    const entity_a = spawn(world_a, [Position({x: 10, y: 20}), Replicated])
     commit_transaction(world_a)
     expect(get_component_value(world_b, entity_a, Position)).toBeDefined()
 
@@ -181,7 +185,7 @@ describe("replication", () => {
     create_link(world_a, world_b)
 
     // 1. Initial spawn in world A and replicate to B
-    const entity = spawn(world_a, [Position({ x: 0, y: 0 }), Replicated])
+    const entity = spawn(world_a, [Position({x: 0, y: 0}), Replicated])
     commit_transaction(world_a)
 
     // Manual transaction application to simulate race condition
@@ -195,7 +199,7 @@ describe("replication", () => {
           type: "set",
           entity,
           component_id: world_b.component_registry.get_id(Position),
-          data: { x: 10, y: 10 },
+          data: {x: 10, y: 10},
         },
       ],
     }
@@ -210,7 +214,7 @@ describe("replication", () => {
           type: "set",
           entity,
           component_id: world_b.component_registry.get_id(Position),
-          data: { x: 20, y: 20 },
+          data: {x: 20, y: 20},
         },
       ],
     }
@@ -232,8 +236,8 @@ describe("replication", () => {
     create_link(world_a, world_b)
     create_link(world_b, world_a)
 
-    const entity_a = spawn(world_a, [Position({ x: 1, y: 1 }), Replicated])
-    const entityB = spawn(world_b, [Position({ x: 2, y: 2 }), Replicated])
+    const entity_a = spawn(world_a, [Position({x: 1, y: 1}), Replicated])
+    const entityB = spawn(world_b, [Position({x: 2, y: 2}), Replicated])
 
     commit_transaction(world_a)
     commit_transaction(world_b)
@@ -257,7 +261,7 @@ describe("replication", () => {
     // 1. Client predicts a spawn in a "transient" domain
     const transientEntity = spawn(
       world,
-      [Position({ x: 100, y: 100 }), Replicated],
+      [Position({x: 100, y: 100}), Replicated],
       TRANSIENT_DOMAIN,
     )
     // The spawn() call above already registered it with a generated causal key.
@@ -283,7 +287,12 @@ describe("replication", () => {
           type: "spawn",
           entity: serverEntity,
           causal_key: causal_key,
-          components: [{ id: world.component_registry.get_id(Position), data: { x: 105, y: 105 } }],
+          components: [
+            {
+              id: world.component_registry.get_id(Position),
+              data: {x: 105, y: 105},
+            },
+          ],
         },
       ],
     }
@@ -315,14 +324,18 @@ describe("replication", () => {
 
     // 2. Client predicts a spawn in a "transient" domain
     // Spawning in any non-owned domain (hi !== world.hi) marks it as transient
-    const predictedEntity = spawn(world_client, [Position({ x: 1, y: 1 }), Replicated], TRANSIENT_DOMAIN)
+    const predictedEntity = spawn(
+      world_client,
+      [Position({x: 1, y: 1}), Replicated],
+      TRANSIENT_DOMAIN,
+    )
     expect(world_client.transient_registry.size).toBe(1)
 
     // 3. Server performs the "real" spawn at the same tick
     let serverTx: Transaction | undefined
     world_server.recorder = (tx) => (serverTx = tx)
     const authoritativeEntity = spawn(world_server, [
-      Position({ x: 2, y: 2 }),
+      Position({x: 2, y: 2}),
       Replicated,
     ])
 

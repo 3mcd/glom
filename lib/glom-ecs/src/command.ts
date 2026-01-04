@@ -1,12 +1,12 @@
-import type { Component, ComponentInstance, ComponentLike } from "./component"
-import { define_component, define_tag } from "./component"
-import { Entity } from "./entity"
-import { All } from "./query/all"
-import { Has, World as WorldTerm } from "./query/term"
-import { define_relation } from "./relation"
-import { define_system } from "./system"
-import type { World } from "./world"
-import { add_component, despawn, remove_component, spawn } from "./world_api"
+import type {Component, ComponentInstance, ComponentLike} from "./component"
+import {define_component, define_tag} from "./component"
+import {Entity} from "./entity"
+import {All} from "./query/all"
+import {Has, World as WorldTerm} from "./query/term"
+import {define_relation} from "./relation"
+import {define_system} from "./system"
+import type {World} from "./world"
+import {add_component, despawn, remove_component, spawn} from "./world_api"
 
 export const CommandOf = define_relation(2)
 export const CommandEntity = define_tag(3)
@@ -98,7 +98,7 @@ export const spawn_ephemeral_commands = define_system(
         command_entity = spawn(
           world,
           [
-            { component: comp as Component<unknown>, value: cmd.data },
+            {component: comp as Component<unknown>, value: cmd.data},
             ...base_components,
           ],
           COMMAND_DOMAIN,
@@ -115,7 +115,7 @@ export const spawn_ephemeral_commands = define_system(
       add_component(world, cmd.target, CommandOf(command_entity))
     }
   },
-  { params: [WorldTerm()], name: "spawn_ephemeral_commands" },
+  {params: [WorldTerm()], name: "spawn_ephemeral_commands"},
 )
 
 /**
@@ -128,7 +128,7 @@ export const cleanup_ephemeral_commands = define_system(
       const incoming = world.relations.object_to_subjects.get(cmd_ent)
       if (incoming) {
         const command_of_id = world.component_registry.get_id(CommandOf)
-        for (const { subject, relation_id } of Array.from(incoming)) {
+        for (const {subject, relation_id} of Array.from(incoming)) {
           if (relation_id === command_of_id) {
             remove_component(world, subject as Entity, CommandOf(cmd_ent))
           }

@@ -1,8 +1,5 @@
-import {
-  define_component,
-  define_tag,
-} from "./component"
-import type { SystemSchedule } from "./system_schedule"
+import {define_component, define_tag} from "./component"
+import type {SystemSchedule} from "./system_schedule"
 
 export const Replicated = define_tag(0)
 
@@ -19,4 +16,3 @@ export const ReplicationConfig = define_component<{
   },
   1,
 )
-

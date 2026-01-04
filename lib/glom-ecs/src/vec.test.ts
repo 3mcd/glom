@@ -1,6 +1,6 @@
-import { describe, expect, test } from "bun:test"
-import { define_component, type Component } from "./component"
-import { make_component_registry } from "./registry"
+import {describe, expect, test} from "bun:test"
+import {define_component} from "./component"
+import {make_component_registry} from "./registry"
 import {
   make_vec,
   make_vec_sorted,

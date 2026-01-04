@@ -2,13 +2,15 @@
   "linter": {
     "rules": {
       "suspicious": {
-        "noAssignInExpressions": "off"
+        "noAssignInExpressions": "off",
+        "noConfusingVoidType": "off"
       }
     }
   },
   "formatter": {
     "indentStyle": "space",
-    "lineWidth": 80
+    "lineWidth": 80,
+    "bracketSpacing": false
   },
   "javascript": {
     "formatter": {

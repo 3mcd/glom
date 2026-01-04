@@ -1,4 +1,4 @@
-import { assert } from "./assert"
+import {assert} from "./assert"
 
 type EntityBrand = {
   __glom_ecs_entity: never
@@ -14,7 +14,7 @@ const EXTENT = 2 ** 31 - 1
 
 export const RESOURCE_ENTITY = EXTENT as Entity
 
-export const Entity = { entity: true } as const
+export const Entity = {entity: true} as const
 
 export function assert_valid(entity: number) {
   assert(entity >= 0)

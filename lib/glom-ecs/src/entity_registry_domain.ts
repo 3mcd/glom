@@ -1,5 +1,5 @@
-import { assert_defined } from "./assert"
-import { type Entity, get_lo, make_entity } from "./entity"
+import {assert_defined} from "./assert"
+import {type Entity, get_lo, make_entity} from "./entity"
 
 export type EntityRegistryDomain = {
   hi: number

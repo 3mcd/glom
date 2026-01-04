@@ -1,5 +1,5 @@
-import type { ComponentLike } from "./component"
-import type { AnyAll, In, Out } from "./query/all"
+import type {ComponentLike} from "./component"
+import type {AnyAll, In, Out} from "./query/all"
 import type {
   Add,
   Despawn,
@@ -10,9 +10,9 @@ import type {
   Spawn,
   Write,
 } from "./query/term"
-import type { World } from "./world"
+import type {World} from "./world"
 
-export type { Add, Despawn, Remove, Spawn }
+export type {Add, Despawn, Remove, Spawn}
 
 export type SystemArgument =
   | AnyAll

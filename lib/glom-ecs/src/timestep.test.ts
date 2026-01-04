@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test"
-import { make_timestep, timestep_set_offset, timestep_update } from "./timestep"
+import {describe, expect, test} from "bun:test"
+import {make_timestep, timestep_set_offset, timestep_update} from "./timestep"
 
 describe("timestep", () => {
   test("basic fixed update accumulation", () => {

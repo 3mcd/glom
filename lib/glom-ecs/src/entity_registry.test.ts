@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test"
-import { get_hi, get_lo } from "./entity"
+import {describe, expect, test} from "bun:test"
+import {get_hi, get_lo} from "./entity"
 import {
   alloc_entity,
   make_entity_registry,

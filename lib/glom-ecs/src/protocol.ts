@@ -1,12 +1,12 @@
-import type { ComponentResolver, ComponentSerde } from "./component"
-import type { Entity } from "./entity"
-import type { ByteReader, ByteWriter } from "./lib/binary"
-import type { SnapshotBlock, SnapshotMessage } from "./net_types"
-import type { ReplicationOp, Transaction } from "./replication"
+import type {ComponentResolver, ComponentSerde} from "./component"
+import type {Entity} from "./entity"
+import type {ByteReader, ByteWriter} from "./lib/binary"
+import type {SnapshotBlock, SnapshotMessage} from "./net_types"
+import type {ReplicationOp, Transaction} from "./replication"
 
 export type ResolverLike =
   | ComponentResolver
-  | { readonly component_registry: ComponentResolver }
+  | {readonly component_registry: ComponentResolver}
 
 function to_resolver(res: ResolverLike): ComponentResolver {
   return "component_registry" in res ? res.component_registry : res
@@ -115,7 +115,7 @@ export function read_clocksync(reader: ByteReader): ClockSync {
 
 export type CommandMessage = {
   tick: number
-  commands: { target: number; component_id: number; data: unknown }[]
+  commands: {target: number; component_id: number; data: unknown}[]
 }
 
 export function write_commands(
@@ -145,7 +145,7 @@ export function read_commands(
 ): CommandMessage {
   const resolver = to_resolver(resolver_like)
   const count = reader.read_uint16()
-  const commands: { target: number; component_id: number; data: unknown }[] = []
+  const commands: {target: number; component_id: number; data: unknown}[] = []
   for (let i = 0; i < count; i++) {
     const target = reader.read_varint()
     const id = reader.read_varint()
@@ -156,7 +156,7 @@ export function read_commands(
         data = serde.decode(reader, undefined as unknown)
       }
     }
-    commands.push({ target, component_id: id, data })
+    commands.push({target, component_id: id, data})
   }
   return {
     tick,
@@ -218,7 +218,7 @@ export function read_snapshot(
       }
     }
 
-    blocks.push({ component_id, entities, data })
+    blocks.push({component_id, entities, data})
   }
 
   return {
@@ -336,7 +336,7 @@ export function read_transaction(
         const components: {
           id: number
           data?: unknown
-          rel?: { relation_id: number; object: number }
+          rel?: {relation_id: number; object: number}
         }[] = []
         for (let j = 0; j < comp_count; j++) {
           const id = reader.read_varint()
@@ -347,25 +347,25 @@ export function read_transaction(
               data = serde.decode(reader, undefined as unknown)
             }
           }
-          let rel: { relation_id: number; object: number } | undefined
+          let rel: {relation_id: number; object: number} | undefined
           if (reader.read_uint8() === 1) {
             rel = {
               relation_id: reader.read_varint(),
               object: reader.read_varint(),
             }
           }
-          components.push({ id, data, rel })
+          components.push({id, data, rel})
         }
         let causal_key: number | undefined
         if (reader.read_uint8() === 1) {
           causal_key = reader.read_uint32()
         }
-        ops.push({ type: "spawn", entity, components, causal_key })
+        ops.push({type: "spawn", entity, components, causal_key})
         break
       }
       case OpCode.Despawn: {
         const entity = reader.read_varint() as Entity
-        ops.push({ type: "despawn", entity })
+        ops.push({type: "despawn", entity})
         break
       }
       case OpCode.Set: {
@@ -382,20 +382,20 @@ export function read_transaction(
         if (reader.read_uint8() === 1) {
           version = reader.read_varint()
         }
-        let rel: { relation_id: number; object: number } | undefined
+        let rel: {relation_id: number; object: number} | undefined
         if (reader.read_uint8() === 1) {
           rel = {
             relation_id: reader.read_varint(),
             object: reader.read_varint(),
           }
         }
-        ops.push({ type: "set", entity, component_id, data, version, rel })
+        ops.push({type: "set", entity, component_id, data, version, rel})
         break
       }
       case OpCode.Remove: {
         const entity = reader.read_varint() as Entity
         const component_id = reader.read_varint()
-        ops.push({ type: "remove", entity, component_id })
+        ops.push({type: "remove", entity, component_id})
         break
       }
     }

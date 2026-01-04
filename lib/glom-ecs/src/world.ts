@@ -1,15 +1,15 @@
-import { type ClockSyncManager, make_clocksync_manager } from "./clocksync"
-import { CommandEntity, CommandOf, IntentTick } from "./command"
-import type { Component, ComponentInstance, ComponentLike } from "./component"
-import { type Entity, RESOURCE_ENTITY } from "./entity"
+import {type ClockSyncManager, make_clocksync_manager} from "./clocksync"
+import {CommandEntity, CommandOf, IntentTick} from "./command"
+import type {Component, ComponentInstance, ComponentLike} from "./component"
+import {type Entity, RESOURCE_ENTITY} from "./entity"
 import {
   type EntityGraph,
   type EntityGraphNode,
   make_entity_graph,
 } from "./entity_graph"
-import { type EntityRegistry, make_entity_registry } from "./entity_registry"
-import type { HistoryBuffer } from "./history"
-import type { SnapshotMessage } from "./net_types"
+import {type EntityRegistry, make_entity_registry} from "./entity_registry"
+import type {HistoryBuffer} from "./history"
+import type {SnapshotMessage} from "./net_types"
 import {
   type ComponentRegistry,
   make_component_registry,
@@ -24,7 +24,7 @@ import type {
   ReplicationRecorder,
   Transaction,
 } from "./replication"
-import { Replicated, ReplicationConfig } from "./replication_config"
+import {Replicated, ReplicationConfig} from "./replication_config"
 
 export type SnapshotEmitter = (message: SnapshotMessage) => void
 
@@ -71,6 +71,13 @@ export type GraphMove = {
   to?: EntityGraphNode
 }
 
+export type Command = {
+  target: Entity
+  component_id: number
+  data: unknown
+  intent_tick: number
+}
+
 export type World<R extends ComponentLike = any> = {
   readonly __resources: (val: R) => void
   readonly registry: EntityRegistry
@@ -87,22 +94,14 @@ export type World<R extends ComponentLike = any> = {
   snapshot_emitter?: SnapshotEmitter
   tick: number
   tick_spawn_count: number
-  readonly transient_registry: Map<number, { entity: Entity; tick: number }>
+  readonly transient_registry: Map<number, {entity: Entity; tick: number}>
   readonly pending_ops: ReplicationOp[]
   history?: HistoryBuffer
   readonly input_buffer: Map<number, unknown>
   readonly remote_transactions: Map<number, Transaction[]>
   readonly remote_snapshots: Map<number, SnapshotMessage[]>
   readonly clocksync: ClockSyncManager
-  readonly command_buffer: Map<
-    number,
-    {
-      target: Entity
-      component_id: number
-      data: unknown
-      intent_tick: number
-    }[]
-  >
+  readonly command_buffer: Map<number, Command[]>
   // Reusable buffers to avoid allocations in hot paths
   readonly _reduction_entity_to_ops: Map<Entity, ReplicationOp[]>
   readonly _reduction_component_changes: Map<number, ReplicationOp>
@@ -116,7 +115,7 @@ export function make_world(
   recorder?: ReplicationRecorder,
 ): World {
   const normalized_schema: RegistrySchema = Array.isArray(schema)
-    ? { network: schema }
+    ? {network: schema}
     : schema
 
   const component_registry = make_component_registry(normalized_schema, [

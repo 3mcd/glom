@@ -1,12 +1,8 @@
-import { describe, expect, test } from "bun:test"
-import { define_component } from "./component"
-import { define_system } from "./system"
-import {
-  add_system,
-  make_system_schedule,
-  run_schedule,
-} from "./system_schedule"
-import { add_resource, make_world, type World } from "./world"
+import {describe, expect, test} from "bun:test"
+import {define_component} from "./component"
+import {define_system} from "./system"
+import {add_system, make_system_schedule, run_schedule} from "./system_schedule"
+import {add_resource, make_world, type World} from "./world"
 
 describe("system_schedule sorting", () => {
   const A = define_component<number>()
@@ -21,7 +17,7 @@ describe("system_schedule sorting", () => {
     }
     define_system(system_read, {
       // @ts-expect-error
-      params: [{ read: A }],
+      params: [{read: A}],
     })
 
     const system_write = () => {
@@ -29,7 +25,7 @@ describe("system_schedule sorting", () => {
     }
     define_system(system_write, {
       // @ts-expect-error
-      params: [{ write: A }],
+      params: [{write: A}],
     })
 
     const schedule = make_system_schedule()
@@ -51,7 +47,7 @@ describe("system_schedule sorting", () => {
     }
     define_system(w1, {
       // @ts-expect-error
-      params: [{ write: A }],
+      params: [{write: A}],
     })
 
     const w2 = () => {
@@ -59,7 +55,7 @@ describe("system_schedule sorting", () => {
     }
     define_system(w2, {
       // @ts-expect-error
-      params: [{ write: A }],
+      params: [{write: A}],
     })
 
     const schedule = make_system_schedule()
@@ -80,7 +76,7 @@ describe("system_schedule sorting", () => {
     }
     define_system(s3, {
       // @ts-expect-error
-      params: [{ read: B }],
+      params: [{read: B}],
     })
 
     const s2 = () => {
@@ -88,7 +84,7 @@ describe("system_schedule sorting", () => {
     }
     define_system(s2, {
       // @ts-expect-error
-      params: [{ read: A }, { write: B }],
+      params: [{read: A}, {write: B}],
     })
 
     const s1 = () => {
@@ -96,7 +92,7 @@ describe("system_schedule sorting", () => {
     }
     define_system(s1, {
       // @ts-expect-error
-      params: [{ write: A }],
+      params: [{write: A}],
     })
 
     const schedule = make_system_schedule()
@@ -117,13 +113,13 @@ describe("system_schedule sorting", () => {
     const s1 = () => {}
     define_system(s1, {
       // @ts-expect-error
-      params: [{ write: A }, { read: B }],
+      params: [{write: A}, {read: B}],
     })
 
     const s2 = () => {}
     define_system(s2, {
       // @ts-expect-error
-      params: [{ write: B }, { read: A }],
+      params: [{write: B}, {read: A}],
     })
 
     const schedule = make_system_schedule()
@@ -144,7 +140,7 @@ describe("system_schedule sorting", () => {
     }
     define_system(s1, {
       // @ts-expect-error
-      params: [{ read: A }],
+      params: [{read: A}],
     })
 
     const s2 = () => {
@@ -152,7 +148,7 @@ describe("system_schedule sorting", () => {
     }
     define_system(s2, {
       // @ts-expect-error
-      params: [{ read: B }],
+      params: [{read: B}],
     })
 
     const schedule = make_system_schedule()

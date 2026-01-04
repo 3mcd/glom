@@ -1,6 +1,6 @@
-import { describe, expect, test } from "bun:test"
-import { define_component } from "./component"
-import type { Entity } from "./entity"
+import {describe, expect, test} from "bun:test"
+import {define_component} from "./component"
+import type {Entity} from "./entity"
 import {
   emit_moved_entities,
   emit_spawned_entities,
@@ -16,9 +16,9 @@ import {
   make_entity_graph_node,
   PruneStrategy,
 } from "./entity_graph"
-import { make_vec, make_vec_sorted } from "./vec"
-import { make_component_registry } from "./registry"
-import { sparse_set_size } from "./sparse_set"
+import {make_vec, make_vec_sorted} from "./vec"
+import {make_component_registry} from "./registry"
+import {sparse_set_size} from "./sparse_set"
 
 describe("entity_graph", () => {
   const c1 = define_component(undefined, 1)

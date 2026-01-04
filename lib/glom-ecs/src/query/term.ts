@@ -1,4 +1,4 @@
-import type { Component, ComponentInstance, ComponentLike } from "../component"
+import type {Component, ComponentInstance, ComponentLike} from "../component"
 import type {
   AddDescriptor,
   DespawnDescriptor,
@@ -11,9 +11,9 @@ import type {
   WorldDescriptor,
   WriteDescriptor,
 } from "../descriptors"
-import type { Entity } from "../entity"
-import type { Relation } from "../relation"
-export type { ComponentLike }
+import type {Entity} from "../entity"
+import type {Relation} from "../relation"
+export type {ComponentLike}
 
 export interface Spawn {
   readonly __spawn: true
@@ -35,7 +35,7 @@ export interface Remove<T extends ComponentLike> {
   (entity: Entity): void
 }
 
-export type EntityTerm = { readonly entity: true }
+export type EntityTerm = {readonly entity: true}
 
 export type Read<T extends ComponentLike> =
   T extends Component<void>
@@ -47,9 +47,9 @@ export type Read<T extends ComponentLike> =
 export type Write<T extends ComponentLike> =
   T extends Component<infer V>
     ? V extends object
-      ? V & { readonly __write: T }
+      ? V & {readonly __write: T}
       : never
-    : unknown & { readonly __write: T }
+    : unknown & {readonly __write: T}
 
 export interface Has<T extends ComponentLike> {
   readonly __has: T
@@ -88,18 +88,18 @@ export type TermValue<T extends Term> =
 
 export type Term =
   | ComponentLike
-  | { readonly __read: ComponentLike }
-  | { readonly __write: ComponentLike }
-  | { readonly __has: ComponentLike }
-  | { readonly __not: ComponentLike }
-  | { readonly __rel: [Relation, unknown] }
+  | {readonly __read: ComponentLike}
+  | {readonly __write: ComponentLike}
+  | {readonly __has: ComponentLike}
+  | {readonly __not: ComponentLike}
+  | {readonly __rel: [Relation, unknown]}
   | EntityTerm
   | Entity
 
 export function Read<T extends ComponentLike>(
   component: T,
 ): ReadDescriptor<T extends Component<infer V> ? V : unknown> {
-  return { read: component } as unknown as ReadDescriptor<
+  return {read: component} as unknown as ReadDescriptor<
     T extends Component<infer V> ? V : unknown
   >
 }
@@ -107,39 +107,39 @@ export function Read<T extends ComponentLike>(
 export function Write<T extends ComponentLike>(
   component: T,
 ): WriteDescriptor<T extends Component<infer V> ? V : unknown> {
-  return { write: component } as unknown as WriteDescriptor<
+  return {write: component} as unknown as WriteDescriptor<
     T extends Component<infer V> ? V : unknown
   >
 }
 
 export function Has<T extends ComponentLike>(component: T): HasDescriptor<T> {
-  return { has: component } as unknown as HasDescriptor<T>
+  return {has: component} as unknown as HasDescriptor<T>
 }
 
 export function Not<T extends ComponentLike>(component: T): NotDescriptor<T> {
-  return { not: component } as unknown as NotDescriptor<T>
+  return {not: component} as unknown as NotDescriptor<T>
 }
 
 export function World(): WorldDescriptor {
-  return { world: true }
+  return {world: true}
 }
 
 export function Spawn(): SpawnDescriptor {
-  return { spawn: true }
+  return {spawn: true}
 }
 
 export function Despawn(): DespawnDescriptor {
-  return { despawn: true }
+  return {despawn: true}
 }
 
 export function Add<T extends ComponentLike>(component: T): AddDescriptor<T> {
-  return { add: component }
+  return {add: component}
 }
 
 export function Remove<T extends ComponentLike>(
   component: T,
 ): RemoveDescriptor<T> {
-  return { remove: component }
+  return {remove: component}
 }
 
 export function Rel<R extends Relation, T>(
@@ -151,7 +151,7 @@ export function Rel<R extends Relation, T>(
   relation: R,
   object?: T,
 ): RelDescriptor<R, T | R> {
-  return { rel: [relation, object ?? relation] } as unknown as RelDescriptor<
+  return {rel: [relation, object ?? relation]} as unknown as RelDescriptor<
     R,
     T | R
   >

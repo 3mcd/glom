@@ -1,7 +1,7 @@
-import { assert_defined } from "./assert"
-import type { ComponentLike } from "./component"
-import { hash_word, hash_words } from "./lib/hash"
-import type { ComponentRegistry } from "./registry"
+import {assert_defined} from "./assert"
+import type {ComponentLike} from "./component"
+import {hash_word, hash_words} from "./lib/hash"
+import type {ComponentRegistry} from "./registry"
 
 export type Vec = {
   readonly elements: ComponentLike[]

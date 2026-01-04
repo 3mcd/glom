@@ -1,7 +1,7 @@
-import type { InDescriptor, OutDescriptor } from "../descriptors"
-import type { Entity } from "../entity"
-import type { EntityGraphNode } from "../entity_graph"
-import { sparse_map_get, sparse_map_has } from "../sparse_map"
+import type {InDescriptor, OutDescriptor} from "../descriptors"
+import type {Entity} from "../entity"
+import type {EntityGraphNode} from "../entity_graph"
+import {sparse_map_get, sparse_map_has} from "../sparse_map"
 import {
   make_sparse_set,
   sparse_set_add,
@@ -9,7 +9,7 @@ import {
   sparse_set_delete,
   sparse_set_values,
 } from "../sparse_set"
-import { AllRuntime, type TermInfo } from "./all_runtime"
+import {AllRuntime, type TermInfo} from "./all_runtime"
 
 type MonitorMode = "in" | "out"
 
@@ -69,7 +69,11 @@ export class MonitorRuntime extends AllRuntime {
       const entity = entities[i]!
       // For monitors, we bypass the node-matching check in the iterator
       // because the entity is either just entering or just leaving.
-      yield* this._yield_entity_monitor(entity, 0, new Array(this._term_infos.length))
+      yield* this._yield_entity_monitor(
+        entity,
+        0,
+        new Array(this._term_infos.length),
+      )
     }
   }
 
@@ -117,7 +121,9 @@ export class MonitorRuntime extends AllRuntime {
         world.entity_graph.by_entity,
         entity as number,
       )
-      const has_component = node ? node.vec.sparse.has(info.component_id) : false
+      const has_component = node
+        ? node.vec.sparse.has(info.component_id)
+        : false
       if (info.type === "has") {
         return has_component ? [undefined] : []
       } else {

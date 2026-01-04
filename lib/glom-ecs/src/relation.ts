@@ -1,5 +1,5 @@
-import type { Component, ComponentLike } from "./component"
-import type { Entity } from "./entity"
+import type {Component, ComponentLike} from "./component"
+import type {Entity} from "./entity"
 
 export type Relation = Component<void> & ((object: Entity) => Relationship)
 

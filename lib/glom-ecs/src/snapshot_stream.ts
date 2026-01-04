@@ -1,8 +1,8 @@
-import { Replicated } from "./replication_config"
-import { get_component_value, set_component_value, type World } from "./world"
-import type { SnapshotBlock, SnapshotMessage } from "./net_types"
-import type { Entity } from "./entity"
-import type { ComponentLike } from "./component"
+import {Replicated} from "./replication_config"
+import {get_component_value, set_component_value, type World} from "./world"
+import type {SnapshotBlock, SnapshotMessage} from "./net_types"
+import type {Entity} from "./entity"
+import type {ComponentLike} from "./component"
 
 /**
  * Captures a stream of component data for all entities tagged with Replicated.
@@ -45,7 +45,10 @@ export function capture_snapshot_stream(
     const block_data: unknown[] = []
 
     // Mock component for storage access
-    const comp = { id: comp_id, __component_brand: true } as unknown as ComponentLike
+    const comp = {
+      id: comp_id,
+      __component_brand: true,
+    } as unknown as ComponentLike
 
     for (let j = 0; j < replicated_entities.length; j++) {
       const entity = replicated_entities[j]!
@@ -76,7 +79,10 @@ export function apply_snapshot_stream(world: World, message: SnapshotMessage) {
   const blocks = message.blocks
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]!
-    const comp = { id: block.component_id, __component_brand: true } as unknown as ComponentLike
+    const comp = {
+      id: block.component_id,
+      __component_brand: true,
+    } as unknown as ComponentLike
     const entities = block.entities
     for (let j = 0; j < entities.length; j++) {
       const entity = entities[j]! as Entity
@@ -86,4 +92,3 @@ export function apply_snapshot_stream(world: World, message: SnapshotMessage) {
     }
   }
 }
-

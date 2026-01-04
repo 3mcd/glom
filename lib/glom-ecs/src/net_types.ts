@@ -8,4 +8,3 @@ export type SnapshotMessage = {
   tick: number
   blocks: SnapshotBlock[]
 }
-

@@ -1,5 +1,5 @@
-import type { ComponentLike } from "./component"
-import type { Relation } from "./relation"
+import type {ComponentLike} from "./component"
+import type {Relation} from "./relation"
 
 export type ReadDescriptor<T = unknown> = {
   read: ComponentLike
@@ -16,11 +16,11 @@ export type NotDescriptor<T extends ComponentLike = ComponentLike> = {
 export type RelDescriptor<R extends Relation = Relation, T = unknown> = {
   rel: [R, T]
 }
-export type EntityDescriptor = { entity: true }
-export type WorldDescriptor = { world: true }
-export type SpawnDescriptor = { spawn: true }
-export type DespawnDescriptor = { despawn: true }
-export type AddDescriptor<T extends ComponentLike = ComponentLike> = { add: T }
+export type EntityDescriptor = {entity: true}
+export type WorldDescriptor = {world: true}
+export type SpawnDescriptor = {spawn: true}
+export type DespawnDescriptor = {despawn: true}
+export type AddDescriptor<T extends ComponentLike = ComponentLike> = {add: T}
 export type RemoveDescriptor<T extends ComponentLike = ComponentLike> = {
   remove: T
 }

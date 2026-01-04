@@ -1,17 +1,17 @@
-import { prune_commands } from "./command"
-import { get_hi } from "./entity"
-import { rollback_to_tick } from "./history"
-import { Read, World as WorldTerm } from "./query/term"
+import {prune_commands} from "./command"
+import {get_hi} from "./entity"
+import {rollback_to_tick, type Snapshot} from "./history"
+import {Read, World as WorldTerm} from "./query/term"
 import {
   apply_transaction,
   TRANSIENT_DOMAIN,
   type Transaction,
 } from "./replication"
-import { ReplicationConfig } from "./replication_config"
-import { apply_snapshot_stream } from "./snapshot_stream"
-import { define_system } from "./system"
-import { run_schedule, type SystemSchedule } from "./system_schedule"
-import type { World } from "./world"
+import {ReplicationConfig} from "./replication_config"
+import {apply_snapshot_stream} from "./snapshot_stream"
+import {define_system} from "./system"
+import {run_schedule, type SystemSchedule} from "./system_schedule"
+import type {World} from "./world"
 import {
   advance_tick,
   commit_transaction,
@@ -180,7 +180,7 @@ export function perform_batch_reconciliation(
     // Apply all transactions that are too old to rollback to directly to the current state.
     const oldest_history_tick =
       world.history.snapshots.length > 0
-        ? world.history.snapshots[0].tick
+        ? (world.history.snapshots[0] as Snapshot).tick
         : world.tick
 
     const sorted_ticks = Array.from(world.remote_transactions.keys()).sort(
@@ -233,7 +233,7 @@ export const apply_remote_transactions = define_system(
       world.remote_transactions.delete(world.tick)
     }
   },
-  { params: [WorldTerm()], name: "apply_remote_transactions" },
+  {params: [WorldTerm()], name: "apply_remote_transactions"},
 )
 
 /**
@@ -249,7 +249,7 @@ export const apply_remote_snapshots = define_system(
       world.remote_snapshots.delete(world.tick)
     }
   },
-  { params: [WorldTerm()], name: "apply_remote_snapshots" },
+  {params: [WorldTerm()], name: "apply_remote_snapshots"},
 )
 
 /**

@@ -35,7 +35,7 @@ export function calculate_offset_and_rtt(
   const rtt = t2 - t0
   const latency = rtt / 2
   const offset = t1 - (t0 + latency)
-  return { rtt, offset }
+  return {rtt, offset}
 }
 
 export function add_clocksync_sample(
@@ -105,4 +105,3 @@ export function get_average_rtt(manager: ClockSyncManager): number {
 
   return total_rtt / manager.agents.size
 }
-

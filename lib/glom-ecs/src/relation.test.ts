@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import {describe, expect, test} from "bun:test"
 import {
   All,
   define_component,
@@ -12,12 +12,8 @@ import {
   type Relationship,
   spawn,
 } from "./index"
-import { define_system } from "./system"
-import {
-  add_system,
-  make_system_schedule,
-  run_schedule,
-} from "./system_schedule"
+import {define_system} from "./system"
+import {add_system, make_system_schedule, run_schedule} from "./system_schedule"
 
 describe("relation", () => {
   const ChildOf = define_relation()

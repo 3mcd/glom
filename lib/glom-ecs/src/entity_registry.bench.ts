@@ -1,4 +1,4 @@
-import { bench, group, run } from "mitata"
+import {bench, group, run} from "mitata"
 import {
   alloc_entity,
   make_entity_registry,

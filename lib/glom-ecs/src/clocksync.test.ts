@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import {describe, expect, test} from "bun:test"
 import {
   add_clocksync_sample,
   calculate_offset_and_rtt,
@@ -20,7 +20,7 @@ describe("clocksync", () => {
 
   test("smoothing with median filter", () => {
     const manager = make_clocksync_manager(5)
-    
+
     // Add samples with a jitter spike
     add_clocksync_sample(manager, 0, 100, 200, 110) // RTT 10, Offset 95
     add_clocksync_sample(manager, 0, 200, 300, 210) // RTT 10, Offset 95
@@ -37,15 +37,14 @@ describe("clocksync", () => {
 
   test("p2p consensus averaging", () => {
     const manager = make_clocksync_manager(5)
-    
+
     // Agent 1 is ahead by 100ms
     add_clocksync_sample(manager, 1, 0, 105, 10) // RTT 10, Offset 100
-    
+
     // Agent 2 is behind by 50ms
     add_clocksync_sample(manager, 2, 0, -45, 10) // RTT 10, Offset -50
-    
+
     // Consensus should be (100 + -50) / 2 = 25ms
     expect(get_consensus_offset(manager)).toBe(25)
   })
 })
-

@@ -46,7 +46,7 @@ export class ComponentRegistry implements ComponentResolver {
     this.idToComp.set(id, comp)
   }
 
-  get_id(comp: ComponentLike | { component: ComponentLike }): number {
+  get_id(comp: ComponentLike | {component: ComponentLike}): number {
     const target = "component" in comp ? comp.component : comp
     const id = this.compToId.get(target)
     if (id !== undefined) return id

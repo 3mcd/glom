@@ -1,13 +1,13 @@
-import { assert_defined } from "../assert"
-import type { Component, ComponentLike } from "../component"
+import {assert_defined} from "../assert"
+import type {Component, ComponentLike} from "../component"
 import type {
   HasDescriptor,
   NotDescriptor,
   ReadDescriptor,
   WriteDescriptor,
 } from "../descriptors"
-import { get_resource, has_resource, type World } from "../world"
-import type { Has, Not, Read, Write } from "./term"
+import {get_resource, has_resource, type World} from "../world"
+import type {Has, Not, Read, Write} from "./term"
 
 export function make_read<T>(
   desc: ReadDescriptor<T>,

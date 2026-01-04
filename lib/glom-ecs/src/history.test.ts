@@ -1,12 +1,8 @@
-import { describe, expect, test } from "bun:test"
-import { define_component } from "./component"
-import {
-  make_history_buffer,
-  push_snapshot,
-  rollback_to_tick,
-} from "./history"
-import { resimulate_with_transactions } from "./reconciliation"
-import { get_component_value, make_world } from "./world"
+import {describe, expect, test} from "bun:test"
+import {define_component} from "./component"
+import {make_history_buffer, push_snapshot, rollback_to_tick} from "./history"
+import {resimulate_with_transactions} from "./reconciliation"
+import {get_component_value, make_world} from "./world"
 import {
   add_component,
   advance_tick,
@@ -16,18 +12,18 @@ import {
 } from "./world_api"
 
 describe("history", () => {
-  const Position = define_component<{ x: number; y: number }>()
+  const Position = define_component<{x: number; y: number}>()
 
   test("capture and rollback component data", () => {
     const world = make_world(1, [Position])
     world.history = make_history_buffer(10)
     push_snapshot(world, world.history) // Snapshot at tick 0
 
-    const entity = spawn(world, [Position({ x: 0, y: 0 })])
+    const entity = spawn(world, [Position({x: 0, y: 0})])
     commit_transaction(world)
     advance_tick(world) // Snapshot at tick 1
 
-    add_component(world, entity, Position({ x: 10, y: 10 }))
+    add_component(world, entity, Position({x: 10, y: 10}))
     commit_transaction(world)
     advance_tick(world) // Snapshot at tick 2
 
@@ -47,7 +43,7 @@ describe("history", () => {
     world.history = make_history_buffer(10)
     push_snapshot(world, world.history) // Snapshot at tick 0 (empty world)
 
-    const entity = spawn(world, [Position({ x: 10, y: 10 })])
+    const entity = spawn(world, [Position({x: 10, y: 10})])
     commit_transaction(world)
     advance_tick(world) // Snapshot at tick 1 (contains entity)
 
@@ -62,7 +58,7 @@ describe("history", () => {
     const world = make_world(1, [Position])
     world.history = make_history_buffer(10)
 
-    const entity = spawn(world, [Position({ x: 10, y: 10 })])
+    const entity = spawn(world, [Position({x: 10, y: 10})])
     commit_transaction(world)
     push_snapshot(world, world.history) // Snapshot at tick 0 (contains entity)
 
@@ -85,20 +81,20 @@ describe("history", () => {
     const world = make_world(1, [Position])
     world.history = make_history_buffer(10)
 
-    const entity = spawn(world, [Position({ x: 0, y: 0 })])
+    const entity = spawn(world, [Position({x: 0, y: 0})])
     commit_transaction(world)
     // We are at Tick 0. Snapshot the "initial" state.
     push_snapshot(world, world.history) // Snapshot 0: Position(0,0)
 
     // Tick 1: move to 1,1
-    world.input_buffer.set(1, { dx: 1, dy: 1 })
-    add_component(world, entity, Position({ x: 1, y: 1 }))
+    world.input_buffer.set(1, {dx: 1, dy: 1})
+    add_component(world, entity, Position({x: 1, y: 1}))
     commit_transaction(world)
     advance_tick(world) // Snapshot 1: Position(1,1)
 
     // Tick 2: move to 2,2
-    world.input_buffer.set(2, { dx: 1, dy: 1 })
-    add_component(world, entity, Position({ x: 2, y: 2 }))
+    world.input_buffer.set(2, {dx: 1, dy: 1})
+    add_component(world, entity, Position({x: 2, y: 2}))
     commit_transaction(world)
     advance_tick(world) // Snapshot 2: Position(2,2)
 
@@ -116,12 +112,12 @@ describe("history", () => {
     // We start at 0, so we simulate Ticks 1 and 2
     resimulate_with_transactions(world, 2, (w, input: unknown) => {
       const pos = get_component_value(w, entity, Position)
-      const typed_input = input as { dx: number; dy: number }
+      const typed_input = input as {dx: number; dy: number}
       if (pos) {
         add_component(
           w,
           entity,
-          Position({ x: pos.x + typed_input.dx, y: pos.y + typed_input.dy }),
+          Position({x: pos.x + typed_input.dx, y: pos.y + typed_input.dy}),
         )
       }
     })

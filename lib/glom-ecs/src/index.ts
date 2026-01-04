@@ -1,4 +1,4 @@
-export { assert, assert_defined } from "./assert"
+export {assert, assert_defined} from "./assert"
 export {
   CommandEntity,
   CommandOf,
@@ -16,8 +16,8 @@ export {
   define_component,
   define_tag,
 } from "./component"
-export { Entity, get_hi, get_lo } from "./entity"
-export { get_domain } from "./entity_registry"
+export {Entity, get_hi, get_lo} from "./entity"
+export {get_domain} from "./entity_registry"
 export {
   capture_snapshot,
   type HistoryBuffer,
@@ -31,7 +31,7 @@ export {
   ByteReader,
   ByteWriter,
 } from "./lib/binary"
-export type { SnapshotBlock, SnapshotMessage } from "./net_types"
+export type {SnapshotBlock, SnapshotMessage} from "./net_types"
 export {
   type ClockSync,
   type CommandMessage,
@@ -54,7 +54,7 @@ export {
   write_snapshot,
   write_transaction,
 } from "./protocol"
-export { All, In, Out } from "./query/all"
+export {All, In, Out} from "./query/all"
 export {
   Add,
   Despawn,
@@ -100,7 +100,7 @@ export {
   rebind_entity,
   type Transaction,
 } from "./replication"
-export { Replicated, ReplicationConfig } from "./replication_config"
+export {Replicated, ReplicationConfig} from "./replication_config"
 export {
   apply_snapshot_stream,
   capture_snapshot_stream,
@@ -125,15 +125,15 @@ export {
   sparse_set_size,
   sparse_set_values,
 } from "./sparse_set"
-export type { System } from "./system"
-export { define_system } from "./system"
+export type {System} from "./system"
+export {define_system} from "./system"
 export {
   add_system,
   make_system_schedule,
   run_schedule,
   type SystemSchedule,
 } from "./system_schedule"
-export { GlomMonitors } from "./systems/monitors"
+export {GlomMonitors} from "./systems/monitors"
 export {
   make_timestep,
   type Timestep,

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import {describe, expect, test} from "bun:test"
 import {
   make_sparse_map,
   sparse_map_get,
@@ -41,7 +41,7 @@ describe("sparse_map", () => {
     expect(sparse_map_has(map, 2)).toBe(false)
     expect(sparse_map_get(map, 2)).toBeUndefined()
     expect(sparse_map_size(map)).toBe(2)
-    
+
     // Check if swap-and-pop worked correctly
     expect(sparse_map_get(map, 1)).toBe("one")
     expect(sparse_map_get(map, 3)).toBe("three")
@@ -110,4 +110,3 @@ describe("sparse_map", () => {
     expect(sparse_map_get(cloned, 1)).toBe("one") // Verify it's a separate copy
   })
 })
-

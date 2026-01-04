@@ -1,4 +1,4 @@
-import { type Entity, get_hi } from "./entity"
+import {type Entity, get_hi} from "./entity"
 import {
   alloc_domain_entity,
   type EntityRegistryDomain,

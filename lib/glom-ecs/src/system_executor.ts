@@ -1,15 +1,15 @@
-import { assert_defined } from "./assert"
-import { is_all } from "./query/all"
-import { make_all, setup_all, teardown_all } from "./query/all_runtime"
-import { MonitorRuntime, make_in, make_out } from "./query/monitor_runtime"
+import {assert_defined} from "./assert"
+import {is_all} from "./query/all"
+import {make_all, setup_all, teardown_all} from "./query/all_runtime"
+import {MonitorRuntime, make_in, make_out} from "./query/monitor_runtime"
 import {
   make_has,
   make_not,
   make_read,
   make_write,
 } from "./query/resource_runtime"
-import type { System } from "./system"
-import type { SystemArgument } from "./system_argument"
+import type {System} from "./system"
+import type {SystemArgument} from "./system_argument"
 import {
   is_add_descriptor,
   is_all_descriptor,
@@ -25,8 +25,8 @@ import {
   is_write_descriptor,
   type SystemDescriptor,
 } from "./system_descriptor"
-import type { World } from "./world"
-import { add_component, despawn, remove_component, spawn } from "./world_api"
+import type {World} from "./world"
+import {add_component, despawn, remove_component, spawn} from "./world_api"
 
 export type SystemExecutor<T extends SystemArgument[] = SystemArgument[]> = {
   readonly fn: System<T>
@@ -91,7 +91,7 @@ export function setup_system_executor<
         if (component.is_tag) {
           add_component(world, entity, component)
         } else {
-          add_component(world, entity, { component, value })
+          add_component(world, entity, {component, value})
         }
       }) as unknown as Add<ComponentLike>
     } else if (is_remove_descriptor(desc)) {

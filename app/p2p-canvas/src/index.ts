@@ -4,14 +4,14 @@ import * as reconciliation from "@glom/ecs/reconciliation"
 import * as replication from "@glom/ecs/replication"
 
 // 1. Components & Definitions with Serdes for binary transport
-const Position = g.define_component<{ x: number; y: number }>({
+const Position = g.define_component<{x: number; y: number}>({
   bytes_per_element: 8,
   encode: (val, writer) => {
     writer.write_float32(val.x)
     writer.write_float32(val.y)
   },
   decode: (reader) => {
-    return { x: reader.read_float32(), y: reader.read_float32() }
+    return {x: reader.read_float32(), y: reader.read_float32()}
   },
 })
 
@@ -26,14 +26,14 @@ const Color = g.define_component<number>({
   },
 })
 
-const MoveCommand = g.define_component<{ dx: number; dy: number }>({
+const MoveCommand = g.define_component<{dx: number; dy: number}>({
   bytes_per_element: 8,
   encode: (val, writer) => {
     writer.write_float32(val.dx)
     writer.write_float32(val.dy)
   },
   decode: (reader) => {
-    return { dx: reader.read_float32(), dy: reader.read_float32() }
+    return {dx: reader.read_float32(), dy: reader.read_float32()}
   },
 })
 
@@ -62,7 +62,7 @@ const movement_system = g.define_system(
       if (next_y > 400) next_y = 0
 
       // Use add_component to trigger the ReplicationRecorder
-      g.add_component(world, entity, Position({ x: next_x, y: next_y }))
+      g.add_component(world, entity, Position({x: next_x, y: next_y}))
     }
   },
   {
@@ -88,7 +88,7 @@ function make_render_system(ctx: CanvasRenderingContext2D) {
         ctx.fillRect(pos.x - 10, pos.y - 10, 20, 20)
       }
     },
-    { params: [g.All(g.Read(Position), g.Read(Color))] },
+    {params: [g.All(g.Read(Position), g.Read(Color))]},
   )
 }
 
@@ -96,7 +96,7 @@ function make_render_system(ctx: CanvasRenderingContext2D) {
 function create_peer(
   hi: number,
   canvasId: string,
-  keys: { up: string; down: string; left: string; right: string },
+  keys: {up: string; down: string; left: string; right: string},
 ) {
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement
   const ctx = canvas.getContext("2d") as CanvasRenderingContext2D
@@ -137,7 +137,7 @@ function create_peer(
     schedule,
     spawn_player: () => {
       return g.spawn(world, [
-        Position({ x: hi * 100, y: 200 }),
+        Position({x: hi * 100, y: 200}),
         Color(hi), // Color ID matches Peer ID
         g.Replicated,
       ])
@@ -151,7 +151,7 @@ function create_peer(
       if (active_keys.has(keys.right)) dx += 1
 
       if (dx !== 0 || dy !== 0) {
-        g.record_command(world, my_entity, MoveCommand({ dx, dy }))
+        g.record_command(world, my_entity, MoveCommand({dx, dy}))
       }
 
       g.run_schedule(schedule, world)

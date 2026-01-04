@@ -1,18 +1,18 @@
-import { describe, expect, test } from "bun:test"
+import {describe, expect, test} from "bun:test"
 import * as g from "../index"
 
 describe("relation integration", () => {
-  const Position = g.define_component<{ x: number }>()
+  const Position = g.define_component<{x: number}>()
   const ChildOf = g.define_relation()
   const Name = g.define_component<string>()
   const schema = [Position, ChildOf, Name]
 
   test("simple rel join", () => {
     const world = g.make_world(0, schema)
-    const parent = g.spawn(world, [Position({ x: 10 })])
-    g.spawn(world, [Position({ x: 1 }), ChildOf(parent)])
+    const parent = g.spawn(world, [Position({x: 10})])
+    g.spawn(world, [Position({x: 1}), ChildOf(parent)])
 
-    const results: [{ x: number }, { x: number }][] = []
+    const results: [{x: number}, {x: number}][] = []
     const system = g.define_system(
       (
         query: g.All<
@@ -25,9 +25,7 @@ describe("relation integration", () => {
         }
       },
       {
-        params: [
-          { all: [{ read: Position }, { rel: [ChildOf, { read: Position }] }] },
-        ],
+        params: [{all: [{read: Position}, {rel: [ChildOf, {read: Position}]}]}],
       },
     )
 
@@ -45,7 +43,7 @@ describe("relation integration", () => {
   test("inner join logic (missing component on object)", () => {
     const world = g.make_world(0, schema)
     const parent = g.spawn(world, []) // Parent has NO Position
-    g.spawn(world, [Position({ x: 1 }), ChildOf(parent)]) // child
+    g.spawn(world, [Position({x: 1}), ChildOf(parent)]) // child
 
     const results: unknown[][] = []
     const system = g.define_system(
@@ -60,9 +58,7 @@ describe("relation integration", () => {
         }
       },
       {
-        params: [
-          { all: [{ read: Position }, { rel: [ChildOf, { read: Position }] }] },
-        ],
+        params: [{all: [{read: Position}, {rel: [ChildOf, {read: Position}]}]}],
       },
     )
 
@@ -75,11 +71,11 @@ describe("relation integration", () => {
 
   test("multiple objects for same relationship", () => {
     const world = g.make_world(0, schema)
-    const p1 = g.spawn(world, [Position({ x: 10 })])
-    const p2 = g.spawn(world, [Position({ x: 20 })])
-    g.spawn(world, [Position({ x: 1 }), ChildOf(p1), ChildOf(p2)]) // child
+    const p1 = g.spawn(world, [Position({x: 10})])
+    const p2 = g.spawn(world, [Position({x: 20})])
+    g.spawn(world, [Position({x: 1}), ChildOf(p1), ChildOf(p2)]) // child
 
-    const results: [{ x: number }, { x: number }][] = []
+    const results: [{x: number}, {x: number}][] = []
     const system = g.define_system(
       (
         query: g.All<
@@ -92,9 +88,7 @@ describe("relation integration", () => {
         }
       },
       {
-        params: [
-          { all: [{ read: Position }, { rel: [ChildOf, { read: Position }] }] },
-        ],
+        params: [{all: [{read: Position}, {rel: [ChildOf, {read: Position}]}]}],
       },
     )
 
@@ -131,8 +125,8 @@ describe("relation integration", () => {
         params: [
           {
             all: [
-              { read: Name },
-              { rel: [ChildOf, { rel: [ChildOf, { read: Name }] }] },
+              {read: Name},
+              {rel: [ChildOf, {rel: [ChildOf, {read: Name}]}]},
             ],
           },
         ],

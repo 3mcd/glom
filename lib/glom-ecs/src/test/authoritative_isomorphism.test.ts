@@ -1,29 +1,29 @@
-import { expect, test } from "bun:test"
+import {expect, test} from "bun:test"
 import * as commands from "../command"
 import * as g from "../index"
 import * as reconciliation from "../reconciliation"
 import * as replication from "../replication"
 
 // 1. Component Definitions (mirrored from example)
-const Position = g.define_component<{ x: number; y: number }>({
+const Position = g.define_component<{x: number; y: number}>({
   bytes_per_element: 16,
   encode: (val, writer) => {
     writer.write_float64(val.x)
     writer.write_float64(val.y)
   },
   decode: (reader) => {
-    return { x: reader.read_float64(), y: reader.read_float64() }
+    return {x: reader.read_float64(), y: reader.read_float64()}
   },
 })
 
-const MoveCommand = g.define_component<{ dx: number; dy: number }>({
+const MoveCommand = g.define_component<{dx: number; dy: number}>({
   bytes_per_element: 16,
   encode: (val, writer) => {
     writer.write_float64(val.dx)
     writer.write_float64(val.dy)
   },
   decode: (reader) => {
-    return { dx: reader.read_float64(), dy: reader.read_float64() }
+    return {dx: reader.read_float64(), dy: reader.read_float64()}
   },
 })
 
@@ -52,7 +52,7 @@ const movement_system = g.define_system(
     update: g.Add<typeof Position>,
   ) => {
     for (const [entity, pos, move] of query) {
-      update(entity, { x: pos.x + move.dx * SPEED, y: pos.y + move.dy * SPEED })
+      update(entity, {x: pos.x + move.dx * SPEED, y: pos.y + move.dy * SPEED})
     }
   },
   {
@@ -115,7 +115,7 @@ const pulse_spawner_system = g.define_system(
 
       g.spawn(
         world,
-        [Position({ ...pos }), Pulse(5), PulseOf(player_ent), g.Replicated],
+        [Position({...pos}), Pulse(5), PulseOf(player_ent), g.Replicated],
         world.registry.hi,
         intent_tick,
       )
@@ -140,7 +140,7 @@ const attached_pulse_system = g.define_system(
     update: g.Add<typeof Position>,
   ) => {
     for (const [pulse_ent, _pos, parent_pos] of pulses) {
-      update(pulse_ent, { x: parent_pos.x, y: parent_pos.y })
+      update(pulse_ent, {x: parent_pos.x, y: parent_pos.y})
     }
   },
   {
@@ -156,7 +156,7 @@ const schema = [Position, MoveCommand, FireCommand, Pulse, PulseOf]
 
 // 3. Mock Network Pipe
 class MockPipe {
-  private messages: { delivery_tick: number; packet: Uint8Array }[] = []
+  private messages: {delivery_tick: number; packet: Uint8Array}[] = []
 
   send(packet: Uint8Array, current_tick: number, delay_ticks: number) {
     this.messages.push({
@@ -193,12 +193,12 @@ function setup_server() {
   g.add_system(schedule, replication.commit_pending_mutations)
   g.add_system(schedule, replication.advance_world_tick)
 
-  return { world, schedule }
+  return {world, schedule}
 }
 
 function setup_client(hi: number) {
   const world = g.make_world(hi, schema)
-  world.history = { snapshots: [], max_size: 120 }
+  world.history = {snapshots: [], max_size: 120}
 
   const reconcile_schedule = g.make_system_schedule()
   g.add_system(reconcile_schedule, commands.spawn_ephemeral_commands)
@@ -229,7 +229,7 @@ function setup_client(hi: number) {
   g.add_system(schedule, replication.commit_pending_mutations)
   g.add_system(schedule, replication.advance_world_tick)
 
-  return { world, schedule }
+  return {world, schedule}
 }
 
 // 5. Integration Tests
@@ -248,7 +248,7 @@ test("rigorous straight-line movement isomorphism", () => {
   }
 
   // Spawn player on server
-  const player = g.spawn(server.world, [Position({ x: 0, y: 0 }), g.Replicated])
+  const player = g.spawn(server.world, [Position({x: 0, y: 0}), g.Replicated])
 
   // Initial Sync: Server sends handshake
   const handshake_writer = new g.ByteWriter()
@@ -259,8 +259,8 @@ test("rigorous straight-line movement isomorphism", () => {
   server_to_client.send(handshake_writer.get_bytes(), 0, LATENCY_TICKS)
 
   let client_synced = false
-  const server_positions: Map<number, { x: number; y: number }> = new Map()
-  const predicted_positions: Map<number, { x: number; y: number }> = new Map()
+  const server_positions: Map<number, {x: number; y: number}> = new Map()
+  const predicted_positions: Map<number, {x: number; y: number}> = new Map()
 
   // Run for 200 ticks
   for (let tick = 0; tick < 200; tick++) {
@@ -292,7 +292,7 @@ test("rigorous straight-line movement isomorphism", () => {
     // Capture state AT START of tick
     const s_pos_before = g.get_component_value(server.world, player, Position)
     if (s_pos_before) {
-      server_positions.set(server.world.tick, { ...s_pos_before })
+      server_positions.set(server.world.tick, {...s_pos_before})
     }
 
     g.run_schedule(server.schedule, server.world as g.World)
@@ -319,14 +319,14 @@ test("rigorous straight-line movement isomorphism", () => {
     }
 
     if (client_synced) {
-      g.record_command(client.world, player, MoveCommand({ dx: 1, dy: 0 }))
+      g.record_command(client.world, player, MoveCommand({dx: 1, dy: 0}))
 
       const commands = client.world.command_buffer.get(client.world.tick)
       if (commands) {
         const writer = new g.ByteWriter()
         g.write_commands(
           writer,
-          { tick: client.world.tick, commands },
+          {tick: client.world.tick, commands},
           server.world,
         )
         client_to_server.send(writer.get_bytes(), tick, LATENCY_TICKS)
@@ -335,7 +335,7 @@ test("rigorous straight-line movement isomorphism", () => {
       // Capture prediction BEFORE simulation
       const c_pos_before = g.get_component_value(client.world, player, Position)
       if (c_pos_before) {
-        predicted_positions.set(client.world.tick, { ...c_pos_before })
+        predicted_positions.set(client.world.tick, {...c_pos_before})
       }
 
       g.run_schedule(client.schedule, client.world as g.World)
@@ -381,7 +381,7 @@ test("stop-and-go movement isomorphism", () => {
     server_to_client.send(writer.get_bytes(), server.world.tick, LATENCY_TICKS)
   }
 
-  const player = g.spawn(server.world, [Position({ x: 0, y: 0 }), g.Replicated])
+  const player = g.spawn(server.world, [Position({x: 0, y: 0}), g.Replicated])
 
   const handshake_writer = new g.ByteWriter()
   g.write_handshake_server(handshake_writer, server.world.tick, {
@@ -391,8 +391,8 @@ test("stop-and-go movement isomorphism", () => {
   server_to_client.send(handshake_writer.get_bytes(), 0, LATENCY_TICKS)
 
   let client_synced = false
-  const server_positions: Map<number, { x: number; y: number }> = new Map()
-  const predicted_positions: Map<number, { x: number; y: number }> = new Map()
+  const server_positions: Map<number, {x: number; y: number}> = new Map()
+  const predicted_positions: Map<number, {x: number; y: number}> = new Map()
 
   for (let tick = 0; tick < 200; tick++) {
     // SERVER
@@ -421,7 +421,7 @@ test("stop-and-go movement isomorphism", () => {
     }
     const s_pos_before = g.get_component_value(server.world, player, Position)
     if (s_pos_before) {
-      server_positions.set(server.world.tick, { ...s_pos_before })
+      server_positions.set(server.world.tick, {...s_pos_before})
     }
     g.run_schedule(server.schedule, server.world as g.World)
 
@@ -444,7 +444,7 @@ test("stop-and-go movement isomorphism", () => {
     if (client_synced) {
       // Move only between tick 50 and 100
       if (tick >= 50 && tick < 100) {
-        g.record_command(client.world, player, MoveCommand({ dx: 1, dy: 0 }))
+        g.record_command(client.world, player, MoveCommand({dx: 1, dy: 0}))
       }
 
       const commands = client.world.command_buffer.get(client.world.tick)
@@ -452,7 +452,7 @@ test("stop-and-go movement isomorphism", () => {
         const writer = new g.ByteWriter()
         g.write_commands(
           writer,
-          { tick: client.world.tick, commands },
+          {tick: client.world.tick, commands},
           server.world,
         )
         client_to_server.send(writer.get_bytes(), tick, LATENCY_TICKS)
@@ -460,7 +460,7 @@ test("stop-and-go movement isomorphism", () => {
 
       const c_pos_before = g.get_component_value(client.world, player, Position)
       if (c_pos_before) {
-        predicted_positions.set(client.world.tick, { ...c_pos_before })
+        predicted_positions.set(client.world.tick, {...c_pos_before})
       }
 
       g.run_schedule(client.schedule, client.world as g.World)
@@ -506,7 +506,7 @@ test("predictive spawning and rebinding isomorphism", () => {
     server_to_client.send(writer.get_bytes(), server.world.tick, LATENCY_TICKS)
   }
 
-  const player = g.spawn(server.world, [Position({ x: 0, y: 0 }), g.Replicated])
+  const player = g.spawn(server.world, [Position({x: 0, y: 0}), g.Replicated])
 
   const handshake_writer = new g.ByteWriter()
   g.write_handshake_server(handshake_writer, server.world.tick, {
@@ -576,7 +576,7 @@ test("predictive spawning and rebinding isomorphism", () => {
         const writer = new g.ByteWriter()
         g.write_commands(
           writer,
-          { tick: client.world.tick, commands },
+          {tick: client.world.tick, commands},
           server.world,
         )
         client_to_server.send(
