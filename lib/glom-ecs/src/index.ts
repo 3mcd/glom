@@ -16,7 +16,7 @@ export {
   define_component,
   define_tag,
 } from "./component"
-export {Entity, get_hi, get_lo} from "./entity"
+export {Entity, get_domain_id, get_local_id} from "./entity"
 export {get_domain} from "./entity_registry"
 export {
   capture_snapshot,

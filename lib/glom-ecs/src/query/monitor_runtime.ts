@@ -1,6 +1,10 @@
 import type {InDescriptor, OutDescriptor} from "../descriptors"
 import type {Entity} from "../entity"
-import type {EntityGraphNode} from "../entity_graph"
+import {
+  type EntityGraphNode,
+  entity_graph_node_add_listener,
+  entity_graph_node_remove_listener,
+} from "../entity_graph"
 import {sparse_map_get, sparse_map_has} from "../sparse_map"
 import {
   make_sparse_set,
@@ -9,6 +13,7 @@ import {
   sparse_set_delete,
   sparse_set_values,
 } from "../sparse_set"
+import type {World} from "../world"
 import {AllRuntime, type TermInfo} from "./all_runtime"
 
 type MonitorMode = "in" | "out"
@@ -25,8 +30,21 @@ export class MonitorRuntime extends AllRuntime {
     this._mode = mode
   }
 
+  override setup(world: World): void {
+    super.setup(world)
+
+    if (this.joins.length > 0) {
+      const rootJoin = this.joins[0]!
+
+      entity_graph_node_add_listener(rootJoin.anchor_node, this)
+    }
+  }
+
   entities_in(entities: Entity[], node: EntityGraphNode): void {
-    if (sparse_map_has(this.nodes, node.id)) {
+    if (
+      this.joins.length > 0 &&
+      sparse_map_has(this.joins[0]!.nodes_map, node.id)
+    ) {
       for (let i = 0; i < entities.length; i++) {
         const e = entities[i]!
         sparse_set_add(this.added, e)
@@ -36,7 +54,10 @@ export class MonitorRuntime extends AllRuntime {
   }
 
   entities_out(entities: Entity[], node: EntityGraphNode): void {
-    if (sparse_map_has(this.nodes, node.id)) {
+    if (
+      this.joins.length > 0 &&
+      sparse_map_has(this.joins[0]!.nodes_map, node.id)
+    ) {
       for (let i = 0; i < entities.length; i++) {
         const e = entities[i]!
         sparse_set_add(this.removed, e)
@@ -49,26 +70,11 @@ export class MonitorRuntime extends AllRuntime {
     const world = this._world
     if (!world) return
 
-    // Refresh store references to handle rollback/snapshot replacements
-    const refresh_stores = (infos: TermInfo[]) => {
-      for (let i = 0; i < infos.length; i++) {
-        const info = infos[i]!
-        if (info.type === "component") {
-          info.store = world.components.storage.get(info.component_id)
-        } else if (info.type === "rel") {
-          refresh_stores([info.object_term])
-        }
-      }
-    }
-    refresh_stores(this._term_infos)
-
     const targets = this._mode === "in" ? this.added : this.removed
     const entities = sparse_set_values(targets)
 
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i]!
-      // For monitors, we bypass the node-matching check in the iterator
-      // because the entity is either just entering or just leaving.
       yield* this._yield_entity_monitor(
         entity,
         0,
@@ -131,19 +137,27 @@ export class MonitorRuntime extends AllRuntime {
       }
     }
     if (info.type === "rel") {
-      const world = this._world
-      if (!world) return []
-      const node = sparse_map_get(
-        world.entity_graph.by_entity,
-        entity as number,
-      )
-      if (!node) return []
+      const nextJoin = this.joins[info.next_join_index]
+      if (!nextJoin) return []
 
-      const objects = this._get_rel_objects(entity, node, info.relation_id)
       const results: unknown[] = []
-      for (let i = 0; i < objects.length; i++) {
-        const object = objects[i]!
-        results.push(...this._get_term_values_monitor(object, info.object_term))
+      const relation_id = info.relation_id
+
+      for (let i = 0; i < nextJoin.nodes.length; i++) {
+        const n = nextJoin.nodes[i] as EntityGraphNode
+        const rel_map = n.rel_maps[relation_id]
+        if (!rel_map) continue
+
+        const targets = rel_map.subject_to_objects.get(entity as number)
+        if (!targets) continue
+
+        const target_entities = targets.dense
+        for (let j = 0; j < target_entities.length; j++) {
+          const target_entity = target_entities[j] as Entity
+          results.push(
+            ...this._get_term_values_monitor(target_entity, info.object_term),
+          )
+        }
       }
       return results
     }
@@ -153,6 +167,15 @@ export class MonitorRuntime extends AllRuntime {
   clear() {
     sparse_set_clear(this.added)
     sparse_set_clear(this.removed)
+  }
+
+  override teardown(): void {
+    if (this.joins.length > 0) {
+      const rootJoin = this.joins[0]!
+      entity_graph_node_remove_listener(rootJoin.anchor_node, this)
+    }
+    super.teardown()
+    this.clear()
   }
 }
 

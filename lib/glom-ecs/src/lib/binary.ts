@@ -48,11 +48,8 @@ export class ByteWriter {
     this.cursor += 8
   }
 
-  /**
-   * Variable-length quantity encoding (unsigned)
-   */
   write_varint(val: number) {
-    this.ensure_capacity(5) // Max 5 bytes for uint32
+    this.ensure_capacity(5)
     while (val >= 0x80) {
       this.buffer[this.cursor++] = (val & 0x7f) | 0x80
       val >>>= 7

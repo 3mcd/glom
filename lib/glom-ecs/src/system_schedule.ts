@@ -1,6 +1,6 @@
 import {assert_defined} from "./assert"
 import type {ComponentLike} from "./component"
-import type {DefinedSystem} from "./system"
+import type {System} from "./system"
 import type {SystemArgument} from "./system_argument"
 import {
   is_add_descriptor,
@@ -43,21 +43,21 @@ type ExtractComponent<T> = T extends {readonly __read: infer C}
         ? C
         : T extends {readonly __remove: infer C}
           ? C
-          : T extends ComponentLike
-            ? T
-            : never
+          : never
 
 type SystemResources<T extends SystemArgument[]> = {
-  [K in keyof T]: T[K] extends {readonly __all: true}
-    ? never
-    : ExtractComponent<T[K]>
+  [K in keyof T]: ExtractComponent<T[K]>
 }[number]
 
 export function add_system<R extends ComponentLike, T extends SystemArgument[]>(
   schedule: SystemSchedule<R>,
-  system: DefinedSystem<T>,
+  system: System<T>,
 ): asserts schedule is SystemSchedule<R | SystemResources<T>> {
-  const executor = make_system_executor(system, system[system_descriptor_key])
+  const descriptor = Reflect.get(system, system_descriptor_key)
+  if (!descriptor) {
+    return
+  }
+  const executor = make_system_executor(system, descriptor)
   schedule.execs.push(executor as unknown as SystemExecutor)
 }
 
@@ -160,7 +160,6 @@ function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
   }
 
   for (const [component, writers] of component_writers.entries()) {
-    // Rule 1: Writers in registration order
     for (let j = 0; j < writers.length - 1; j++) {
       const u = writers[j]
       const v = writers[j + 1]
@@ -169,7 +168,6 @@ function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
       add_edge(u, v)
     }
 
-    // Rule 2: All writers before all readers (excluding readers that are also writers)
     const readers = component_readers.get(component)
     if (readers) {
       for (const writer of writers) {
@@ -185,7 +183,6 @@ function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
     }
   }
 
-  // Kahn's algorithm
   const queue: number[] = []
   for (let i = 0; i < n; i++) {
     if (in_degree[i] === 0) {
@@ -213,7 +210,6 @@ function sort_systems(execs: SystemExecutor[]): SystemExecutor[] {
   }
 
   if (sorted_indices.length !== n) {
-    // Detect cycle for better error message
     const visited = new Set<number>()
     const path: number[] = []
     const on_path = new Set<number>()

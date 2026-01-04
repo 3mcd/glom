@@ -2,7 +2,8 @@ import type {ComponentResolver, ComponentSerde} from "./component"
 import type {Entity} from "./entity"
 import type {ByteReader, ByteWriter} from "./lib/binary"
 import type {SnapshotBlock, SnapshotMessage} from "./net_types"
-import type {ReplicationOp, Transaction} from "./replication"
+import type {RelationPair} from "./relation_registry"
+import type {ReplicationOp, SpawnComponent, Transaction} from "./replication"
 
 export type ResolverLike =
   | ComponentResolver
@@ -40,8 +41,6 @@ export function read_message_header(reader: ByteReader): MessageHeader {
     tick: reader.read_uint32(),
   }
 }
-
-// HANDSHAKE
 
 export type HandshakeClient = {
   version: number
@@ -84,8 +83,6 @@ export function read_handshake_server(reader: ByteReader): HandshakeServer {
   }
 }
 
-// CLOCKSYNC
-
 export type ClockSync = {
   t0: number
   t1: number
@@ -110,8 +107,6 @@ export function read_clocksync(reader: ByteReader): ClockSync {
     t2: reader.read_float64(),
   }
 }
-
-// COMMANDS
 
 export type CommandMessage = {
   tick: number
@@ -163,8 +158,6 @@ export function read_commands(
     commands,
   }
 }
-
-// SNAPSHOTS
 
 export function write_snapshot(
   writer: ByteWriter,
@@ -227,8 +220,6 @@ export function read_snapshot(
   }
 }
 
-// TRANSACTION
-
 enum OpCode {
   Spawn = 1,
   Despawn = 2,
@@ -238,16 +229,16 @@ enum OpCode {
 
 export function write_transaction(
   writer: ByteWriter,
-  tx: Transaction,
+  transaction: Transaction,
   resolver_like: ResolverLike,
 ) {
   const resolver = to_resolver(resolver_like)
-  write_message_header(writer, MessageType.Transaction, tx.tick)
-  writer.write_uint8(tx.hi)
-  writer.write_varint(tx.seq)
-  writer.write_uint16(tx.ops.length)
+  write_message_header(writer, MessageType.Transaction, transaction.tick)
+  writer.write_uint8(transaction.domain_id)
+  writer.write_varint(transaction.seq)
+  writer.write_uint16(transaction.ops.length)
 
-  for (const op of tx.ops) {
+  for (const op of transaction.ops) {
     switch (op.type) {
       case "spawn":
         writer.write_uint8(OpCode.Spawn)
@@ -262,11 +253,11 @@ export function write_transaction(
             }
           }
           if (c.rel) {
-            writer.write_uint8(1) // has_rel
+            writer.write_uint8(1)
             writer.write_varint(c.rel.relation_id)
             writer.write_varint(c.rel.object)
           } else {
-            writer.write_uint8(0) // no_rel
+            writer.write_uint8(0)
           }
         }
         if (op.causal_key !== undefined) {
@@ -322,7 +313,7 @@ export function read_transaction(
   resolver_like: ResolverLike,
 ): Transaction {
   const resolver = to_resolver(resolver_like)
-  const hi = reader.read_uint8()
+  const domain_id = reader.read_uint8()
   const seq = reader.read_varint()
   const op_count = reader.read_uint16()
   const ops: ReplicationOp[] = []
@@ -333,11 +324,7 @@ export function read_transaction(
       case OpCode.Spawn: {
         const entity = reader.read_varint() as Entity
         const comp_count = reader.read_uint16()
-        const components: {
-          id: number
-          data?: unknown
-          rel?: {relation_id: number; object: number}
-        }[] = []
+        const components: SpawnComponent[] = []
         for (let j = 0; j < comp_count; j++) {
           const id = reader.read_varint()
           let data: unknown
@@ -347,11 +334,11 @@ export function read_transaction(
               data = serde.decode(reader, undefined as unknown)
             }
           }
-          let rel: {relation_id: number; object: number} | undefined
+          let rel: RelationPair | undefined
           if (reader.read_uint8() === 1) {
             rel = {
               relation_id: reader.read_varint(),
-              object: reader.read_varint(),
+              object: reader.read_varint() as Entity,
             }
           }
           components.push({id, data, rel})
@@ -382,11 +369,11 @@ export function read_transaction(
         if (reader.read_uint8() === 1) {
           version = reader.read_varint()
         }
-        let rel: {relation_id: number; object: number} | undefined
+        let rel: RelationPair | undefined
         if (reader.read_uint8() === 1) {
           rel = {
             relation_id: reader.read_varint(),
-            object: reader.read_varint(),
+            object: reader.read_varint() as Entity,
           }
         }
         ops.push({type: "set", entity, component_id, data, version, rel})
@@ -403,7 +390,7 @@ export function read_transaction(
 
   return {
     tick,
-    hi,
+    domain_id,
     seq,
     ops,
   }

@@ -45,9 +45,8 @@ describe("protocol serialization", () => {
 
   test("transaction basic", () => {
     const resolver: ComponentResolver = {
-      get_serde: (id) => {
+      get_serde: (id: number): ComponentSerde<any> | undefined => {
         if (id === 1) {
-          // Position
           return {
             bytes_per_element: 8,
             encode: (val: {x: number; y: number}, writer: ByteWriter) => {
@@ -60,39 +59,36 @@ describe("protocol serialization", () => {
                 y: reader.read_float32(),
               }
             },
-          } as ComponentSerde<{x: number; y: number}>
+          }
         }
         return undefined
       },
-      is_tag: (id) => id === 2, // IsStatic
+      is_tag: (id) => id === 2,
     }
 
-    const tx: Transaction = {
-      hi: 1,
+    const transaction: Transaction = {
+      domain_id: 1,
       seq: 42,
       tick: 500,
       ops: [
         {
           type: "spawn",
           entity: 100 as Entity,
-          components: [
-            {id: 1, data: {x: 1.5, y: 2.5}},
-            {id: 2}, // Tag
-          ],
+          components: [{id: 1, data: {x: 1.5, y: 2.5}}, {id: 2}],
           causal_key: 999,
         },
       ],
     }
 
     const writer = new ByteWriter()
-    write_transaction(writer, tx, resolver)
+    write_transaction(writer, transaction, resolver)
 
     const reader = new ByteReader(writer.get_bytes())
     const header = read_message_header(reader)
     const result = read_transaction(reader, header.tick, resolver)
 
     expect(result.tick).toBe(500)
-    expect(result.hi).toBe(1)
+    expect(result.domain_id).toBe(1)
     expect(result.seq).toBe(42)
     expect(result.ops.length).toBe(1)
 

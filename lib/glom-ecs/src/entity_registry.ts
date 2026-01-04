@@ -1,4 +1,4 @@
-import {type Entity, get_hi} from "./entity"
+import {type Entity, get_domain_id} from "./entity"
 import {
   alloc_domain_entity,
   type EntityRegistryDomain,
@@ -7,32 +7,38 @@ import {
 } from "./entity_registry_domain"
 
 export type EntityRegistry = {
-  hi: number
+  domain_id: number
   domains: EntityRegistryDomain[]
 }
 
-export function make_entity_registry(hi: number): EntityRegistry {
+export function make_entity_registry(domain_id: number): EntityRegistry {
   return {
-    hi,
+    domain_id,
     domains: [],
   }
 }
 
 export function get_domain(
   registry: EntityRegistry,
-  hi: number,
+  domain_id: number,
 ): EntityRegistryDomain {
-  return (registry.domains[hi] ??= make_entity_registry_domain(hi))
+  return (registry.domains[domain_id] ??= make_entity_registry_domain(domain_id))
 }
 
-export function alloc_entity(registry: EntityRegistry, hi: number): Entity {
-  return alloc_domain_entity(get_domain(registry, hi))
+export function alloc_entity(
+  registry: EntityRegistry,
+  domain_id: number,
+): Entity {
+  return alloc_domain_entity(get_domain(registry, domain_id))
 }
 
 export function remove_entity(registry: EntityRegistry, entity: Entity) {
-  remove_domain_entity(get_domain(registry, get_hi(entity)), entity)
+  remove_domain_entity(get_domain(registry, get_domain_id(entity)), entity)
 }
 
-export function next_op_seq(registry: EntityRegistry, hi: number): number {
-  return get_domain(registry, hi).op_seq++
+export function next_op_seq(
+  registry: EntityRegistry,
+  domain_id: number,
+): number {
+  return get_domain(registry, domain_id).op_seq++
 }

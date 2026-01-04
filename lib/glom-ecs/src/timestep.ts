@@ -1,11 +1,11 @@
 export type Timestep = {
   readonly hz: number
-  readonly period: number // ms per tick
-  accumulated: number // ms
-  last_time: number // ms (synchronized)
-  offset: number // ms (local -> synchronized)
-  max_drift: number // ms (reset threshold)
-  max_ticks_per_update: number // spiral of death protection
+  readonly period: number
+  accumulated: number
+  last_time: number
+  offset: number
+  max_drift: number
+  max_ticks_per_update: number
   initialized: boolean
 }
 
@@ -26,12 +26,6 @@ export function make_timestep(
   }
 }
 
-/**
- * Updates the timestep and triggers ticks.
- * @param timestep The timestep state
- * @param now_local The current local time (e.g. performance.now())
- * @param on_tick Callback triggered for each fixed tick
- */
 export function timestep_update(
   timestep: Timestep,
   now_local: number,
@@ -47,7 +41,6 @@ export function timestep_update(
 
   let dt = synchronized_now - timestep.last_time
 
-  // Detect massive time jumps (e.g. tab backgrounded, system sleep, or clock sync jump)
   if (Math.abs(dt) > timestep.max_drift) {
     timestep.accumulated = 0
     dt = 0
@@ -56,7 +49,6 @@ export function timestep_update(
   timestep.accumulated += dt
   timestep.last_time = synchronized_now
 
-  // We don't support negative delta for accumulation
   if (timestep.accumulated < 0) {
     timestep.accumulated = 0
   }
@@ -68,17 +60,12 @@ export function timestep_update(
     ticks++
 
     if (ticks >= timestep.max_ticks_per_update) {
-      // Drop remaining time if we are too far behind
       timestep.accumulated = 0
       break
     }
   }
 }
 
-/**
- * Adjusts the clock offset. This is used by the ClockSync system.
- * Significant changes may trigger the max_drift reset in the next update.
- */
 export function timestep_set_offset(timestep: Timestep, offset: number) {
   timestep.offset = offset
 }

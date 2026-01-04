@@ -1,4 +1,3 @@
-// biome-ignore-all lint/style/noNonNullAssertion: tests
 import {bench, group, run} from "mitata"
 import {
   make_sparse_map,
@@ -29,7 +28,6 @@ group("sparse_map operations", () => {
     }
   })
 
-  // Pre-fill for get/delete benchmarks
   for (let i = 0; i < size; i++) {
     sparse_map_set(sparse_map, i, i)
   }

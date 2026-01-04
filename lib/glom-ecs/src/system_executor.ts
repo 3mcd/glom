@@ -1,4 +1,6 @@
 import {assert_defined} from "./assert"
+import type {ComponentInstance, ComponentLike} from "./component"
+import type {Entity} from "./entity"
 import {is_all} from "./query/all"
 import {make_all, setup_all, teardown_all} from "./query/all_runtime"
 import {MonitorRuntime, make_in, make_out} from "./query/monitor_runtime"
@@ -9,7 +11,13 @@ import {
   make_write,
 } from "./query/resource_runtime"
 import type {System} from "./system"
-import type {SystemArgument} from "./system_argument"
+import type {
+  Add,
+  Despawn,
+  Remove,
+  Spawn,
+  SystemArgument,
+} from "./system_argument"
 import {
   is_add_descriptor,
   is_all_descriptor,

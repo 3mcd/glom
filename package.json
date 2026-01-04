@@ -5,15 +5,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "bun run dev.gloming",
-    "dev.gloming": "bun run --elide-lines=0 --filter=gloming dev",
+    "dev": "bun run --filter=server-authoritative-canvas dev",
+    "dev.p2p": "bun run --elide-lines=0 --filter=p2p-canvas dev",
     "dev.share": "ngrok start --config ngrok.yml frontend backend",
     "test": "bun run --elide-lines=0 --filter=* test",
     "bench": "bun run --elide-lines=0 --filter=* bench"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "mitata": "^1.0.34"
   },

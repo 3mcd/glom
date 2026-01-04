@@ -1,4 +1,3 @@
-// biome-ignore-all lint/style/noNonNullAssertion: tests
 import {bench, group, run} from "mitata"
 import {define_component} from "./component"
 import type {Entity} from "./entity"
@@ -12,14 +11,17 @@ import {
 } from "./entity_graph"
 import {make_vec} from "./vec"
 
+import {make_component_registry} from "./registry"
+
 const component_count = 200
-const components = Array.from({length: component_count}, (_, i) =>
-  define_component(i),
+const components = Array.from({length: component_count}, () =>
+  define_component(),
 )
+const component_registry = make_component_registry({local: components})
 const node_count = 100
 const nodes: EntityGraphNode[] = []
 const entity_count = 10000
-const entity_graph = make_entity_graph()
+const entity_graph = make_entity_graph(component_registry)
 
 for (let i = 0; i < node_count; i++) {
   const node_components = []
@@ -30,7 +32,10 @@ for (let i = 0; i < node_count; i++) {
     )
   }
   nodes.push(
-    entity_graph_find_or_create_node(entity_graph, make_vec(node_components)),
+    entity_graph_find_or_create_node(
+      entity_graph,
+      make_vec(node_components, component_registry),
+    ),
   )
 }
 
@@ -40,14 +45,14 @@ group("entity operations", () => {
   bench("add 10,000 entities to random nodes", () => {
     for (let i = 0; i < entity_count; i++) {
       const node = nodes[i % nodes.length]!
-      entity_graph_set_entity_node(entity_graph, entities[i]!, node)
+      entity_graph_set_entity_node(entity_graph, entities[i]!, node, i)
     }
   })
 
   bench("move 10,000 entities to different nodes", () => {
     for (let i = 0; i < entity_count; i++) {
       const node = nodes[(i + 1) % nodes.length]!
-      entity_graph_set_entity_node(entity_graph, entities[i]!, node)
+      entity_graph_set_entity_node(entity_graph, entities[i]!, node, i)
     }
   })
 
@@ -57,6 +62,7 @@ group("entity operations", () => {
         entity_graph,
         entities[i]!,
         entity_graph.root,
+        i,
       )
     }
   })

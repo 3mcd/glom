@@ -1,4 +1,3 @@
-/** biome-ignore-all lint/style/noNonNullAssertion: tests */
 import {describe, expect, test} from "bun:test"
 import {define_component, define_tag} from "./component"
 import {make_entity, RESOURCE_ENTITY} from "./entity"
@@ -25,21 +24,19 @@ describe("world_storage", () => {
     set_component_value(world, entity, Position, {x: 1, y: 2})
     expect(get_component_value(world, entity, Position)).toEqual({x: 1, y: 2})
 
-    // Check that it's in the store at the mapped index, not the lo ID
     const index = world_get_or_create_index(world, entity)
     const store = get_component_store(world, Position)
     expect(store![index]).toEqual({x: 1, y: 2})
   })
 
-  test("handle hi/lo ID collisions via dense mapping", () => {
+  test("handle ID collisions across domains via dense mapping", () => {
     const world = make_world(0, schema)
-    const e1 = make_entity(100, 1) // Agent 1, ID 100
-    const e2 = make_entity(100, 2) // Agent 2, ID 100
+    const e1 = make_entity(100, 1)
+    const e2 = make_entity(100, 2)
 
     set_component_value(world, e1, Position, {x: 1, y: 1})
     set_component_value(world, e2, Position, {x: 2, y: 2})
 
-    // Both should have unique values despite sharing the same 'lo' bits
     expect(get_component_value(world, e1, Position)).toEqual({x: 1, y: 1})
     expect(get_component_value(world, e2, Position)).toEqual({x: 2, y: 2})
 
@@ -80,7 +77,7 @@ describe("world_storage", () => {
     const world = make_world(0, [IsRunning])
 
     add_resource(world, IsRunning())
-    expect(get_resource(world, IsRunning)).toBeUndefined() // void value is undefined
+    expect(get_resource(world, IsRunning)).toBeUndefined()
     const id = world.component_registry.get_id(IsRunning)
     expect(world.components.resource_tags.has(id)).toBe(true)
 

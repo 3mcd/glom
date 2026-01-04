@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {type Entity, get_hi, get_lo} from "./entity"
+import {type Entity, get_domain_id, get_local_id} from "./entity"
 import {
   alloc_domain_entity,
   make_entity_registry_domain,
@@ -9,7 +9,7 @@ import {
 describe("entity_registry_domain", () => {
   test("make_entity_registry_domain", () => {
     const domain = make_entity_registry_domain(5)
-    expect(domain.hi).toBe(5)
+    expect(domain.domain_id).toBe(5)
     expect(domain.entity_count).toBe(0)
     expect(domain.dense).toEqual([])
     expect(domain.sparse.size).toBe(0)
@@ -21,9 +21,9 @@ describe("entity_registry_domain", () => {
 
     expect(domain.entity_count).toBe(1)
     expect(domain.dense[0]).toBe(entity)
-    expect(domain.sparse.get(get_lo(entity))).toBe(0)
-    expect(get_hi(entity)).toBe(10)
-    expect(get_lo(entity)).toBe(1)
+    expect(domain.sparse.get(get_local_id(entity))).toBe(0)
+    expect(get_domain_id(entity)).toBe(10)
+    expect(get_local_id(entity)).toBe(1)
   })
 
   test("add_entity and remove_entity", () => {
@@ -39,8 +39,8 @@ describe("entity_registry_domain", () => {
 
     expect(domain.entity_count).toBe(1)
     expect(domain.dense[0]).toBe(e2)
-    expect(domain.sparse.get(get_lo(e2))).toBe(0)
-    expect(domain.sparse.get(get_lo(e1))).toBeUndefined()
+    expect(domain.sparse.get(get_local_id(e2))).toBe(0)
+    expect(domain.sparse.get(get_local_id(e1))).toBeUndefined()
   })
 
   test("remove non-existent entity", () => {

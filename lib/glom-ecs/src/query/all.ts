@@ -1,9 +1,21 @@
 import type {AllDescriptor} from "../descriptors"
+import type {EntityGraphNode} from "../entity_graph"
 import type {Term, TermValue} from "./term"
+
+export type Join = {
+  readonly nodes: EntityGraphNode[]
+  readonly join_on?: {readonly id: number}
+}
 
 export interface AnyAll {
   readonly __all: true
   readonly desc: AllDescriptor
+  readonly stores: unknown[][]
+  readonly joins: Join[]
+  readonly entity_to_index: {
+    readonly sparse: Map<number, number>
+    readonly dense: number[]
+  }
   [Symbol.iterator](): Iterator<unknown[]>
 }
 

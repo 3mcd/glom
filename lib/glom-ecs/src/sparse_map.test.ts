@@ -42,7 +42,6 @@ describe("sparse_map", () => {
     expect(sparse_map_get(map, 2)).toBeUndefined()
     expect(sparse_map_size(map)).toBe(2)
 
-    // Check if swap-and-pop worked correctly
     expect(sparse_map_get(map, 1)).toBe("one")
     expect(sparse_map_get(map, 3)).toBe("three")
   })
@@ -84,7 +83,7 @@ describe("sparse_map", () => {
     sparse_map_set(map, 2, 20)
     const results: [number, number][] = []
     sparse_map_for_each(map, (k, v) => results.push([k, v]))
-    // for_each currently iterates backwards
+
     expect(results).toContainEqual([1, 10])
     expect(results).toContainEqual([2, 20])
     expect(results.length).toBe(2)
@@ -107,6 +106,6 @@ describe("sparse_map", () => {
     const cloned = sparse_map_clone(map)
     expect(sparse_map_get(cloned, 1)).toBe("one")
     sparse_map_set(map, 1, "new")
-    expect(sparse_map_get(cloned, 1)).toBe("one") // Verify it's a separate copy
+    expect(sparse_map_get(cloned, 1)).toBe("one")
   })
 })

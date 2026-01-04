@@ -2,6 +2,7 @@ import {describe, expect, test} from "bun:test"
 import {define_component} from "./component"
 import type {Entity} from "./entity"
 import {
+  type EntityGraphNode,
   emit_moved_entities,
   emit_spawned_entities,
   entity_graph_batch_add,
@@ -67,12 +68,17 @@ describe("entity_graph", () => {
     const n1 = entity_graph_find_or_create_node(graph, v1)
     const entity = 100 as Entity
 
-    entity_graph_set_entity_node(graph, entity, n1)
+    entity_graph_set_entity_node(graph, entity, n1, entity as unknown as number)
     expect(entity_graph_get_entity_node(graph, entity)).toBe(n1)
     expect(entity_graph_node_has_entity(n1, entity)).toBe(true)
 
     const n12 = entity_graph_find_or_create_node(graph, v12)
-    entity_graph_set_entity_node(graph, entity, n12)
+    entity_graph_set_entity_node(
+      graph,
+      entity,
+      n12,
+      entity as unknown as number,
+    )
     expect(entity_graph_get_entity_node(graph, entity)).toBe(n12)
     expect(entity_graph_node_has_entity(n1, entity)).toBe(false)
     expect(entity_graph_node_has_entity(n12, entity)).toBe(true)
@@ -131,51 +137,72 @@ describe("entity_graph", () => {
     )
     const entity = 1 as Entity
 
-    entity_graph_set_entity_node(graph, entity, n1)
+    entity_graph_set_entity_node(graph, entity, n1, entity as unknown as number)
     expect(graph.by_hash.has(v1.hash)).toBe(true)
 
-    // Move away from n1 - should prune it (manually triggered here as it is deferred in World)
-    entity_graph_set_entity_node(graph, entity, graph.root)
+    entity_graph_set_entity_node(
+      graph,
+      entity,
+      graph.root,
+      entity as unknown as number,
+    )
     entity_graph_node_prune(graph, n1)
     expect(graph.by_hash.has(v1.hash)).toBe(false)
   })
 
   test("neighbor reconnection after pruning", () => {
     const graph = make_entity_graph(registry)
-    const n1 = entity_graph_find_or_create_node(graph, v1) // Strategy None
+    const n1 = entity_graph_find_or_create_node(graph, v1)
     const n12 = entity_graph_find_or_create_node(
       graph,
       v12,
       PruneStrategy.WhenEmpty,
     )
-    const n123 = entity_graph_find_or_create_node(graph, v123) // Strategy None
+    const n123 = entity_graph_find_or_create_node(graph, v123)
 
     expect(n1.next_nodes.dense).toContain(n12)
     expect(n123.prev_nodes.dense).toContain(n12)
 
     const entity = 1 as Entity
-    entity_graph_set_entity_node(graph, entity, n12)
+    entity_graph_set_entity_node(
+      graph,
+      entity,
+      n12,
+      entity as unknown as number,
+    )
 
-    // Prune n12 by moving entity away (manually triggered here)
-    entity_graph_set_entity_node(graph, entity, graph.root)
+    entity_graph_set_entity_node(
+      graph,
+      entity,
+      graph.root,
+      entity as unknown as number,
+    )
     entity_graph_node_prune(graph, n12)
 
     expect(graph.by_hash.has(v12.hash)).toBe(false)
 
-    // n1 and n123 should now be directly linked
     expect(n1.next_nodes.dense).toContain(n123)
     expect(n123.prev_nodes.dense).toContain(n1)
   })
 
   test("root node is never pruned", () => {
     const graph = make_entity_graph(registry)
-    // Root doesn't have entities normally but let's test the strategy if it were set
-    // @ts-ignore: private access for test
+
     graph.root.strategy = PruneStrategy.WhenEmpty
 
     const entity = 1 as Entity
-    entity_graph_set_entity_node(graph, entity, graph.root)
-    entity_graph_set_entity_node(graph, entity, make_entity_graph_node(99, v1))
+    entity_graph_set_entity_node(
+      graph,
+      entity,
+      graph.root,
+      entity as unknown as number,
+    )
+    entity_graph_set_entity_node(
+      graph,
+      entity,
+      make_entity_graph_node(99, v1),
+      entity as unknown as number,
+    )
 
     expect(graph.by_hash.has(empty_vec.hash)).toBe(true)
   })
@@ -196,10 +223,15 @@ describe("entity_graph", () => {
       },
     })
 
-    entity_graph_set_entity_node(graph, entity, n1)
-    entity_graph_set_entity_node(graph, entity, graph.root) // triggers prune candidacy
-    entity_graph_node_prune(graph, n1) // manual trigger
+    entity_graph_set_entity_node(graph, entity, n1, entity as unknown as number)
+    entity_graph_set_entity_node(
+      graph,
+      entity,
+      graph.root,
+      entity as unknown as number,
+    )
+    entity_graph_node_prune(graph, n1)
 
-    expect(destroyed_node).toBe(n1)
+    expect(destroyed_node as any).toBe(n1)
   })
 })

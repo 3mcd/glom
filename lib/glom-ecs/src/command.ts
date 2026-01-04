@@ -31,10 +31,6 @@ export type CommandInstance = {
   intent_tick: number
 }
 
-/**
- * Records a command for a specific tick targeting a specific entity.
- * Commands are ephemeral data attached to entities only for the duration of a tick.
- */
 export function record_command<T>(
   world: World,
   target: Entity,
@@ -42,36 +38,33 @@ export function record_command<T>(
   tick = world.tick,
   intent_tick = tick,
 ) {
-  let list = world.command_buffer.get(tick)
-  if (!list) {
-    list = []
-    world.command_buffer.set(tick, list)
+  let command_list = world.command_buffer.get(tick)
+  if (!command_list) {
+    command_list = []
+    world.command_buffer.set(tick, command_list)
   }
 
   if (command && typeof command === "object" && "component" in command) {
     const inst = command as ComponentInstance<T>
-    list.push({
+    command_list.push({
       target,
       component_id: world.component_registry.get_id(inst.component),
       data: inst.value,
       intent_tick,
     })
   } else {
-    const comp = command as ComponentLike
-    list.push({
+    const component = command as ComponentLike
+    command_list.push({
       target,
-      component_id: world.component_registry.get_id(comp),
+      component_id: world.component_registry.get_id(component),
       data: undefined,
       intent_tick,
     })
   }
 }
 
-export const COMMAND_DOMAIN = 2047 // Reserved high domain for ephemeral command entities
+export const COMMAND_DOMAIN = 2047
 
-/**
- * Prunes the command buffer, removing all commands older than the specified tick.
- */
 export function prune_commands(world: World, min_tick: number) {
   for (const tick of world.command_buffer.keys()) {
     if (tick < min_tick) {
@@ -80,9 +73,6 @@ export function prune_commands(world: World, min_tick: number) {
   }
 }
 
-/**
- * System: Spawns ephemeral command entities for the current tick and links them to targets.
- */
 export const spawn_ephemeral_commands = define_system(
   (world: World) => {
     const commands = world.command_buffer.get(world.tick)
@@ -111,20 +101,15 @@ export const spawn_ephemeral_commands = define_system(
         )
       }
 
-      // Link to target
       add_component(world, cmd.target, CommandOf(command_entity))
     }
   },
   {params: [WorldTerm()], name: "spawn_ephemeral_commands"},
 )
 
-/**
- * System: Despawns all entities tagged with CommandEntity and removes CommandOf relations.
- */
 export const cleanup_ephemeral_commands = define_system(
   (query: All<Entity, Has<typeof CommandEntity>>, world: World) => {
     for (const [cmd_ent] of query) {
-      // Find who this command belongs to (incoming relations)
       const incoming = world.relations.object_to_subjects.get(cmd_ent)
       if (incoming) {
         const command_of_id = world.component_registry.get_id(CommandOf)

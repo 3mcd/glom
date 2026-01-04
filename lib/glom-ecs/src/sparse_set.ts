@@ -21,20 +21,20 @@ export function sparse_set_add<T extends number>(
   set: SparseSet<T>,
   val: T,
 ): number {
-  const idx = set.sparse.get(val)
-  if (idx !== undefined) {
-    return idx
+  const dense_index = set.sparse.get(val)
+  if (dense_index !== undefined) {
+    return dense_index
   }
-  const new_idx = set.dense.push(val) - 1
-  set.sparse.set(val, new_idx)
-  return new_idx
+  const new_dense_index = set.dense.push(val) - 1
+  set.sparse.set(val, new_dense_index)
+  return new_dense_index
 }
 
 export function sparse_set_at<T extends number>(
   set: SparseSet<T>,
-  idx: number,
+  dense_index: number,
 ): T {
-  return set.dense[idx] as T
+  return set.dense[dense_index] as T
 }
 
 export function sparse_set_index_of<T extends number>(
@@ -48,14 +48,14 @@ export function sparse_set_delete<T extends number>(
   set: SparseSet<T>,
   val: T,
 ): void {
-  const idx = set.sparse.get(val)
-  if (idx === undefined) {
+  const dense_index = set.sparse.get(val)
+  if (dense_index === undefined) {
     return
   }
   const last_val = set.dense[set.dense.length - 1] as T
-  set.dense[idx] = last_val
+  set.dense[dense_index] = last_val
   set.dense.pop()
-  set.sparse.set(last_val, idx)
+  set.sparse.set(last_val, dense_index)
   set.sparse.delete(val)
 }
 

@@ -1,5 +1,8 @@
 import type {Entity} from "./entity"
-import type {EntityGraphNode} from "./entity_graph"
+import {
+  type EntityGraphNode,
+  entity_graph_node_add_relation,
+} from "./entity_graph"
 import type {RelationPair, RelationSubject} from "./relation_registry"
 import {
   sparse_map_clear,
@@ -11,7 +14,7 @@ import {sparse_set_add, sparse_set_clear, sparse_set_size} from "./sparse_set"
 import type {World} from "./world"
 
 export type RegistryDomainSnapshot = {
-  readonly hi: number
+  readonly domain_id: number
   readonly entity_id: number
   readonly op_seq: number
   readonly entity_count: number
@@ -24,7 +27,7 @@ export type Snapshot = {
   readonly tick_spawn_count: number
   readonly component_data: Map<number, unknown[]>
   readonly component_versions: Map<number, Uint32Array>
-  readonly entity_archetypes: Int32Array // entity_index -> node_id
+  readonly entity_archetypes: Int32Array
   readonly registry_domains: RegistryDomainSnapshot[]
   readonly entity_to_index: Map<number, number>
   readonly index_to_entity: number[]
@@ -82,7 +85,7 @@ export function capture_snapshot(world: World): Snapshot {
     const domain = world.registry.domains[i]
     if (domain) {
       registry_domains[i] = {
-        hi: domain.hi,
+        domain_id: domain.domain_id,
         entity_id: domain.entity_id,
         op_seq: domain.op_seq,
         entity_count: domain.entity_count,
@@ -97,7 +100,6 @@ export function capture_snapshot(world: World): Snapshot {
     entity_to_index.set(entity, index)
   })
 
-  // Snapshot relations
   const rel_to_virtual = new Map<number, Map<number, number>>()
   for (const [rel_id, obj_map] of world.relations.rel_to_virtual) {
     rel_to_virtual.set(rel_id, new Map(obj_map))
@@ -141,7 +143,6 @@ export function rollback_to_snapshot(world: World, snapshot: Snapshot) {
   world.tick = snapshot.tick
   world.tick_spawn_count = snapshot.tick_spawn_count
 
-  // Restore registry state
   for (let i = 0; i < snapshot.registry_domains.length; i++) {
     const s_domain = snapshot.registry_domains[i]
     if (!s_domain) continue
@@ -149,7 +150,7 @@ export function rollback_to_snapshot(world: World, snapshot: Snapshot) {
     let domain = world.registry.domains[i]
     if (!domain) {
       domain = {
-        hi: s_domain.hi,
+        domain_id: s_domain.domain_id,
         entity_id: s_domain.entity_id,
         op_seq: s_domain.op_seq,
         entity_count: s_domain.entity_count,
@@ -171,7 +172,6 @@ export function rollback_to_snapshot(world: World, snapshot: Snapshot) {
     }
   }
 
-  // Restore entity index state
   sparse_map_clear(world.index.entity_to_index)
   for (const [entity, index] of snapshot.entity_to_index) {
     sparse_map_set(world.index.entity_to_index, entity, index)
@@ -182,7 +182,6 @@ export function rollback_to_snapshot(world: World, snapshot: Snapshot) {
   world.index.free_indices.push(...snapshot.free_indices)
   world.index.next_index = snapshot.next_index
 
-  // Restore component data IN-PLACE
   for (const [id, current_store] of world.components.storage) {
     if (!snapshot.component_data.has(id)) {
       current_store.length = 0
@@ -201,7 +200,6 @@ export function rollback_to_snapshot(world: World, snapshot: Snapshot) {
     }
   }
 
-  // Restore versions IN-PLACE
   for (const [id, current_versions] of world.components.versions) {
     if (!snapshot.component_versions.has(id)) {
       current_versions.fill(0)
@@ -220,7 +218,6 @@ export function rollback_to_snapshot(world: World, snapshot: Snapshot) {
     }
   }
 
-  // Restore relations
   world.relations.rel_to_virtual.clear()
   for (const [rel_id, obj_map] of snapshot.relations.rel_to_virtual) {
     world.relations.rel_to_virtual.set(rel_id, new Map(obj_map))
@@ -243,14 +240,14 @@ export function rollback_to_snapshot(world: World, snapshot: Snapshot) {
     snapshot.relations.next_virtual_id,
   )
 
-  // Restore entity graph state
   for (const node of world.entity_graph.by_hash.values()) {
     if (sparse_set_size(node.entities) > 0) {
       sparse_set_clear(node.entities)
     }
+    node.indices.length = 0
+    node.rel_maps.length = 0
   }
 
-  // Clear pending buffers on rollback
   sparse_map_clear(world.graph_changes)
   world.pending_deletions.clear()
   world.pending_component_removals.clear()
@@ -276,6 +273,21 @@ export function rollback_to_snapshot(world: World, snapshot: Snapshot) {
         node,
       )
       sparse_set_add(node.entities, entity)
+      node.indices.push(i)
+    }
+  }
+
+  for (const [obj, subjects] of world.relations.object_to_subjects) {
+    const node = sparse_map_get(world.entity_graph.by_entity, obj as number)
+    if (node) {
+      for (const {subject, relation_id} of subjects) {
+        entity_graph_node_add_relation(
+          node,
+          relation_id,
+          subject as Entity,
+          obj as Entity,
+        )
+      }
     }
   }
 }
@@ -296,7 +308,7 @@ export function rollback_to_tick(
   const snapshot = history.snapshots.find((s) => s.tick === tick)
   if (!snapshot) return false
   rollback_to_snapshot(world, snapshot)
-  // Prune future snapshots
+
   const index = history.snapshots.indexOf(snapshot)
   history.snapshots.length = index + 1
   return true

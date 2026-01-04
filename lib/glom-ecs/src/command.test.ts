@@ -4,6 +4,8 @@ import {define_component, define_tag, type ComponentResolver} from "./component"
 import {define_system} from "./system"
 import {sparse_map_get} from "./sparse_map"
 import {make_world, get_component_value} from "./world"
+import type {World} from "./world"
+import type {Entity} from "./entity"
 import {spawn} from "./world_api"
 import {ByteReader, ByteWriter} from "./lib/binary"
 import {write_commands, read_commands, read_message_header} from "./protocol"
@@ -36,10 +38,7 @@ describe("command api", () => {
     add_system(schedule, spawn_ephemeral_commands)
 
     const check_system = define_system(
-      (
-        // @ts-ignore
-        q: All<Read<typeof Position>, Rel<typeof CommandOf, Read<typeof Jump>>>,
-      ) => {
+      (_world: World) => {
         const node = sparse_map_get(
           world.entity_graph.by_entity,
           player as number,
@@ -55,7 +54,6 @@ describe("command api", () => {
             ) {
               const cmd_ent = rel.object
 
-              // Check if cmd_ent has the tag Jump
               const cmd_node = sparse_map_get(
                 world.entity_graph.by_entity,
                 cmd_ent as number,
@@ -70,7 +68,7 @@ describe("command api", () => {
                 jump_found = true
               }
 
-              const move = get_component_value(world, cmd_ent as g.Entity, Move)
+              const move = get_component_value(world, cmd_ent as Entity, Move)
               if (move !== undefined) move_val = move
             }
           }
@@ -87,7 +85,6 @@ describe("command api", () => {
     expect(jump_found).toBe(true)
     expect(move_val).toEqual({x: 5, y: 10})
 
-    // Verify cleanup
     expect(
       sparse_map_get(world.entity_graph.by_entity, player as number)?.vec
         .elements.length,
@@ -96,7 +93,7 @@ describe("command api", () => {
 
   test("binary serialization", () => {
     const resolver: ComponentResolver = {
-      get_serde: (id) => {
+      get_serde: (id: number): ComponentSerde<any> | undefined => {
         if (id === 101) {
           return {
             bytes_per_element: 8,
@@ -107,7 +104,7 @@ describe("command api", () => {
             decode: (reader: ByteReader) => {
               return {x: reader.read_float32(), y: reader.read_float32()}
             },
-          } as ComponentSerde<{x: number; y: number}>
+          }
         }
         return undefined
       },

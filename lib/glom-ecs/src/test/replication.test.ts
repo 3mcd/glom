@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {define_component, define_tag} from "../component"
-import {type Entity, get_hi} from "../entity"
+import {type Entity, get_domain_id} from "../entity"
 import {get_domain} from "../entity_registry"
 import {define_relation} from "../relation"
 import {
@@ -36,21 +36,20 @@ describe("replication", () => {
   }
 
   test("basic spawn replication", () => {
-    const world_a = make_world(1, schema) // Domain 1
-    const world_b = make_world(2, schema) // Domain 2
+    const world_a = make_world(1, schema)
+    const world_b = make_world(2, schema)
     create_link(world_a, world_b)
 
     const entity_a = spawn(world_a, [Position({x: 10, y: 20}), Replicated])
     commit_transaction(world_a)
 
-    // Check world B
     const pos_b = get_component_value(world_b, entity_a, Position)
     expect(pos_b).toBeDefined()
     if (pos_b) {
       expect(pos_b.x).toBe(10)
       expect(pos_b.y).toBe(20)
     }
-    expect(get_hi(entity_a)).toBe(1)
+    expect(get_domain_id(entity_a)).toBe(1)
   })
 
   test("basic component update replication", () => {
@@ -77,7 +76,6 @@ describe("replication", () => {
     const entity_a = spawn(world_a, [IsStatic, Replicated])
     commit_transaction(world_a)
 
-    // Verify tag exists in world B's entity graph for this entity
     const node_b = sparse_map_get(
       world_b.entity_graph.by_entity,
       entity_a as number,
@@ -97,7 +95,6 @@ describe("replication", () => {
     const child = spawn(world_a, [ChildOf(parent), Replicated])
     commit_transaction(world_a)
 
-    // Verify relationship exists in world B
     const incoming = world_b.relations.object_to_subjects.get(parent)
     expect(incoming).toBeDefined()
     if (incoming) {
@@ -184,14 +181,11 @@ describe("replication", () => {
     const world_b = make_world(2, schema)
     create_link(world_a, world_b)
 
-    // 1. Initial spawn in world A and replicate to B
     const entity = spawn(world_a, [Position({x: 0, y: 0}), Replicated])
     commit_transaction(world_a)
 
-    // Manual transaction application to simulate race condition
-    // Transaction 1: Tick 10 (Arrives second)
     const tx1: Transaction = {
-      hi: 1,
+      domain_id: 1,
       seq: get_domain(world_b.registry, 1).op_seq + 1,
       tick: 10,
       ops: [
@@ -204,9 +198,8 @@ describe("replication", () => {
       ],
     }
 
-    // Transaction 2: Tick 20 (Arrives first)
     const tx2: Transaction = {
-      hi: 1,
+      domain_id: 1,
       seq: get_domain(world_b.registry, 1).op_seq,
       tick: 20,
       ops: [
@@ -224,7 +217,7 @@ describe("replication", () => {
 
     const pos_b = get_component_value(world_b, entity, Position)
     if (pos_b) {
-      expect(pos_b.x).toBe(20) // Tick 20 should win even if it arrived first
+      expect(pos_b.x).toBe(20)
     }
   })
 
@@ -232,7 +225,6 @@ describe("replication", () => {
     const world_a = make_world(1, schema)
     const world_b = make_world(2, schema)
 
-    // Bidirectional link
     create_link(world_a, world_b)
     create_link(world_b, world_a)
 
@@ -242,12 +234,11 @@ describe("replication", () => {
     commit_transaction(world_a)
     commit_transaction(world_b)
 
-    // World A should see B's entity
     const pos_a = get_component_value(world_a, entityB, Position)
     if (pos_a) {
       expect(pos_a.x).toBe(2)
     }
-    // World B should see A's entity
+
     const pos_b_p2p = get_component_value(world_b, entity_a, Position)
     if (pos_b_p2p) {
       expect(pos_b_p2p.x).toBe(1)
@@ -255,17 +246,15 @@ describe("replication", () => {
   })
 
   test("predictive shadowing and rebinding", () => {
-    const world = make_world(1, schema) // Client domain
+    const world = make_world(1, schema)
     const causal_key = 12345
 
-    // 1. Client predicts a spawn in a "transient" domain
     const transientEntity = spawn(
       world,
       [Position({x: 100, y: 100}), Replicated],
       TRANSIENT_DOMAIN,
     )
-    // The spawn() call above already registered it with a generated causal key.
-    // For this manual test, we'll overwrite it with our specific causal_key.
+
     world.transient_registry.set(causal_key, {
       entity: transientEntity,
       tick: world.tick,
@@ -276,10 +265,9 @@ describe("replication", () => {
       expect(pos_transient.x).toBe(100)
     }
 
-    // 2. Authoritative spawn arrives from server (hi=0) with the same causal key
-    const serverEntity = ((0 << 20) | 500) as Entity // Manually create a server entity ID
-    const tx: Transaction = {
-      hi: 0,
+    const serverEntity = ((0 << 20) | 500) as Entity
+    const transaction: Transaction = {
+      domain_id: 0,
       seq: 1,
       tick: 100,
       ops: [
@@ -297,20 +285,17 @@ describe("replication", () => {
       ],
     }
 
-    apply_transaction(world, tx)
+    apply_transaction(world, transaction)
 
-    // 3. Verify rebinding
-    // The transient ID should no longer have the component
     expect(
       get_component_value(world, transientEntity, Position),
     ).toBeUndefined()
-    // The server ID should have the authoritative component
+
     const pos_server = get_component_value(world, serverEntity, Position)
     if (pos_server) {
       expect(pos_server.x).toBe(105)
     }
 
-    // The transient registry mapping should persist for resimulation
     expect(world.transient_registry.has(causal_key)).toBe(true)
   })
 
@@ -318,12 +303,9 @@ describe("replication", () => {
     const world_client = make_world(1, schema)
     const world_server = make_world(0, schema)
 
-    // 1. Align ticks
     world_client.tick = 100
     world_server.tick = 100
 
-    // 2. Client predicts a spawn in a "transient" domain
-    // Spawning in any non-owned domain (hi !== world.hi) marks it as transient
     const predictedEntity = spawn(
       world_client,
       [Position({x: 1, y: 1}), Replicated],
@@ -331,31 +313,26 @@ describe("replication", () => {
     )
     expect(world_client.transient_registry.size).toBe(1)
 
-    // 3. Server performs the "real" spawn at the same tick
-    let serverTx: Transaction | undefined
-    world_server.recorder = (tx) => (serverTx = tx)
+    let server_transaction: Transaction | undefined
+    world_server.recorder = (transaction) => (server_transaction = transaction)
     const authoritativeEntity = spawn(world_server, [
       Position({x: 2, y: 2}),
       Replicated,
     ])
 
-    // Capture the server's transaction
     commit_transaction(world_server)
 
-    expect(serverTx).toBeDefined()
-    const op = serverTx?.ops[0]
+    expect(server_transaction).toBeDefined()
+    const op = server_transaction?.ops[0]
     expect(op?.type).toBe("spawn")
     if (op?.type === "spawn") {
       expect(op.causal_key).toBeDefined()
     }
 
-    // 4. Client receives server transaction and applies it
-    if (serverTx) {
-      apply_transaction(world_client, serverTx)
+    if (server_transaction) {
+      apply_transaction(world_client, server_transaction)
     }
 
-    // 5. Verify rebinding
-    // The predicted ID should be gone from graph/storage, authoritative should be there
     expect(
       get_component_value(world_client, predictedEntity, Position),
     ).toBeUndefined()
@@ -367,7 +344,7 @@ describe("replication", () => {
     if (pos_authoritative) {
       expect(pos_authoritative.x).toBe(2)
     }
-    // Mapping persists for resimulation
+
     expect(world_client.transient_registry.size).toBe(1)
   })
 })

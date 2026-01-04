@@ -4,7 +4,8 @@
   "main": "index.ts",
   "devDependencies": {
     "bun-types": "latest",
-    "vite": "latest"
+    "vite": "latest",
+    "@glom/transformer-rollup": "workspace:*"
   },
   "dependencies": {
     "@glom/ecs": "workspace:*"
