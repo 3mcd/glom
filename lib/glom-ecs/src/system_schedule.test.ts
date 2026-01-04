@@ -16,7 +16,6 @@ describe("system_schedule sorting", () => {
       order.push("read")
     }
     define_system(system_read, {
-      // @ts-expect-error
       params: [{read: A}],
     })
 
@@ -24,7 +23,6 @@ describe("system_schedule sorting", () => {
       order.push("write")
     }
     define_system(system_write, {
-      // @ts-expect-error
       params: [{write: A}],
     })
 
@@ -46,7 +44,6 @@ describe("system_schedule sorting", () => {
       order.push(1)
     }
     define_system(w1, {
-      // @ts-expect-error
       params: [{write: A}],
     })
 
@@ -54,7 +51,6 @@ describe("system_schedule sorting", () => {
       order.push(2)
     }
     define_system(w2, {
-      // @ts-expect-error
       params: [{write: A}],
     })
 
@@ -75,7 +71,6 @@ describe("system_schedule sorting", () => {
       order.push("S3")
     }
     define_system(s3, {
-      // @ts-expect-error
       params: [{read: B}],
     })
 
@@ -83,7 +78,6 @@ describe("system_schedule sorting", () => {
       order.push("S2")
     }
     define_system(s2, {
-      // @ts-expect-error
       params: [{read: A}, {write: B}],
     })
 
@@ -91,12 +85,11 @@ describe("system_schedule sorting", () => {
       order.push("S1")
     }
     define_system(s1, {
-      // @ts-expect-error
       params: [{write: A}],
     })
 
     const schedule = make_system_schedule()
-    // Add in reverse order
+
     add_system(schedule, s3)
     add_system(schedule, s2)
     add_system(schedule, s1)
@@ -112,13 +105,11 @@ describe("system_schedule sorting", () => {
   test("cycle detection", () => {
     const s1 = () => {}
     define_system(s1, {
-      // @ts-expect-error
       params: [{write: A}, {read: B}],
     })
 
     const s2 = () => {}
     define_system(s2, {
-      // @ts-expect-error
       params: [{write: B}, {read: A}],
     })
 
@@ -139,7 +130,6 @@ describe("system_schedule sorting", () => {
       order.push(1)
     }
     define_system(s1, {
-      // @ts-expect-error
       params: [{read: A}],
     })
 
@@ -147,7 +137,6 @@ describe("system_schedule sorting", () => {
       order.push(2)
     }
     define_system(s2, {
-      // @ts-expect-error
       params: [{read: B}],
     })
 

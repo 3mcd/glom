@@ -19,6 +19,8 @@ import {
   sparse_set_delete,
   sparse_set_for_each,
   sparse_set_has,
+  sparse_set_index_of,
+  sparse_set_size,
   sparse_set_values,
 } from "./sparse_set"
 import {
@@ -42,12 +44,18 @@ export enum PruneStrategy {
   WhenEmpty,
 }
 
+export type RelationMap = {
+  subject_to_objects: Map<number, SparseSet<Entity>>
+}
+
 export type EntityGraphNode = {
   readonly id: number
   readonly vec: Vec
   readonly entities: SparseSet<Entity>
+  readonly indices: number[]
   readonly next_nodes: SparseMap<EntityGraphNode>
   readonly prev_nodes: SparseMap<EntityGraphNode>
+  readonly rel_maps: (RelationMap | undefined)[]
   readonly listeners: EntityGraphNodeListener[]
   readonly strategy: PruneStrategy
 }
@@ -61,10 +69,49 @@ export function make_entity_graph_node(
     id,
     vec,
     entities: make_sparse_set<Entity>(),
+    indices: [],
     next_nodes: make_sparse_map<EntityGraphNode>(),
     prev_nodes: make_sparse_map<EntityGraphNode>(),
+    rel_maps: [],
     listeners: [],
     strategy,
+  }
+}
+
+export function entity_graph_node_add_relation(
+  node: EntityGraphNode,
+  relation_id: number,
+  subject: Entity,
+  object: Entity,
+): void {
+  let rel_map = node.rel_maps[relation_id]
+  if (!rel_map) {
+    rel_map = {subject_to_objects: new Map()}
+    node.rel_maps[relation_id] = rel_map
+  }
+  let objects = rel_map.subject_to_objects.get(subject as number)
+  if (!objects) {
+    objects = make_sparse_set<Entity>()
+    rel_map.subject_to_objects.set(subject as number, objects)
+  }
+  sparse_set_add(objects, object)
+}
+
+export function entity_graph_node_remove_relation(
+  node: EntityGraphNode,
+  relation_id: number,
+  subject: Entity,
+  object: Entity,
+): void {
+  const rel_map = node.rel_maps[relation_id]
+  if (!rel_map) return
+
+  const objects = rel_map.subject_to_objects.get(subject as number)
+  if (!objects) return
+
+  sparse_set_delete(objects, object)
+  if (sparse_set_size(objects) === 0) {
+    rel_map.subject_to_objects.delete(subject as number)
   }
 }
 
@@ -84,7 +131,6 @@ export function entity_graph_node_unlink(
   sparse_map_delete(prev.next_nodes, node.id)
 }
 
-// Use local stacks and Sets to avoid re-entrancy issues with global state
 export function entity_graph_node_traverse_right(
   start_node: EntityGraphNode,
   iteratee: EntityGraphNodeIteratee,
@@ -217,15 +263,23 @@ export function entity_graph_node_has_entity(
 export function entity_graph_node_add_entity(
   node: EntityGraphNode,
   entity: Entity,
+  index: number,
 ): void {
   sparse_set_add(node.entities, entity)
+  node.indices.push(index)
 }
 
 export function entity_graph_node_remove_entity(
   node: EntityGraphNode,
   entity: Entity,
 ): void {
-  sparse_set_delete(node.entities, entity)
+  const idx = sparse_set_index_of(node.entities, entity)
+  if (idx !== -1) {
+    sparse_set_delete(node.entities, entity)
+    const last_idx = node.indices.length - 1
+    node.indices[idx] = node.indices[last_idx]!
+    node.indices.pop()
+  }
 }
 
 export function entity_graph_node_prune(
@@ -246,28 +300,23 @@ export function entity_graph_node_prune(
     children.push(child)
   })
 
-  // Notify listeners that this node is destroyed
   entity_graph_node_traverse_left(node, (visitedNode) => {
     entity_graph_node_emit_node_destroyed(visitedNode, node)
   })
 
-  // Unlink from all parents
   for (let i = 0; i < parents.length; i++) {
     entity_graph_node_unlink(node, parents[i] as EntityGraphNode)
   }
 
-  // Unlink from all children
   for (let i = 0; i < children.length; i++) {
     entity_graph_node_unlink(children[i] as EntityGraphNode, node)
   }
 
-  // For each child, potentially link to parents of the pruned node
   for (let i = 0; i < children.length; i++) {
     const child = children[i] as EntityGraphNode
     for (let j = 0; j < parents.length; j++) {
       const parent = parents[j] as EntityGraphNode
       if (vec_is_superset_of(child.vec, parent.vec)) {
-        // Check if any other next_nodes of parent are also subsets of child
         let has_more_specific_subset = false
         sparse_map_for_each_value(parent.next_nodes, (nextNode) => {
           if (vec_is_superset_of(child.vec, nextNode.vec)) {
@@ -432,6 +481,7 @@ export function entity_graph_set_entity_node(
   graph: EntityGraph,
   entity: Entity,
   next_node: EntityGraphNode,
+  index: number,
 ): EntityGraphNode | undefined {
   const prev_node = sparse_map_get(graph.by_entity, entity as number)
   if (prev_node === next_node) {
@@ -441,7 +491,7 @@ export function entity_graph_set_entity_node(
   if (prev_node) {
     entity_graph_node_remove_entity(prev_node, entity)
   }
-  entity_graph_node_add_entity(next_node, entity)
+  entity_graph_node_add_entity(next_node, entity, index)
   sparse_map_set(graph.by_entity, entity as number, next_node)
   return prev_node
 }

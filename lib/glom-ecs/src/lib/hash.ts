@@ -12,7 +12,6 @@ export function hash_word(hash: number = HASH_BASE, term: number): number {
 export function hash_words(words: number[]): number {
   let hash = init_hash()
   for (let i = 0; i < words.length; i++) {
-    // biome-ignore lint/style/noNonNullAssertion: words is guaranteed to be non-null
     const word = words[i]!
     hash = hash_word(hash, word)
   }

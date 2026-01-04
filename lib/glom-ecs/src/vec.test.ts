@@ -68,7 +68,6 @@ describe("vec", () => {
     expect(vec_sum(v1, v1, registry).ids).toEqual([1])
     expect(vec_sum(v1, empty_vec, registry).ids).toEqual([1])
 
-    // Test caching
     const v12_cached = vec_sum(v1, v2, registry)
     expect(v12_cached).toBe(v12)
   })

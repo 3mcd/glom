@@ -4,7 +4,6 @@ import * as g from "../index"
 import * as reconciliation from "../reconciliation"
 import * as replication from "../replication"
 
-// 1. Component Definitions (mirrored from example)
 const Position = g.define_component<{x: number; y: number}>({
   bytes_per_element: 16,
   encode: (val, writer) => {
@@ -41,7 +40,6 @@ const PulseOf = g.define_relation()
 
 const SPEED = 2
 
-// 2. Systems
 const movement_system = g.define_system(
   (
     query: g.All<
@@ -52,17 +50,22 @@ const movement_system = g.define_system(
     update: g.Add<typeof Position>,
   ) => {
     for (const [entity, pos, move] of query) {
-      update(entity, {x: pos.x + move.dx * SPEED, y: pos.y + move.dy * SPEED})
+      update(entity, {
+        x: (pos as any).x + (move as any).dx * SPEED,
+        y: (pos as any).y + (move as any).dy * SPEED,
+      })
     }
   },
   {
     params: [
-      g.All(
-        g.Entity,
-        g.Read(Position),
-        g.Rel(g.CommandOf, g.Read(MoveCommand)),
-      ),
-      g.Add(Position),
+      {
+        all: [
+          {entity: true},
+          {read: Position},
+          {rel: [g.CommandOf, {read: MoveCommand}]},
+        ],
+      } as any,
+      {add: Position} as any,
     ],
     name: "movement_system",
   },
@@ -78,7 +81,6 @@ const pulse_spawner_system = g.define_system(
     world: g.World,
   ) => {
     for (const [player_ent, pos] of query) {
-      // Find the intent tick from the command entity
       let intent_tick = world.tick
       const node = g.sparse_map_get(
         world.entity_graph.by_entity,
@@ -115,16 +117,27 @@ const pulse_spawner_system = g.define_system(
 
       g.spawn(
         world,
-        [Position({...pos}), Pulse(5), PulseOf(player_ent), g.Replicated],
-        world.registry.hi,
+        [
+          Position({...pos} as any),
+          Pulse(5),
+          PulseOf(player_ent),
+          g.Replicated,
+        ],
+        world.registry.domain_id,
         intent_tick,
       )
     }
   },
   {
     params: [
-      g.All(g.Entity, g.Read(Position), g.Rel(g.CommandOf, g.Has(FireCommand))),
-      g.WorldTerm(),
+      {
+        all: [
+          {entity: true},
+          {read: Position},
+          {rel: [g.CommandOf, {has: FireCommand}]},
+        ],
+      } as any,
+      {world: true} as any,
     ],
     name: "pulse_spawner_system",
   },
@@ -140,13 +153,22 @@ const attached_pulse_system = g.define_system(
     update: g.Add<typeof Position>,
   ) => {
     for (const [pulse_ent, _pos, parent_pos] of pulses) {
-      update(pulse_ent, {x: parent_pos.x, y: parent_pos.y})
+      update(pulse_ent, {
+        x: (parent_pos as any).x,
+        y: (parent_pos as any).y,
+      })
     }
   },
   {
     params: [
-      g.All(g.Entity, g.Read(Position), g.Rel(PulseOf, g.Read(Position))),
-      g.Add(Position),
+      {
+        all: [
+          {entity: true},
+          {read: Position},
+          {rel: [PulseOf, {read: Position}]},
+        ],
+      } as any,
+      {add: Position} as any,
     ],
     name: "attached_pulse_system",
   },
@@ -154,7 +176,6 @@ const attached_pulse_system = g.define_system(
 
 const schema = [Position, MoveCommand, FireCommand, Pulse, PulseOf]
 
-// 3. Mock Network Pipe
 class MockPipe {
   private messages: {delivery_tick: number; packet: Uint8Array}[] = []
 
@@ -172,7 +193,6 @@ class MockPipe {
   }
 }
 
-// 4. Test Harness Setup
 function setup_server() {
   const world = g.make_world(0, schema)
   const schedule = g.make_system_schedule()
@@ -196,8 +216,8 @@ function setup_server() {
   return {world, schedule}
 }
 
-function setup_client(hi: number) {
-  const world = g.make_world(hi, schema)
+function setup_client(domain_id: number) {
+  const world = g.make_world(domain_id, schema)
   world.history = {snapshots: [], max_size: 120}
 
   const reconcile_schedule = g.make_system_schedule()
@@ -232,7 +252,6 @@ function setup_client(hi: number) {
   return {world, schedule}
 }
 
-// 5. Integration Tests
 test("rigorous straight-line movement isomorphism", () => {
   const server = setup_server()
   const client = setup_client(1)
@@ -240,17 +259,14 @@ test("rigorous straight-line movement isomorphism", () => {
   const server_to_client = new MockPipe()
   const LATENCY_TICKS = 5
 
-  // Recorder: Server -> Client
-  server.world.recorder = (tx) => {
+  server.world.recorder = (transaction) => {
     const writer = new g.ByteWriter()
-    g.write_transaction(writer, tx, server.world)
+    g.write_transaction(writer, transaction, server.world)
     server_to_client.send(writer.get_bytes(), server.world.tick, LATENCY_TICKS)
   }
 
-  // Spawn player on server
   const player = g.spawn(server.world, [Position({x: 0, y: 0}), g.Replicated])
 
-  // Initial Sync: Server sends handshake
   const handshake_writer = new g.ByteWriter()
   g.write_handshake_server(handshake_writer, server.world.tick, {
     domain_id: 0,
@@ -262,9 +278,7 @@ test("rigorous straight-line movement isomorphism", () => {
   const server_positions: Map<number, {x: number; y: number}> = new Map()
   const predicted_positions: Map<number, {x: number; y: number}> = new Map()
 
-  // Run for 200 ticks
   for (let tick = 0; tick < 200; tick++) {
-    // --- SERVER STEP ---
     for (const packet of client_to_server.receive(server.world.tick)) {
       const reader = new g.ByteReader(packet)
       const header = g.read_message_header(reader)
@@ -289,7 +303,6 @@ test("rigorous straight-line movement isomorphism", () => {
       }
     }
 
-    // Capture state AT START of tick
     const s_pos_before = g.get_component_value(server.world, player, Position)
     if (s_pos_before) {
       server_positions.set(server.world.tick, {...s_pos_before})
@@ -297,24 +310,22 @@ test("rigorous straight-line movement isomorphism", () => {
 
     g.run_schedule(server.schedule, server.world as g.World)
 
-    // --- CLIENT STEP ---
     for (const packet of server_to_client.receive(tick)) {
       const reader = new g.ByteReader(packet)
       const header = g.read_message_header(reader)
       if (header.type === g.MessageType.Handshake) {
         const handshake = g.read_handshake_server(reader)
         if (!client_synced) {
-          // Client needs a lead time greater than the round-trip latency
           client.world.tick = handshake.tick + LATENCY_TICKS * 3
-          // Capture initial snapshot
+
           if (client.world.history) {
             g.push_snapshot(client.world, client.world.history)
           }
           client_synced = true
         }
       } else if (header.type === g.MessageType.Transaction) {
-        const tx = g.read_transaction(reader, header.tick, server.world)
-        g.receive_transaction(client.world, tx)
+        const transaction = g.read_transaction(reader, header.tick, server.world)
+        g.receive_transaction(client.world, transaction)
       }
     }
 
@@ -332,7 +343,6 @@ test("rigorous straight-line movement isomorphism", () => {
         client_to_server.send(writer.get_bytes(), tick, LATENCY_TICKS)
       }
 
-      // Capture prediction BEFORE simulation
       const c_pos_before = g.get_component_value(client.world, player, Position)
       if (c_pos_before) {
         predicted_positions.set(client.world.tick, {...c_pos_before})
@@ -340,11 +350,10 @@ test("rigorous straight-line movement isomorphism", () => {
 
       g.run_schedule(client.schedule, client.world as g.World)
 
-      // Verification: Does the RECONCILED state for a past tick match the server?
       const check_tick = tick - LATENCY_TICKS
       if (check_tick >= 0) {
         const s_pos = server_positions.get(check_tick)
-        // Look up the corrected snapshot in client history
+
         const snapshot = client.world.history?.snapshots.find(
           (s) => s.tick === check_tick,
         )
@@ -375,9 +384,9 @@ test("stop-and-go movement isomorphism", () => {
   const server_to_client = new MockPipe()
   const LATENCY_TICKS = 5
 
-  server.world.recorder = (tx) => {
+  server.world.recorder = (transaction) => {
     const writer = new g.ByteWriter()
-    g.write_transaction(writer, tx, server.world)
+    g.write_transaction(writer, transaction, server.world)
     server_to_client.send(writer.get_bytes(), server.world.tick, LATENCY_TICKS)
   }
 
@@ -395,7 +404,6 @@ test("stop-and-go movement isomorphism", () => {
   const predicted_positions: Map<number, {x: number; y: number}> = new Map()
 
   for (let tick = 0; tick < 200; tick++) {
-    // SERVER
     for (const packet of client_to_server.receive(server.world.tick)) {
       const reader = new g.ByteReader(packet)
       const header = g.read_message_header(reader)
@@ -425,7 +433,6 @@ test("stop-and-go movement isomorphism", () => {
     }
     g.run_schedule(server.schedule, server.world as g.World)
 
-    // CLIENT
     for (const packet of server_to_client.receive(tick)) {
       const reader = new g.ByteReader(packet)
       const header = g.read_message_header(reader)
@@ -436,13 +443,12 @@ test("stop-and-go movement isomorphism", () => {
           client_synced = true
         }
       } else if (header.type === g.MessageType.Transaction) {
-        const tx = g.read_transaction(reader, header.tick, server.world)
-        g.receive_transaction(client.world, tx)
+        const transaction = g.read_transaction(reader, header.tick, server.world)
+        g.receive_transaction(client.world, transaction)
       }
     }
 
     if (client_synced) {
-      // Move only between tick 50 and 100
       if (tick >= 50 && tick < 100) {
         g.record_command(client.world, player, MoveCommand({dx: 1, dy: 0}))
       }
@@ -465,11 +471,10 @@ test("stop-and-go movement isomorphism", () => {
 
       g.run_schedule(client.schedule, client.world as g.World)
 
-      // Verification: Does the RECONCILED state for a past tick match the server?
       const check_tick = tick - LATENCY_TICKS
       if (check_tick >= 0) {
         const s_pos = server_positions.get(check_tick)
-        // Look up the corrected snapshot in client history
+
         const snapshot = client.world.history?.snapshots.find(
           (s) => s.tick === check_tick,
         )
@@ -500,9 +505,9 @@ test("predictive spawning and rebinding isomorphism", () => {
   const server_to_client = new MockPipe()
   const LATENCY_TICKS = 5
 
-  server.world.recorder = (tx) => {
+  server.world.recorder = (transaction) => {
     const writer = new g.ByteWriter()
-    g.write_transaction(writer, tx, server.world)
+    g.write_transaction(writer, transaction, server.world)
     server_to_client.send(writer.get_bytes(), server.world.tick, LATENCY_TICKS)
   }
 
@@ -523,7 +528,6 @@ test("predictive spawning and rebinding isomorphism", () => {
   let spawn_triggered = false
 
   for (let tick = 0; tick < 100; tick++) {
-    // SERVER
     for (const packet of client_to_server.receive(server.world.tick)) {
       const reader = new g.ByteReader(packet)
       const header = g.read_message_header(reader)
@@ -549,7 +553,6 @@ test("predictive spawning and rebinding isomorphism", () => {
     }
     g.run_schedule(server.schedule, server.world as g.World)
 
-    // CLIENT
     for (const packet of server_to_client.receive(tick)) {
       const reader = new g.ByteReader(packet)
       const header = g.read_message_header(reader)
@@ -560,8 +563,8 @@ test("predictive spawning and rebinding isomorphism", () => {
           client_synced = true
         }
       } else if (header.type === g.MessageType.Transaction) {
-        const tx = g.read_transaction(reader, header.tick, server.world)
-        g.receive_transaction(client.world, tx)
+        const transaction = g.read_transaction(reader, header.tick, server.world)
+        g.receive_transaction(client.world, transaction)
       }
     }
 
@@ -588,7 +591,6 @@ test("predictive spawning and rebinding isomorphism", () => {
 
       g.run_schedule(client.schedule, client.world as g.World)
 
-      // Verify that we don't have double pulses
       const pulse_entities = client.world.index.entity_to_index.indices.filter(
         (e) => {
           return (
@@ -606,12 +608,11 @@ test("predictive spawning and rebinding isomorphism", () => {
             e as number,
           )
           console.log(
-            `  Entity ${e}: hi=${g.get_hi(e as g.Entity)}, lo=${g.get_lo(e as g.Entity)}, replicated=${node?.vec.elements.some((c) => client.world.component_registry.get_id(c) === g.Replicated.id)}`,
+            `  Entity ${e}: domain_id=${g.get_domain_id(e as g.Entity)}, local_id=${g.get_local_id(e as g.Entity)}, replicated=${node?.vec.elements.some((c) => client.world.component_registry.get_id(c) === g.Replicated.id)}`,
           )
         }
       }
 
-      // At most 1 pulse should exist if rebinding is working
       expect(pulse_entities.length).toBeLessThanOrEqual(1)
     }
   }

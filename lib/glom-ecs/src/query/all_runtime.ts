@@ -23,35 +23,124 @@ import {get_component_store, type World} from "../world"
 import type {AnyAll} from "./all"
 
 export type TermInfo =
-  | {type: "entity"}
+  | {type: "entity"; join_index: number}
   | {
       type: "component"
       component: ComponentLike
       component_id: number
       store: unknown[] | undefined
+      join_index: number
     }
-  | {type: "has"; component: ComponentLike; component_id: number}
-  | {type: "not"; component: ComponentLike; component_id: number}
+  | {
+      type: "has"
+      component: ComponentLike
+      component_id: number
+      join_index: number
+    }
+  | {
+      type: "not"
+      component: ComponentLike
+      component_id: number
+      join_index: number
+    }
   | {
       type: "rel"
       relation: Relation
       relation_id: number
       object_term: TermInfo
+      join_index: number
+      next_join_index: number
     }
 
-export class AllRuntime implements AnyAll, EntityGraphNodeListener {
+export class JoinLevel implements EntityGraphNodeListener {
+  readonly nodes: EntityGraphNode[] = []
+  readonly nodes_map = make_sparse_map<EntityGraphNode>()
+  readonly required_vec: Vec
+  readonly excluded_vecs: Vec[]
+  readonly join_on?: {readonly id: number}
+  readonly anchor_node: EntityGraphNode
+
+  constructor(
+    world: World,
+    required: ComponentLike[],
+    excluded: ComponentLike[],
+    join_on?: {readonly id: number},
+  ) {
+    this.required_vec = make_vec(required, world.component_registry)
+    this.excluded_vecs = excluded.map((c) =>
+      make_vec([c], world.component_registry),
+    )
+    this.join_on = join_on
+
+    this.anchor_node = entity_graph_find_or_create_node(
+      world.entity_graph,
+      this.required_vec,
+    )
+    entity_graph_node_add_listener(this.anchor_node, this, true)
+  }
+
+  node_created(node: EntityGraphNode): void {
+    if (!vec_is_superset_of(node.vec, this.required_vec)) {
+      return
+    }
+
+    for (let i = 0; i < this.excluded_vecs.length; i++) {
+      const excluded_vec = this.excluded_vecs[i] as Vec
+      if (vec_is_superset_of(node.vec, excluded_vec)) {
+        return
+      }
+    }
+
+    if (!sparse_map_get(this.nodes_map, node.id)) {
+      sparse_map_set(this.nodes_map, node.id, node)
+      this.nodes.push(node)
+    }
+  }
+
+  node_destroyed(node: EntityGraphNode): void {
+    if (sparse_map_get(this.nodes_map, node.id)) {
+      sparse_map_delete(this.nodes_map, node.id)
+      const idx = this.nodes.indexOf(node)
+      if (idx !== -1) {
+        this.nodes.splice(idx, 1)
+      }
+    }
+  }
+
+  teardown(): void {
+    entity_graph_node_remove_listener(this.anchor_node, this)
+    sparse_map_clear(this.nodes_map)
+    this.nodes.length = 0
+  }
+}
+
+export class AllRuntime implements AnyAll {
   readonly __all = true
-  readonly nodes = make_sparse_map<EntityGraphNode>()
-  protected _anchor_node?: EntityGraphNode
+  readonly stores: unknown[][] = []
+  readonly joins: JoinLevel[] = []
+  entity_to_index: {
+    readonly sparse: Map<number, number>
+    readonly dense: number[]
+  } = {sparse: new Map(), dense: []}
   protected _world?: World
-  protected _required_vec?: Vec
-  protected _excluded_vecs: Vec[] = []
   protected _term_infos: TermInfo[] = []
+
+  get nodes() {
+    return this.joins[0]?.nodes_map || make_sparse_map<EntityGraphNode>()
+  }
+
+  get _anchor_node() {
+    return this.joins[0]?.anchor_node
+  }
 
   constructor(readonly desc: RawAllDescriptor) {}
 
   *[Symbol.iterator](): Iterator<unknown[]> {
-    const nodes = this.nodes.dense
+    if (this.joins.length === 0) return
+
+    const rootJoin = this.joins[0]
+    if (!rootJoin) return
+    const nodes = rootJoin.nodes
 
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i] as EntityGraphNode
@@ -126,104 +215,110 @@ export class AllRuntime implements AnyAll, EntityGraphNodeListener {
       }
     }
     if (info.type === "rel") {
-      const actual_node =
-        node ?? sparse_map_get(world.entity_graph.by_entity, entity as number)
-      if (!actual_node) return []
+      const nextJoin = this.joins[info.next_join_index]
+      if (!nextJoin) return []
 
-      const objects = this._get_rel_objects(
-        entity,
-        actual_node,
-        info.relation_id,
-      )
       const results: unknown[] = []
-      for (let i = 0; i < objects.length; i++) {
-        const object = objects[i] as Entity
-        results.push(...this._get_term_values(object, info.object_term))
+      const relation_id = info.relation_id
+
+      for (let i = 0; i < nextJoin.nodes.length; i++) {
+        const n = nextJoin.nodes[i] as EntityGraphNode
+        const rel_map = n.rel_maps[relation_id]
+        if (!rel_map) continue
+
+        const targets = rel_map.subject_to_objects.get(entity as number)
+        if (!targets) continue
+
+        const target_entities = targets.dense
+        for (let j = 0; j < target_entities.length; j++) {
+          const target_entity = target_entities[j] as Entity
+          results.push(
+            ...this._get_term_values(target_entity, info.object_term, n),
+          )
+        }
       }
       return results
     }
     return []
   }
 
-  protected _get_rel_objects(
-    _entity: Entity,
-    node: EntityGraphNode,
-    relation_id: number,
-  ): Entity[] {
-    const world = this._world
-    assert_defined(world)
-    const objects: Entity[] = []
-
-    const elements = node.vec.elements
-    for (let i = 0; i < elements.length; i++) {
-      const comp = elements[i] as ComponentLike
-      const comp_id = world.component_registry.get_id(comp)
-      const rel_info = world.relations.virtual_to_rel.get(comp_id)
-      if (rel_info && rel_info.relation_id === relation_id) {
-        objects.push(rel_info.object as Entity)
-      }
-    }
-    return objects
-  }
-
-  node_created(node: EntityGraphNode): void {
-    if (this._required_vec) {
-      if (!vec_is_superset_of(node.vec, this._required_vec)) {
-        return
-      }
-    }
-
-    for (let i = 0; i < this._excluded_vecs.length; i++) {
-      const excluded_vec = this._excluded_vecs[i] as Vec
-      if (vec_is_superset_of(node.vec, excluded_vec)) {
-        return
-      }
-    }
-
-    sparse_map_set(this.nodes, node.id, node)
-  }
-
-  node_destroyed(node: EntityGraphNode): void {
-    sparse_map_delete(this.nodes, node.id)
-  }
-
   setup(world: World): void {
     this._world = world
+    this.entity_to_index = world.index.entity_to_index
 
-    // Resolve terms once
+    const context = {joinIndex: 0}
     this._term_infos = this.desc.all.map((term: unknown) =>
-      this._resolve_term_info(term, world),
+      this._resolve_term_info(term, world, 0, context),
     )
 
-    const {required, excluded} = collect_components(this.desc, world)
-    this._required_vec = make_vec(required, world.component_registry)
-    this._excluded_vecs = excluded.map((c) =>
-      make_vec([c], world.component_registry),
-    )
+    const joinConfigs: {
+      required: ComponentLike[][]
+      excluded: ComponentLike[][]
+      joinOn: (Relation | undefined)[]
+    } = {
+      required: [],
+      excluded: [],
+      joinOn: [],
+    }
 
-    this._anchor_node = entity_graph_find_or_create_node(
-      world.entity_graph,
-      this._required_vec,
-    )
-    entity_graph_node_add_listener(this._anchor_node, this, true)
+    const collectContext = {joinIndex: 0}
+    for (let i = 0; i < this.desc.all.length; i++) {
+      this._collect_join_components(
+        this.desc.all[i],
+        0,
+        joinConfigs,
+        world,
+        collectContext,
+      )
+    }
+
+    for (let i = 0; i <= collectContext.joinIndex; i++) {
+      const joinOn = joinConfigs.joinOn[i]
+      this.joins.push(
+        new JoinLevel(
+          world,
+          joinConfigs.required[i] || [],
+          joinConfigs.excluded[i] || [],
+          joinOn ? {id: world.component_registry.get_id(joinOn)} : undefined,
+        ),
+      )
+    }
+
+    this.stores.length = 0
+    this._term_infos.forEach((info) => {
+      this._collect_stores(info, this.stores)
+    })
   }
 
-  private _resolve_term_info(term: unknown, world: World): TermInfo {
+  private _resolve_term_info(
+    term: unknown,
+    world: World,
+    currentJoinIndex: number,
+    context: {joinIndex: number},
+  ): TermInfo {
     if (typeof term !== "object" || term === null) {
       throw new Error("Invalid term descriptor")
     }
     const t = term as Record<string, unknown>
 
     if ("entity" in t) {
-      return {type: "entity"}
+      return {type: "entity", join_index: currentJoinIndex}
     }
     if ("rel" in t) {
       const rel_tuple = t.rel as [Relation, unknown]
+      const nextJoinIndex = ++context.joinIndex
       return {
         type: "rel",
         relation: rel_tuple[0],
         relation_id: world.component_registry.get_id(rel_tuple[0]),
-        object_term: this._resolve_term_info(rel_tuple[1], world),
+        object_term: this._resolve_term_info(
+          rel_tuple[1],
+          world,
+          nextJoinIndex,
+          context,
+        ),
+        join_index: currentJoinIndex,
+        next_join_index: nextJoinIndex,
       }
     }
 
@@ -265,10 +360,20 @@ export class AllRuntime implements AnyAll, EntityGraphNodeListener {
     const component_id = world.component_registry.get_id(component)
 
     if (type === "has") {
-      return {type: "has", component, component_id}
+      return {
+        type: "has",
+        component,
+        component_id,
+        join_index: currentJoinIndex,
+      }
     }
     if (type === "not") {
-      return {type: "not", component, component_id}
+      return {
+        type: "not",
+        component,
+        component_id,
+        join_index: currentJoinIndex,
+      }
     }
 
     const store = get_component_store(world, component)
@@ -277,103 +382,117 @@ export class AllRuntime implements AnyAll, EntityGraphNodeListener {
       component,
       component_id,
       store,
+      join_index: currentJoinIndex,
+    }
+  }
+
+  private _collect_join_components(
+    term: unknown,
+    currentJoinIndex: number,
+    configs: {
+      required: ComponentLike[][]
+      excluded: ComponentLike[][]
+      joinOn: (Relation | undefined)[]
+    },
+    world: World,
+    context: {joinIndex: number},
+  ) {
+    if (typeof term !== "object" || term === null) return
+    const t = term as Record<string, unknown>
+
+    if (!configs.required[currentJoinIndex]) {
+      configs.required[currentJoinIndex] = []
+      configs.excluded[currentJoinIndex] = []
+    }
+
+    if ("rel" in t) {
+      const rel_tuple = t.rel as [Relation, unknown]
+      const nextJoinIndex = ++context.joinIndex
+      configs.joinOn[nextJoinIndex] = rel_tuple[0]
+      this._collect_join_components(
+        rel_tuple[1],
+        nextJoinIndex,
+        configs,
+        world,
+        context,
+      )
+      return
+    }
+
+    if ("entity" in t) return
+
+    let term_comp: unknown
+    let is_excluded = false
+    if ("read" in t) {
+      term_comp = t.read
+    } else if ("write" in t) {
+      term_comp = t.write
+    } else if ("has" in t) {
+      term_comp = t.has
+    } else if ("not" in t) {
+      term_comp = t.not
+      is_excluded = true
+    } else {
+      term_comp = term
+    }
+
+    let component: ComponentLike
+    if (is_relationship(term_comp)) {
+      const vid = get_or_create_virtual_id(
+        world,
+        term_comp.relation,
+        term_comp.object,
+      )
+      component = world.component_registry.get_virtual_component(vid)
+    } else {
+      component = term_comp as ComponentLike
+    }
+
+    if (
+      component &&
+      typeof component === "object" &&
+      "component" in (component as Record<string, unknown>)
+    ) {
+      component = (component as Record<string, unknown>)
+        .component as ComponentLike
+    }
+
+    const target = is_excluded
+      ? configs.excluded[currentJoinIndex]
+      : configs.required[currentJoinIndex]
+
+    if (
+      target &&
+      component &&
+      (typeof component === "object" || typeof component === "function") &&
+      ("__component_brand" in component ||
+        "id" in (component as Record<string, unknown>))
+    ) {
+      target.push(component)
+    }
+  }
+
+  private _collect_stores(info: TermInfo, stores: unknown[][]) {
+    if (info.type === "component") {
+      stores.push(info.store || [])
+    } else if (info.type === "rel") {
+      this._collect_stores(info.object_term, stores)
     }
   }
 
   teardown(): void {
-    if (this._anchor_node) {
-      entity_graph_node_remove_listener(this._anchor_node, this)
-      this._anchor_node = undefined
+    for (const join of this.joins) {
+      join.teardown()
     }
+    this.joins.length = 0
     this._world = undefined
-    this._required_vec = undefined
-    this._excluded_vecs = []
     this._term_infos = []
-    sparse_map_clear(this.nodes)
+    this.stores.length = 0
   }
 }
 
 export function make_all(desc: RawAllDescriptor): AnyAll {
   return new AllRuntime(desc)
-}
-
-function collect_components(
-  desc: RawAllDescriptor,
-  world: World,
-): {required: ComponentLike[]; excluded: ComponentLike[]} {
-  const required: ComponentLike[] = []
-  const excluded: ComponentLike[] = []
-  for (let i = 0; i < desc.all.length; i++) {
-    const term = desc.all[i] as unknown
-    add_term_components(term, required, excluded, world)
-  }
-  return {required, excluded}
-}
-
-function add_term_components(
-  term: unknown,
-  required: ComponentLike[],
-  excluded: ComponentLike[],
-  world: World,
-) {
-  if (typeof term !== "object" || term === null) return
-  const t = term as Record<string, unknown>
-
-  if ("rel" in t) {
-    const rel_tuple = t.rel as [Relation, unknown]
-    required.push(rel_tuple[0])
-    return
-  }
-  if ("entity" in t) {
-    return
-  }
-
-  let term_comp: unknown
-  let is_excluded = false
-  if ("read" in t) {
-    term_comp = t.read
-  } else if ("write" in t) {
-    term_comp = t.write
-  } else if ("has" in t) {
-    term_comp = t.has
-  } else if ("not" in t) {
-    term_comp = t.not
-    is_excluded = true
-  } else {
-    term_comp = term
-  }
-
-  let component: ComponentLike
-  if (is_relationship(term_comp)) {
-    const vid = get_or_create_virtual_id(
-      world,
-      term_comp.relation,
-      term_comp.object,
-    )
-    component = world.component_registry.get_virtual_component(vid)
-  } else {
-    component = term_comp as ComponentLike
-  }
-
-  if (
-    component &&
-    typeof component === "object" &&
-    "component" in (component as Record<string, unknown>)
-  ) {
-    component = (component as Record<string, unknown>)
-      .component as ComponentLike
-  }
-
-  const target = is_excluded ? excluded : required
-
-  if (
-    component &&
-    (typeof component === "object" || typeof component === "function") &&
-    ("__component_brand" in component ||
-      "id" in (component as Record<string, unknown>))
-  ) {
-    target.push(component)
-  }
 }
 
 export function setup_all(all: AnyAll, world: World) {

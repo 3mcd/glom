@@ -7,7 +7,11 @@ import {
   entity_graph_set_entity_node,
 } from "../entity_graph"
 import {define_relation} from "../relation"
-import {make_world, set_component_value} from "../world"
+import {
+  make_world,
+  set_component_value,
+  world_get_or_create_index,
+} from "../world"
 import {spawn} from "../world_api"
 import {AllRuntime, make_all, setup_all, teardown_all} from "./all_runtime"
 
@@ -30,7 +34,6 @@ describe("all_runtime", () => {
 
     setup_all(all, world)
 
-    // The anchor node itself should be in the nodes map because of the emit_existing_nodes flag
     expect(all.nodes.dense.length).toBeGreaterThan(0)
   })
 
@@ -47,11 +50,19 @@ describe("all_runtime", () => {
     set_component_value(world, e2, c1, {val: 20})
     set_component_value(world, e2, c2, {name: "e2"})
 
-    // Manually put entities into the node
-    // @ts-expect-error: private access for test
     const node = all._anchor_node as EntityGraphNode
-    entity_graph_set_entity_node(world.entity_graph, e1, node)
-    entity_graph_set_entity_node(world.entity_graph, e2, node)
+    entity_graph_set_entity_node(
+      world.entity_graph,
+      e1,
+      node,
+      world_get_or_create_index(world, e1 as unknown as number),
+    )
+    entity_graph_set_entity_node(
+      world.entity_graph,
+      e2,
+      node,
+      world_get_or_create_index(world, e2 as unknown as number),
+    )
 
     const results = []
     for (const r of all) {
@@ -59,7 +70,6 @@ describe("all_runtime", () => {
     }
     expect(results).toHaveLength(2)
 
-    // Results might be in any order because of sparse set / graph nodes
     const sortedResults = (results as [{val: number}, {name: string}][]).sort(
       (a, b) => a[0].val - b[0].val,
     )
@@ -79,9 +89,13 @@ describe("all_runtime", () => {
     const e1 = make_entity(1, 0)
     set_component_value(world, e1, c1, {val: 10})
 
-    // @ts-expect-error: private access for test
     const node = all._anchor_node as EntityGraphNode
-    entity_graph_set_entity_node(world.entity_graph, e1, node)
+    entity_graph_set_entity_node(
+      world.entity_graph,
+      e1,
+      node,
+      world_get_or_create_index(world, e1 as unknown as number),
+    )
 
     const results = []
     for (const r of all) {
@@ -102,9 +116,13 @@ describe("all_runtime", () => {
     const e1 = make_entity(5, 0)
     set_component_value(world, e1, c1, {val: 50})
 
-    // @ts-expect-error: private access for test
     const node = all._anchor_node as EntityGraphNode
-    entity_graph_set_entity_node(world.entity_graph, e1, node)
+    entity_graph_set_entity_node(
+      world.entity_graph,
+      e1,
+      node,
+      world_get_or_create_index(world, e1 as unknown as number),
+    )
 
     const results = []
     for (const r of all) {
@@ -125,9 +143,13 @@ describe("all_runtime", () => {
     const e1 = make_entity(7, 0)
     set_component_value(world, e1, c1, {val: 70})
 
-    // @ts-expect-error: private access for test
     const node = all._anchor_node as EntityGraphNode
-    entity_graph_set_entity_node(world.entity_graph, e1, node)
+    entity_graph_set_entity_node(
+      world.entity_graph,
+      e1,
+      node,
+      world_get_or_create_index(world, e1 as unknown as number),
+    )
 
     const results = []
     for (const r of all) {
@@ -147,11 +169,11 @@ describe("all_runtime", () => {
     const all = make_all(descWithNot) as AllRuntime
     setup_all(all, world)
 
-    spawn(world, [{component: c1, value: {val: 10}}]) // Has c1, no c3
+    spawn(world, [{component: c1, value: {val: 10}}])
     spawn(world, [
       {component: c1, value: {val: 20}},
       {component: c3, value: {val: 30}},
-    ]) // Has c1 and c3
+    ])
 
     const results = []
     for (const r of all) {
@@ -166,7 +188,6 @@ describe("all_runtime", () => {
     const c3 = define_component<{val: number}>()
     const world = make_world(0, [rel, c3])
 
-    // Rel(rel, Not(c3))
     const descWithRelNot: AllDescriptor = {
       all: [{rel: [rel, {not: c3}]}],
     }
@@ -174,18 +195,16 @@ describe("all_runtime", () => {
     const all = make_all(descWithRelNot) as AllRuntime
     setup_all(all, world)
 
-    const obj1 = spawn(world, []) // No c3
+    const obj1 = spawn(world, [])
     const obj2 = spawn(world, [{component: c3, value: {val: 30}}])
 
-    // e1 -> obj1 (rel)
-    // e1 -> obj2 (rel)
     spawn(world, [rel(obj1), rel(obj2)])
 
     const results = []
     for (const r of all) {
       results.push([...r])
     }
-    // results should be [ [undefined] ] for obj1 only
+
     expect(results).toHaveLength(1)
     expect(results[0]).toEqual([undefined])
   })
@@ -197,8 +216,6 @@ describe("all_runtime", () => {
     setup_all(all, world)
     expect(all.nodes.dense.length).toBeGreaterThan(0)
 
-    // Check that it's actually removed from the graph
-    // @ts-expect-error: private access for test
     const anchorNode = all._anchor_node as EntityGraphNode
     expect(anchorNode).toBeDefined()
 

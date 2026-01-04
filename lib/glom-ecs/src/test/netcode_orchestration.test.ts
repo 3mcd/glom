@@ -10,9 +10,11 @@ import {
   run_schedule,
 } from "../system_schedule"
 import {get_component_value, make_world} from "../world"
+import type {World} from "../world"
 import {spawn} from "../world_api"
 import {All} from "../query/all"
 import {Rel, Read} from "../query/term"
+import {define_system, type DefinedSystem} from "../system"
 
 describe("netcode orchestration", () => {
   const Position = define_component<{x: number; y: number}>()
@@ -23,56 +25,45 @@ describe("netcode orchestration", () => {
     const world = make_world(1, schema)
     const player = spawn(world, [Position({x: 0, y: 0}), Replicated])
 
-    // Setup schedule
     const schedule = make_system_schedule()
 
-    // 1. Setup Networking
     add_system(schedule, commands.spawn_ephemeral_commands)
 
-    // 2. User Logic (System using Relational Command Query)
     const jump_system = define_system(
       (
-        // @ts-expect-error - queries not fully typed in test yet
-        player_query: All<Read<Position>, Rel<commands.CommandOf, Read<Jump>>>,
+        player_query: All<
+          Read<typeof Position>,
+          Rel<typeof commands.CommandOf, Read<typeof Jump>>
+        >,
       ) => {
-        // @ts-ignore
-        for (const [pos, jump] of player_query) {
-          // We found a jump command for this player!
-          pos.y += 10
+        for (const [pos, _jump] of player_query) {
+
+          ;(pos as any).y += 10
         }
       },
-      {params: [All(Read(Position), Rel(commands.CommandOf, Read(Jump)))]},
+      {
+        params: [
+          {
+            all: [{read: Position}, {rel: [commands.CommandOf, {read: Jump}]}],
+          } as any,
+        ],
+        name: "jump_system",
+      },
     )
 
-    add_system(
-      schedule,
-      jump_system as unknown as DefinedSystem<
-        [
-          All<
-            [
-              Read<{x: number; y: number}>,
-              Rel<typeof commands.CommandOf, Read<void>>,
-            ]
-          >,
-        ]
-      >,
-    )
+    add_system(schedule, jump_system as any)
 
-    // 3. Teardown & Sync
     add_system(schedule, commands.cleanup_ephemeral_commands)
     add_system(schedule, replication.commit_pending_mutations)
     add_system(schedule, replication.advance_world_tick)
 
-    // Record a command for Tick 0
     commands.record_command(world, player, Jump, 0)
 
-    // Run Tick 0
-    run_schedule(schedule, world as unknown as g.World)
+    run_schedule(schedule, world as any)
 
     expect(world.tick).toBe(1)
     expect(get_component_value(world, player, Position)?.y).toBe(10)
 
-    // Verify cleanup: player should no longer have CommandOf
     const node = sparse_map_get(world.entity_graph.by_entity, player as number)
     const command_of_id = world.component_registry.get_id(commands.CommandOf)
     expect(
@@ -82,6 +73,3 @@ describe("netcode orchestration", () => {
     ).toBe(false)
   })
 })
-
-// Helper to define system since it's not exported globally
-import {define_system} from "../system"

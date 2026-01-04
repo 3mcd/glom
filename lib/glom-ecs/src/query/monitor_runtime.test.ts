@@ -26,17 +26,14 @@ describe("monitor_runtime", () => {
 
     const e = spawn(world, [Position({x: 10, y: 20})])
 
-    // Should be empty before flush
     expect(Array.from(monitor)).toHaveLength(0)
 
     world_flush_graph_changes(world)
 
-    // Should contain entity after flush
     const results = Array.from(monitor)
     expect(results).toHaveLength(1)
     expect(results[0]).toEqual([e, {x: 10, y: 20}])
 
-    // Should be cleared after manual clear (which systems do automatically)
     monitor.clear()
     world_flush_deletions(world)
     expect(Array.from(monitor)).toHaveLength(0)
@@ -53,15 +50,12 @@ describe("monitor_runtime", () => {
     monitor.clear()
     world_flush_deletions(world)
 
-    // Remove component
     remove_component(world, e, Position)
 
-    // Empty before flush
     expect(Array.from(monitor)).toHaveLength(0)
 
     world_flush_graph_changes(world)
 
-    // Contains entity after flush, and can STILL READ OLD DATA
     const results = Array.from(monitor)
     expect(results).toHaveLength(1)
     expect(results[0]).toEqual([e, {x: 10, y: 20}])
@@ -142,7 +136,6 @@ describe("monitor_runtime", () => {
     monitor_B.clear()
     world_flush_deletions(world)
 
-    // Transition A -> B -> C in one tick
     remove_component(world, e, A)
     add_component(world, e, B)
     remove_component(world, e, B)
@@ -150,8 +143,6 @@ describe("monitor_runtime", () => {
 
     world_flush_graph_changes(world)
 
-    // Net result: entity was A, now is C. It entered B and left B.
-    // So In<B> should NOT trigger.
     expect(Array.from(monitor_B)).toHaveLength(0)
   })
 
@@ -167,13 +158,11 @@ describe("monitor_runtime", () => {
 
     despawn(world, e)
 
-    // Data should still be in store during flush, and monitor should get it
     world_flush_graph_changes(world)
     const results = Array.from(monitor)
     expect(results).toHaveLength(1)
     expect(results[0]).toEqual([{x: 1, y: 1}])
 
-    // Next tick, data should finally be gone
     world_flush_deletions(world)
     expect(world.index.entity_to_index.dense).toHaveLength(0)
   })

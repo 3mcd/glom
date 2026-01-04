@@ -24,7 +24,6 @@ describe("relation", () => {
     const world = make_world(0, schema)
     const parent = spawn(world, [Name("Parent")])
 
-    // 1. Exact relation query
     let child_name = ""
     const system1 = define_system(
       (query: All<Read<typeof Name>, Has<Relationship>>) => {
@@ -44,7 +43,6 @@ describe("relation", () => {
 
     expect(child_name).toBe("Child")
 
-    // 2. Wildcard relation query
     const children: string[] = []
     const system2 = define_system(
       (query: All<Entity, Read<typeof Name>, Has<Relation>>) => {
@@ -61,7 +59,6 @@ describe("relation", () => {
     run_schedule(schedule2, world)
     expect(children).toContain("Child")
 
-    // 3. Cleanup on object destruction
     despawn(world, parent)
     const childrenAfter = [] as string[]
     const system3 = define_system(

@@ -21,28 +21,28 @@ export function assert_valid(entity: number) {
   assert(entity <= EXTENT)
 }
 
-export function assert_valid_id(id: number) {
-  assert(id >= 0)
-  assert(id <= LO)
+export function assert_valid_id(entity_id: number) {
+  assert(entity_id >= 0)
+  assert(entity_id <= LO)
 }
 
-export function assert_valid_hi(hi: number) {
-  assert(hi >= 0)
-  assert(hi <= HI)
+export function assert_valid_domain_id(domain_id: number) {
+  assert(domain_id >= 0)
+  assert(domain_id <= HI)
 }
 
-export function get_lo(entity: number) {
+export function get_local_id(entity: number) {
   assert_valid(entity)
   return entity & LO
 }
 
-export function get_hi(entity: number) {
+export function get_domain_id(entity: number) {
   assert_valid(entity)
   return entity >> LO_EXTENT
 }
 
-export function make_entity(id: number, hi: number) {
-  assert_valid_id(id)
-  assert_valid_hi(hi)
-  return (((hi & HI) << LO_EXTENT) | id) as Entity
+export function make_entity(entity_id: number, domain_id: number) {
+  assert_valid_id(entity_id)
+  assert_valid_domain_id(domain_id)
+  return (((domain_id & HI) << LO_EXTENT) | entity_id) as Entity
 }

@@ -31,9 +31,9 @@ describe("binary utils", () => {
   })
 
   test("capacity expansion", () => {
-    const writer = new ByteWriter(4) // Small initial capacity
+    const writer = new ByteWriter(4)
     writer.write_uint32(1)
-    writer.write_uint32(2) // Should expand
+    writer.write_uint32(2)
 
     const reader = new ByteReader(writer.get_bytes())
     expect(reader.read_uint32()).toBe(1)

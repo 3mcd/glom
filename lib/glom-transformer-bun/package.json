@@ -1,0 +1,25 @@
+{
+  "name": "@glom/transformer-bun",
+  "version": "0.1.0",
+  "main": "dist/glom-transformer-bun.cjs.js",
+  "module": "dist/glom-transformer-bun.esm.js",
+  "exports": {
+    ".": {
+      "module": "./dist/glom-transformer-bun.esm.js",
+      "default": "./dist/glom-transformer-bun.cjs.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "dist/glom-transformer-bun.cjs.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "@glom/transformer": "0.1.0",
+    "typescript": "catalog:build"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}

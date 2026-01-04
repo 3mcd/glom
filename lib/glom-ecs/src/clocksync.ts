@@ -21,12 +21,6 @@ export function make_clocksync_manager(max_samples = 16): ClockSyncManager {
   }
 }
 
-/**
- * Calculates RTT and Offset from NTP timestamps.
- * t0: local time message was sent
- * t1: remote time message was received
- * t2: local time response was received
- */
 export function calculate_offset_and_rtt(
   t0: number,
   t1: number,
@@ -62,7 +56,6 @@ export function add_clocksync_sample(
     sync.samples.shift()
   }
 
-  // Smoothing: using median to filter out network jitter spikes
   const rtts = sync.samples.map((s) => s.rtt).sort((a, b) => a - b)
   const offsets = sync.samples.map((s) => s.offset).sort((a, b) => a - b)
   const mid = Math.floor(rtts.length / 2)
@@ -76,11 +69,6 @@ export function add_clocksync_sample(
   }
 }
 
-/**
- * Computes the consensus offset across all tracked agents.
- * In a server-authoritative setup, this will just be the server's offset.
- * In P2P, this will be the average of all tracked peers.
- */
 export function get_consensus_offset(manager: ClockSyncManager): number {
   if (manager.agents.size === 0) return 0
 
@@ -92,9 +80,6 @@ export function get_consensus_offset(manager: ClockSyncManager): number {
   return total_offset / manager.agents.size
 }
 
-/**
- * Returns the average RTT across all agents.
- */
 export function get_average_rtt(manager: ClockSyncManager): number {
   if (manager.agents.size === 0) return 0
 

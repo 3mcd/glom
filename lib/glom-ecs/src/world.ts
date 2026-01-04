@@ -61,7 +61,7 @@ export function make_entity_index(): EntityIndex {
     entity_to_index: make_sparse_map<number>(),
     index_to_entity: [],
     free_indices: [],
-    next_index: 1, // Start at 1 to reserve index 0 for RESOURCE_ENTITY
+    next_index: 1,
   }
 }
 
@@ -102,7 +102,7 @@ export type World<R extends ComponentLike = any> = {
   readonly remote_snapshots: Map<number, SnapshotMessage[]>
   readonly clocksync: ClockSyncManager
   readonly command_buffer: Map<number, Command[]>
-  // Reusable buffers to avoid allocations in hot paths
+
   readonly _reduction_entity_to_ops: Map<Entity, ReplicationOp[]>
   readonly _reduction_component_changes: Map<number, ReplicationOp>
   readonly _reduction_component_removals: Set<number>
@@ -110,7 +110,7 @@ export type World<R extends ComponentLike = any> = {
 }
 
 export function make_world(
-  hi: number,
+  domain_id: number,
   schema: RegistrySchema | ComponentLike[] = {},
   recorder?: ReplicationRecorder,
 ): World {
@@ -127,7 +127,7 @@ export function make_world(
   ])
 
   const world = {
-    registry: make_entity_registry(hi),
+    registry: make_entity_registry(domain_id),
     component_registry,
     entity_graph: make_entity_graph(component_registry),
     graph_changes: make_sparse_map<GraphMove>(),
@@ -204,14 +204,12 @@ export function set_component_value<T>(
   }
   const index = world_get_or_create_index(world, entity)
 
-  // Last-Write-Wins check
   let versions = world.components.versions.get(component_id)
   if (!versions) {
-    versions = new Uint32Array(1024) // Initial capacity
+    versions = new Uint32Array(1024)
     world.components.versions.set(component_id, versions)
   }
 
-  // Ensure versions array is large enough
   if (index >= versions.length) {
     const next = new Uint32Array(Math.max(versions.length * 2, index + 1))
     next.set(versions)
@@ -256,7 +254,7 @@ export function get_component_value<T>(
         ? (undefined as T)
         : undefined
     }
-    // For regular entities, we don't have a way to check tags without graph logic yet.
+
     return undefined
   }
   const index =

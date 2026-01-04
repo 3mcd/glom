@@ -25,8 +25,7 @@ export function is_relation(component: unknown): component is Relation {
   return (
     typeof component === "function" &&
     component !== null &&
-    ("__component_brand" in (component as Record<string, unknown>) ||
-      "id" in (component as Record<string, unknown>))
+    ("__component_brand" in (component as any) || "id" in (component as any))
   )
 }
 

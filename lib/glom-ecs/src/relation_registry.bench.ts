@@ -1,4 +1,3 @@
-// biome-ignore-all lint/style/noNonNullAssertion: tests
 import {bench, group, run} from "mitata"
 import type {Entity} from "./entity"
 import {define_relation} from "./relation"
@@ -19,8 +18,6 @@ const world = make_world(0)
 
 group("relation registry operations", () => {
   bench("get_or_create_virtual_id (new pairs)", () => {
-    // Note: this will actually create them, so we might want to reset or use different world
-    // but for a micro-bench, seeing the map lookup/insert cost is useful.
     for (let i = 0; i < relation_count; i++) {
       for (let j = 0; j < 10; j++) {
         get_or_create_virtual_id(world, relations[i]!, entities[j]!)
@@ -41,7 +38,7 @@ group("relation registry operations", () => {
       const subject = entities[i % entity_count]!
       const object = entities[(i + 1) % entity_count]!
       const rel = relations[i % relation_count]!
-      register_incoming_relation(world, subject, rel.id, object)
+      register_incoming_relation(world, subject, rel.id as number, object)
     }
   })
 
@@ -50,7 +47,7 @@ group("relation registry operations", () => {
       const subject = entities[i % entity_count]!
       const object = entities[(i + 1) % entity_count]!
       const rel = relations[i % relation_count]!
-      unregister_incoming_relation(world, subject, rel.id, object)
+      unregister_incoming_relation(world, subject, rel.id as number, object)
     }
   })
 })

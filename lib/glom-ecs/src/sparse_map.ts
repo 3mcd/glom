@@ -16,11 +16,11 @@ export function sparse_map_get<T>(
   map: SparseMap<T>,
   key: number,
 ): T | undefined {
-  const d_idx = map.sparse.get(key)
-  if (d_idx === undefined) {
+  const dense_index = map.sparse.get(key)
+  if (dense_index === undefined) {
     return undefined
   }
-  return map.dense[d_idx]
+  return map.dense[dense_index]
 }
 
 export function sparse_map_set<T>(
@@ -28,13 +28,13 @@ export function sparse_map_set<T>(
   key: number,
   value: T,
 ): void {
-  const d_idx = map.sparse.get(key)
-  if (d_idx === undefined) {
+  const dense_index = map.sparse.get(key)
+  if (dense_index === undefined) {
     map.sparse.set(key, map.dense.length)
     map.dense.push(value)
     map.indices.push(key)
   } else {
-    map.dense[d_idx] = value
+    map.dense[dense_index] = value
   }
 }
 
@@ -43,17 +43,17 @@ export function sparse_map_has(map: SparseMap, key: number): boolean {
 }
 
 export function sparse_map_delete<T>(map: SparseMap<T>, key: number): void {
-  const idx = map.sparse.get(key)
-  if (idx === undefined) {
+  const dense_index = map.sparse.get(key)
+  if (dense_index === undefined) {
     return
   }
   const last_key = map.indices[map.indices.length - 1] as number
   const last_val = map.dense[map.dense.length - 1] as T
-  map.dense[idx] = last_val
+  map.dense[dense_index] = last_val
   map.dense.pop()
-  map.indices[idx] = last_key
+  map.indices[dense_index] = last_key
   map.indices.pop()
-  map.sparse.set(last_key, idx)
+  map.sparse.set(last_key, dense_index)
   map.sparse.delete(key)
 }
 

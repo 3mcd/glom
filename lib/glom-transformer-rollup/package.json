@@ -1,0 +1,25 @@
+{
+  "name": "@glom/transformer-rollup",
+  "version": "0.1.0",
+  "main": "dist/glom-transformer-rollup.cjs.js",
+  "module": "dist/glom-transformer-rollup.esm.js",
+  "exports": {
+    ".": {
+      "module": "./dist/glom-transformer-rollup.esm.js",
+      "default": "./dist/glom-transformer-rollup.cjs.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "dist/glom-transformer-rollup.cjs.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "@glom/transformer": "0.1.0",
+    "typescript": "catalog:build"
+  },
+  "devDependencies": {
+    "rollup": "^4.0.0"
+  }
+}

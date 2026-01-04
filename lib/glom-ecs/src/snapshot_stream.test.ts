@@ -23,12 +23,10 @@ describe("snapshot streaming", () => {
     const world_a = make_world(1, [Position])
     const world_b = make_world(2, [Position])
 
-    // 1. Setup entities in World A
     const e1 = spawn(world_a, [Position({x: 10, y: 20}), Replicated])
     const e2 = spawn(world_a, [Position({x: 100, y: 200}), Replicated])
-    const e3 = spawn(world_a, [Position({x: 5, y: 5})]) // Not replicated
+    const e3 = spawn(world_a, [Position({x: 5, y: 5})])
 
-    // 2. Capture snapshot from A
     const pos_id = world_a.component_registry.get_id(Position)
     const blocks = capture_snapshot_stream(world_a, [pos_id])
     expect(blocks.length).toBe(1)
@@ -37,7 +35,6 @@ describe("snapshot streaming", () => {
     expect(blocks[0].entities).toContain(e2 as number)
     expect(blocks[0].entities).not.toContain(e3 as number)
 
-    // 3. Serialize and deserialize
     const writer = new ByteWriter()
     write_snapshot(writer, {tick: 100, blocks}, world_a)
 
@@ -47,7 +44,6 @@ describe("snapshot streaming", () => {
     expect(message.tick).toBe(100)
     expect(message.blocks.length).toBe(1)
 
-    // 4. Apply to World B
     apply_snapshot_stream(world_b, message)
 
     expect(get_component_value(world_b, e1, Position)?.x).toBe(10)
@@ -61,7 +57,6 @@ describe("snapshot streaming", () => {
     const entity = spawn(world, [Position({x: 50, y: 50}), Replicated])
     const pos_id = world.component_registry.get_id(Position)
 
-    // 1. Snapshot from tick 40 (OLDER)
     const old_message = {
       tick: 40,
       blocks: [
@@ -73,9 +68,8 @@ describe("snapshot streaming", () => {
       ],
     }
     apply_snapshot_stream(world, old_message)
-    expect(get_component_value(world, entity, Position)?.x).toBe(50) // Should NOT overwrite
+    expect(get_component_value(world, entity, Position)?.x).toBe(50)
 
-    // 2. Snapshot from tick 60 (NEWER)
     const new_message = {
       tick: 60,
       blocks: [
@@ -87,6 +81,6 @@ describe("snapshot streaming", () => {
       ],
     }
     apply_snapshot_stream(world, new_message)
-    expect(get_component_value(world, entity, Position)?.x).toBe(60) // SHOULD overwrite
+    expect(get_component_value(world, entity, Position)?.x).toBe(60)
   })
 })

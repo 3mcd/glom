@@ -21,7 +21,7 @@ group("entity_registry_domain", () => {
     for (let i = 0; i < entity_count; i++) {
       entities[i] = alloc_domain_entity(domain)
     }
-    // Now benchmark the removal
+
     for (let i = 0; i < entity_count; i++) {
       remove_domain_entity(domain, entities[i])
     }

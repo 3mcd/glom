@@ -1,4 +1,9 @@
 import type {Entity} from "./entity"
+import {
+  entity_graph_get_entity_node,
+  entity_graph_node_add_relation,
+  entity_graph_node_remove_relation,
+} from "./entity_graph"
 import type {Relation} from "./relation"
 import type {World} from "./world"
 
@@ -64,6 +69,11 @@ export function register_incoming_relation(
     world.relations.object_to_subjects.set(object, incoming)
   }
   incoming.add({subject, relation_id})
+
+  const node = entity_graph_get_entity_node(world.entity_graph, object)
+  if (node) {
+    entity_graph_node_add_relation(node, relation_id, subject, object)
+  }
 }
 
 export function unregister_incoming_relation(
@@ -84,6 +94,11 @@ export function unregister_incoming_relation(
     if (incoming.size === 0) {
       registry.object_to_subjects.delete(object)
     }
+  }
+
+  const node = entity_graph_get_entity_node(world.entity_graph, object)
+  if (node) {
+    entity_graph_node_remove_relation(node, relation_id, subject, object)
   }
 }
 

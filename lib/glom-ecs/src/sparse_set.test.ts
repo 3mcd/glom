@@ -55,7 +55,6 @@ describe("sparse_set", () => {
     expect(sparse_set_has(set, 2)).toBe(false)
     expect(sparse_set_size(set)).toBe(2)
 
-    // Check swap-and-pop
     expect(sparse_set_at(set, 0)).toBe(1)
     expect(sparse_set_at(set, 1)).toBe(3)
     expect(sparse_set_index_of(set, 3)).toBe(1)
@@ -91,7 +90,7 @@ describe("sparse_set", () => {
     sparse_set_add(set, 2)
     const results: number[] = []
     sparse_set_for_each(set, (v) => results.push(v))
-    // Iterates backwards
+
     expect(results).toEqual([2, 1])
   })
 })
