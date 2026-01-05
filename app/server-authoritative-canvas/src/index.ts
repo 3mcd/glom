@@ -119,10 +119,10 @@ const movement_system = (
     let next_x = pos.x + move.dx * SPEED
     let next_y = pos.y + move.dy * SPEED
 
-    if (next_x < 0) next_x = 400
-    if (next_x > 400) next_x = 0
-    if (next_y < 0) next_y = 400
-    if (next_y > 400) next_y = 0
+    if (next_x < 0) next_x = 250
+    if (next_x > 250) next_x = 0
+    if (next_y < 0) next_y = 250
+    if (next_y > 250) next_y = 0
 
     update(entity, {x: next_x, y: next_y})
   }
@@ -162,7 +162,7 @@ const render_system = (
   ctx: g.Write<typeof CanvasContext>,
 ) => {
   ctx.fillStyle = "black"
-  ctx.fillRect(0, 0, 400, 400)
+  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height)
 
   for (const [pos, color_id] of query) {
     ctx.fillStyle = (color_id as number) === 0 ? "#61dafb" : "#ff4444"
@@ -271,7 +271,7 @@ server.world.recorder = (transaction) => {
 }
 
 const player = g.spawn(server.world, [
-  Position({x: 200, y: 200}),
+  Position({x: 125, y: 125}),
   Color(0),
   g.Replicated,
 ])

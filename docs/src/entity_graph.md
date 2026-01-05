@@ -10,6 +10,33 @@ In Glom ECS, an Archetype is defined by a unique combination of component types.
 
 The graph is not just a flat map of archetypes; it is a Directed Acyclic Graph (DAG) organized by component inclusion. Cycles are logically impossible because relationships are defined by set inclusion, meaning a node can only link to another as a specialization (adding components) or a generalization (removing components). Any path in the graph represents a monotonic increase or decrease in the number of components, making it impossible to return to a previous set of components by only adding more. Unlike a simple tree, the graph allows for multiple paths to the same node, forming a diamond-like lattice. A node is considered a subset of another if all its components are present in the other node's `Vec`, while a superset is a node that contains all components of the other node plus at least one more.
 
+```mermaid
+graph TD
+    Root["[ ]"]
+    Pos["[Position]"]
+    Vel["[Velocity]"]
+    Sprite["[Sprite]"]
+    
+    PosVel["[Position, Velocity]"]
+    PosSprite["[Position, Sprite]"]
+    
+    All["[Position, Velocity, Sprite]"]
+
+    Root --> Pos
+    Root --> Vel
+    Root --> Sprite
+
+    Pos --> PosVel
+    Pos --> PosSprite
+    Vel --> PosVel
+    Sprite --> PosSprite
+    
+    PosVel --> All
+    PosSprite --> All
+    
+    style Root stroke-dasharray: 5 5
+```
+
 ### Linking Logic
 
 When a new node is inserted, it is linked to its maximal subsets, which are the most specific archetypes contained within it. More general archetypes then link to it as a superset. This structure allows the ECS to efficiently navigate the relationships between different entity types.

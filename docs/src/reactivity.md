@@ -1,6 +1,8 @@
 # Reactivity Guide
 
-In an ECS, systems usually run every frame, polling for entities that match a specific state. However, some game features are event-driven: you might want to play a sound when a unit is created, or clean up a particle effect when a buff expires. Glom provides reactivity through `In` and `Out` query wrappers, allowing you to write systems that execute exactly when an entity enters or leaves a state.
+Systems usually run every frame, polling for entities that match a specific component signature. This is good for iteration.
+
+However, some game features are event-driven: you might want to play a sound when a unit is created, or clean up a particle effect when a buff expires. Glom provides reactivity through `In` and `Out` query wrappers, allowing you to write systems that execute exactly when an entity enters or leaves a state.
 
 ## The Problem: State Changes vs. Polling
 
@@ -19,8 +21,8 @@ const Shield = define_component<{ power: number }>()
 const ShieldVFX = define_component<{ intensity: number }>()
 
 // This system only iterates over entities that just received a Shield
-export const on_shield_added = (
-  added: In<All<Entity, Has<typeof Shield>>>,
+const on_shield_added = (
+  added: In<Entity, Has<typeof Shield>>,
   add_vfx: Add<typeof ShieldVFX>
 ) => {
   for (const [entity] of added) {
@@ -38,11 +40,11 @@ The mirror of `In` is `Out`. This matches entities that no longer meet your quer
 A key feature of `Out` queries is that the component data is still accessible in the loop. Glom provides the last known values of the removed components, which is useful for cleanup. In our shield example, we use the `Remove` argument to strip the VFX component when the shield expires.
 
 ```typescript
-import { All, Read, Out, Remove, Entity, remove_component } from "@glom/ecs"
+import { Out, Remove, Entity } from "@glom/ecs"
 
 // This system runs when an entity loses its Shield
-export const on_shield_removed = (
-  removed: Out<All<Entity, Has<typeof Shield>>>,
+const on_shield_removed = (
+  removed: Out<Entity, Has<typeof Shield>>,
   remove_vfx: Remove<typeof ShieldVFX>
 ) => {
   for (const [entity] of removed) {
@@ -58,27 +60,26 @@ Reactivity is also used to manage the lifecycle of entirely separate entities. I
 We can use **Relationships** to link the player to their laser, making it easy to find and cleanup.
 
 ```typescript
-import { All, In, Out, Rel, Spawn, Despawn, Entity, despawn, add_component, define_tag, define_relation } from "@glom/ecs"
+import { In, Out, Rel, Spawn, Despawn, Entity, despawn, add_component, define_tag, define_relation } from "@glom/ecs"
 
 const Attacking = define_tag()
 const LaserBeam = define_tag()
 const HasBeam = define_relation()
 
 // When a player starts attacking, spawn a beam and link it
-export const on_attack_started = (
-  added: In<All<Entity, typeof Attacking>>,
-  spawn: Spawn
+const on_attack_started = (
+  added: In<Entity, typeof Attacking>,
+  spawn: Spawn<Beam>
 ) => {
   for (const [player] of added) {
-    const beam = spawn(spawner)
-    add_component(beam, LaserBeam)
+    const beam = spawn(spawner, LaserBeam)
     add_component(player, HasBeam(beam))
   }
 }
 
 // When the attack stops, find the beam and despawn it
-export const on_attack_stopped = (
-  removed: Out<All<Rel<typeof HasBeam, Entity>, typeof Attacking>>,
+const on_attack_stopped = (
+  removed: Out<Rel<typeof HasBeam, Entity>, typeof Attacking>,
   despawn: Despawn
 ) => {
   for (const [beam] of removed) {
@@ -100,9 +101,9 @@ Each query tracks the entities that have entered or left its criteria since the 
 If you are not using the transformer, you can define these reactive systems by explicitly providing the `in` or `out` descriptors.
 
 ```typescript
-import { define_system, In, All, Read, Position } from "@glom/ecs"
+import { define_system, In, Read } from "@glom/ecs"
 
-export const on_position_added = define_system((added: In<All<Read<typeof Position>>>) => {
+const on_position_added = define_system((added: In<Read<typeof Position>>) => {
   for (const [pos] of added) {
     // Your logic here
   }

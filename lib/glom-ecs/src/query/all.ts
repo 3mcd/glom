@@ -1,4 +1,4 @@
-import type {AllDescriptor} from "../descriptors"
+import type {AllDescriptor, InDescriptor, OutDescriptor} from "../descriptors"
 import type {EntityGraphNode} from "../entity_graph"
 import type {Term, TermValue} from "./term"
 
@@ -9,7 +9,7 @@ export type Join = {
 
 export interface AnyAll {
   readonly __all: true
-  readonly desc: AllDescriptor
+  readonly desc: AllDescriptor | InDescriptor | OutDescriptor
   readonly stores: unknown[][]
   readonly joins: Join[]
   readonly entity_to_index: {
@@ -18,6 +18,63 @@ export interface AnyAll {
   }
   [Symbol.iterator](): Iterator<unknown[]>
 }
+
+export type AllIterator<
+  T0 extends Term,
+  T1 extends Term,
+  T2 extends Term,
+  T3 extends Term,
+  T4 extends Term,
+  T5 extends Term,
+  T6 extends Term,
+  T7 extends Term,
+> = [T0] extends [never]
+  ? []
+  : [T1] extends [never]
+    ? [TermValue<T0>]
+    : [T2] extends [never]
+      ? [TermValue<T0>, TermValue<T1>]
+      : [T3] extends [never]
+        ? [TermValue<T0>, TermValue<T1>, TermValue<T2>]
+        : [T4] extends [never]
+          ? [TermValue<T0>, TermValue<T1>, TermValue<T2>, TermValue<T3>]
+          : [T5] extends [never]
+            ? [
+                TermValue<T0>,
+                TermValue<T1>,
+                TermValue<T2>,
+                TermValue<T3>,
+                TermValue<T4>,
+              ]
+            : [T6] extends [never]
+              ? [
+                  TermValue<T0>,
+                  TermValue<T1>,
+                  TermValue<T2>,
+                  TermValue<T3>,
+                  TermValue<T4>,
+                  TermValue<T5>,
+                ]
+              : [T7] extends [never]
+                ? [
+                    TermValue<T0>,
+                    TermValue<T1>,
+                    TermValue<T2>,
+                    TermValue<T3>,
+                    TermValue<T4>,
+                    TermValue<T5>,
+                    TermValue<T6>,
+                  ]
+                : [
+                    TermValue<T0>,
+                    TermValue<T1>,
+                    TermValue<T2>,
+                    TermValue<T3>,
+                    TermValue<T4>,
+                    TermValue<T5>,
+                    TermValue<T6>,
+                    TermValue<T7>,
+                  ]
 
 export interface All<
   T0 extends Term = never,
@@ -30,55 +87,7 @@ export interface All<
   T7 extends Term = never,
 > extends AnyAll {
   readonly desc: AllDescriptor<T0, T1, T2, T3, T4, T5, T6, T7>
-  [Symbol.iterator](): Iterator<
-    [T0] extends [never]
-      ? []
-      : [T1] extends [never]
-        ? [TermValue<T0>]
-        : [T2] extends [never]
-          ? [TermValue<T0>, TermValue<T1>]
-          : [T3] extends [never]
-            ? [TermValue<T0>, TermValue<T1>, TermValue<T2>]
-            : [T4] extends [never]
-              ? [TermValue<T0>, TermValue<T1>, TermValue<T2>, TermValue<T3>]
-              : [T5] extends [never]
-                ? [
-                    TermValue<T0>,
-                    TermValue<T1>,
-                    TermValue<T2>,
-                    TermValue<T3>,
-                    TermValue<T4>,
-                  ]
-                : [T6] extends [never]
-                  ? [
-                      TermValue<T0>,
-                      TermValue<T1>,
-                      TermValue<T2>,
-                      TermValue<T3>,
-                      TermValue<T4>,
-                      TermValue<T5>,
-                    ]
-                  : [T7] extends [never]
-                    ? [
-                        TermValue<T0>,
-                        TermValue<T1>,
-                        TermValue<T2>,
-                        TermValue<T3>,
-                        TermValue<T4>,
-                        TermValue<T5>,
-                        TermValue<T6>,
-                      ]
-                    : [
-                        TermValue<T0>,
-                        TermValue<T1>,
-                        TermValue<T2>,
-                        TermValue<T3>,
-                        TermValue<T4>,
-                        TermValue<T5>,
-                        TermValue<T6>,
-                        TermValue<T7>,
-                      ]
-  >
+  [Symbol.iterator](): Iterator<AllIterator<T0, T1, T2, T3, T4, T5, T6, T7>>
 }
 
 export function All<T extends unknown[]>(...terms: T): {all: T} {
@@ -89,13 +98,40 @@ export function is_all(val: unknown): val is AnyAll {
   return typeof val === "object" && val !== null && "__all" in val
 }
 
-export type In<T extends AnyAll> = T & {readonly __in: T}
-export type Out<T extends AnyAll> = T & {readonly __out: T}
-
-export function In<T extends {all: unknown[]}>(query: T): {in: T} {
-  return {in: query}
+export interface In<
+  T0 extends Term = never,
+  T1 extends Term = never,
+  T2 extends Term = never,
+  T3 extends Term = never,
+  T4 extends Term = never,
+  T5 extends Term = never,
+  T6 extends Term = never,
+  T7 extends Term = never,
+> extends AnyAll {
+  readonly __in: true
+  readonly desc: InDescriptor<AllDescriptor<T0, T1, T2, T3, T4, T5, T6, T7>>
+  [Symbol.iterator](): Iterator<AllIterator<T0, T1, T2, T3, T4, T5, T6, T7>>
 }
 
-export function Out<T extends {all: unknown[]}>(query: T): {out: T} {
-  return {out: query}
+export interface Out<
+  T0 extends Term = never,
+  T1 extends Term = never,
+  T2 extends Term = never,
+  T3 extends Term = never,
+  T4 extends Term = never,
+  T5 extends Term = never,
+  T6 extends Term = never,
+  T7 extends Term = never,
+> extends AnyAll {
+  readonly __out: true
+  readonly desc: OutDescriptor<AllDescriptor<T0, T1, T2, T3, T4, T5, T6, T7>>
+  [Symbol.iterator](): Iterator<AllIterator<T0, T1, T2, T3, T4, T5, T6, T7>>
+}
+
+export function In<T extends unknown[]>(...terms: T): {in: {all: T}} {
+  return {in: {all: terms}}
+}
+
+export function Out<T extends unknown[]>(...terms: T): {out: {all: T}} {
+  return {out: {all: terms}}
 }

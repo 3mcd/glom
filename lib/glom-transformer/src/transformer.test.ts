@@ -53,7 +53,7 @@ describe("transformer", () => {
     const input = `
       import * as g from "@glom/ecs"
       const Position = g.define_component<{x: number; y: number}>()
-      const on_added = (added: g.In<g.All<g.Read<typeof Position>>>) => {
+      const on_added = (added: g.In<g.Read<typeof Position>>) => {
         for (const [pos] of added) {
           console.log(pos)
         }
@@ -69,7 +69,7 @@ describe("transformer", () => {
     const input = `
       import * as g from "@glom/ecs"
       const Position = g.define_component<{x: number; y: number}>()
-      const on_removed = (removed: g.Out<g.All<g.Read<typeof Position>>>) => {
+      const on_removed = (removed: g.Out<g.Read<typeof Position>>) => {
         for (const [pos] of removed) {
           console.log(pos)
         }
@@ -105,12 +105,11 @@ describe("transformer", () => {
   test("transforms aliased In query", () => {
     const input = `
       namespace g {
-        export type All<T0, T1=any, T2=any, T3=any, T4=any, T5=any, T6=any, T7=any> = { __all: true };
-        export type In<T> = T & { __in: true };
+        export type In<T0, T1=any, T2=any, T3=any, T4=any, T5=any, T6=any, T7=any> = { __all: true; __in: true };
         export type Read<T> = { __read: T };
       }
       const Position = { __component_brand: true };
-      type MyIn = g.In<g.All<g.Read<typeof Position>>>
+      type MyIn = g.In<g.Read<typeof Position>>
       const on_added = (added: MyIn) => {
         for (const [pos] of added) {
           console.log(pos)

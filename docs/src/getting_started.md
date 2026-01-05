@@ -105,8 +105,6 @@ add_component(world, player, IsPlayer);
 world_flush_graph_changes(world);
 ```
 
----
-
 ## Appendix: Without the Transformer
 
 If you don't want to use a build step, you can define systems manually using `define_system`. This requires you to explicitly describe the parameters so the scheduler knows how to order them, and the loops won't be as heavily optimized.

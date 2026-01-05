@@ -343,13 +343,6 @@ function extractAllTermsFromNode(
       ? typeName.right.text
       : ""
 
-  if ((name === "In" || name === "Out") && typeNode.typeArguments?.[0]) {
-    const inner = typeNode.typeArguments[0]
-    if (ts.isTypeReferenceNode(inner)) {
-      return extractAllTermsFromNode(inner, factory, typeChecker)
-    }
-  }
-
   if (typeNode.typeArguments === undefined) {
     const type = typeChecker.getTypeAtLocation(typeNode)
     const symbol = type.aliasSymbol || type.getSymbol()

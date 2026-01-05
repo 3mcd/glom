@@ -14,7 +14,7 @@ import type {
   WorldDescriptor,
   WriteDescriptor,
 } from "./descriptors"
-import type {All} from "./query/all"
+import type {All, In, Out} from "./query/all"
 import type {Has, Not, Read, Write} from "./query/term"
 import type {
   Add,
@@ -98,8 +98,18 @@ export type AllDescriptor<
   all: MapTerms<ParamsToTuple<T0, T1, T2, T3, T4, T5, T6, T7>>
 }
 
-type SystemParameterDescriptor<T> = T extends {__all: true}
-  ? T extends All<
+type SystemParameterDescriptor<T> = T extends In<
+  infer T0,
+  infer T1,
+  infer T2,
+  infer T3,
+  infer T4,
+  infer T5,
+  infer T6,
+  infer T7
+>
+  ? InDescriptor<AllDescriptor<T0, T1, T2, T3, T4, T5, T6, T7>>
+  : T extends Out<
       infer T0,
       infer T1,
       infer T2,
@@ -109,10 +119,8 @@ type SystemParameterDescriptor<T> = T extends {__all: true}
       infer T6,
       infer T7
     >
-    ? AllDescriptor<T0, T1, T2, T3, T4, T5, T6, T7>
-    : never
-  : T extends {readonly __in: infer U}
-    ? U extends All<
+    ? OutDescriptor<AllDescriptor<T0, T1, T2, T3, T4, T5, T6, T7>>
+    : T extends All<
         infer T0,
         infer T1,
         infer T2,
@@ -122,21 +130,7 @@ type SystemParameterDescriptor<T> = T extends {__all: true}
         infer T6,
         infer T7
       >
-      ? InDescriptor<AllDescriptor<T0, T1, T2, T3, T4, T5, T6, T7>>
-      : never
-    : T extends {readonly __out: infer U}
-      ? U extends All<
-          infer T0,
-          infer T1,
-          infer T2,
-          infer T3,
-          infer T4,
-          infer T5,
-          infer T6,
-          infer T7
-        >
-        ? OutDescriptor<AllDescriptor<T0, T1, T2, T3, T4, T5, T6, T7>>
-        : never
+      ? AllDescriptor<T0, T1, T2, T3, T4, T5, T6, T7>
       : T extends WorldType
         ? WorldDescriptor
         : T extends Spawn

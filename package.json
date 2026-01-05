@@ -10,7 +10,10 @@
     "dev.share": "ngrok start --config ngrok.yml frontend backend",
     "test": "bun run --elide-lines=0 --filter=* test",
     "bench": "bun run --elide-lines=0 --filter=* bench",
-    "docs.build": "mkdir -p dist && ./scripts/ssg docs/src dist \"Glom Documentation\" \"https://3mcd.github.io/glom\" && touch dist/.nojekyll",
+    "docs.build": "rm -rf dist && mkdir -p dist && cp -r docs/src/fonts dist/ && ./scripts/ssg docs/src dist \"Glom Documentation\" \"https://3mcd.github.io/glom\" && bun run docs.build.examples && touch dist/.nojekyll",
+    "docs.build.examples": "bun x preconstruct build && mkdir -p dist/examples && bun run docs.build.example.p2p && bun run docs.build.example.server",
+    "docs.build.example.p2p": "cd app/p2p-canvas && bun x vite build --base ./ --outDir ../../dist/examples/p2p-canvas",
+    "docs.build.example.server": "cd app/server-authoritative-canvas && bun x vite build --base ./ --outDir ../../dist/examples/server-authoritative-canvas",
     "docs.serve": "bun x serve dist"
   },
   "keywords": [],
