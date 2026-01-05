@@ -8,7 +8,7 @@ An archetype is a unique combination of component types. It's represented as a `
 
 ## Graph Structure
 
-The entity graph is directed and acyclic. Nodes are linked based on component inclusion. When you add a component to an entity, it moves towards a more specialized node with more components. Conversely, removing a component moves the entity toward a more generalized node with fewer components.
+The entity graph is directed and acyclic. Nodes are linked based on component inclusion. The entity moves towards a more specialized node with more components when you add a component to it. Conversely, removing a component moves the entity toward a more generalized node with fewer components.
 
 ```mermaid
 graph TD
@@ -37,8 +37,8 @@ graph TD
 
 ## Entity Storage
 
-Each node stores a set of entities. When a component is added or removed, the entity is migrated from its current node to the new node.
+Each node stores a set of entities. The entity is migrated from its current node to the new node when a component is added or removed.
 
 ## Queries
 
-The graph allows for event-based entity resolution. Instead of checking every entity, queries subscribe to specific nodes. When an entity enters or leaves a part of the graph that matches a query, the query is updated.
+The graph allows for event-based entity resolution. Queries subscribe to specific nodes instead of checking every entity. The query is updated when an entity enters or leaves a part of the graph that matches it.

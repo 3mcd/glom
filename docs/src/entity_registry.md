@@ -6,15 +6,15 @@ The `EntityRegistry` manages entity allocation. It is designed so that entities 
 
 The registry uses domains (or "buckets"). Each domain has a unique ID, which is the `hi` bits of an `Entity`.
 
-Every agent owns one domain. When an agent creates an entity, it uses its own domain ID. This prevents collisions because other agents use different domain IDs.
+Every agent owns one domain. An agent uses its own domain ID when it creates an entity. This prevents collisions because other agents use different domain IDs.
 
 ## Predictive Spawning
 
-Because each agent has its own ID space, they can spawn entities immediately in their local world. Other agents will receive these events later and add the entity to their local copy of that domain.
+Agents can spawn entities immediately in their local world because each has its own ID space. Other agents will receive these events later and add the entity to their local copy of that domain.
 
 ## Determinism and Rollback
 
-ID allocation is deterministic. Within a domain, the local ID increments. If you reset the world and run the same spawning logic, you will get the same sequence of IDs.
+ID allocation is deterministic. The local ID increments within a domain. If you reset the world and run the same spawning logic, you will get the same sequence of IDs.
 
 Each domain also tracks an operation sequence number (`op_seq`). This helps remote agents verify that they have received all changes in the correct order.
 

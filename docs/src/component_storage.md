@@ -1,14 +1,14 @@
 # Component Storage
 
-Glom uses a universal storage model. Instead of storing component values inside entity objects, all values for a component type are stored in one array in the `World`.
+Glom uses a universal storage model. All values for a component type are stored in one array in the `World` instead of storing component values inside entity objects.
 
 ## Entity Indexing
 
-To support networking and multiple agents, the `World` does not use raw entity IDs to index arrays. Instead, it uses a local mapping.
+The `World` does not use raw entity IDs to index arrays to support networking and multiple agents. Instead, it uses a local mapping.
 
 ### How it works
 
-Entity IDs are 31-bit integers that are unique across the network. When a `World` sees an entity, it assigns it a local index. A `SparseMap` called `entity_to_index` stores this mapping. This prevents collisions when different agents create entities.
+Entity IDs are 31-bit integers that are unique across the network. The `World` assigns a local index when it sees an entity. A `SparseMap` called `entity_to_index` stores this mapping. This prevents collisions when different agents create entities.
 
 ```text
 World
@@ -24,7 +24,7 @@ World
 
 ### Memory and GC
 
-By using arrays instead of many small objects, there is less work for the JavaScript garbage collector. The layout of the component stores is stable, which helps engines optimize access.
+There is less work for the JavaScript garbage collector because the system uses arrays instead of many small objects. The layout of the component stores is stable, which helps engines optimize access.
 
 ### Iteration
 
@@ -46,7 +46,7 @@ for (const id of entities) {
 
 ### Archetype Migration
 
-When an entity's archetype changes (like adding a component), its data stays in the same place in storage. Only the pointers in the `EntityGraph` are updated.
+Data for an entity stays in the same place in storage when its archetype changes (like adding a component). Only the pointers in the `EntityGraph` are updated.
 
 ### Direct Indexing
 

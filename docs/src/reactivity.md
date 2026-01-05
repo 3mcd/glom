@@ -8,7 +8,7 @@ Sometimes you only want to do something when a state changes, like playing a sou
 
 Performing side effects with regular `All` queries is possible, but you'd need to read component values to avoid repeating the effect every frame.
 
-Transition queries identify which entities changed since the last time the system ran. If you wanted to add a `ShieldVFX` when an entity gets a `Shield`, you could just use `In<typeof Shield>`.
+Transition queries identify which entities changed since the last time the system ran. You could just use `In<typeof Shield>` if you wanted to add a `ShieldVFX` when an entity gets a `Shield`.
 
 ## Reacting to Component Additions
 
@@ -53,7 +53,7 @@ const on_shield_removed = (
 
 ## Managing Related Entities
 
-Transition queries can also manage separate entities. In this example, we spawn a laser when a player attacks and despawn it when they stop.
+Transition queries can also manage separate entities. We spawn a laser when a player attacks and despawn it when they stop in this example.
 
 ```typescript
 import { Add, Despawn, Entity, In, Out, Rel, Spawn, define_relation, define_tag } from "@glom/ecs"
@@ -84,17 +84,17 @@ const on_attack_stopped = (
 }
 ```
 
-In `on_attack_stopped`, the `Out` query yields entities that no longer emit from attacking entities, which means they can be cleaned up.
+The `Out` query yields entities that no longer emit from attacking entities in `on_attack_stopped`, which means they can be cleaned up.
 
 ## How it works
 
-Transition queries subscribe to changes in the [Entity Graph](./entity_graph). When an entity moves between nodes, the graph notifies the queries.
+Transition queries subscribe to changes in the [Entity Graph](./entity_graph). The graph notifies the queries when an entity moves between nodes.
 
 Each query keeps track of which entities entered or left its scope. These lists are cleared after the system runs.
 
 ## Manual Definition
 
-If you aren't using the transformer, you provide the `in` or `out` descriptors in the system metadata.
+Provide the `in` or `out` descriptors in the system metadata if you aren't using the transformer.
 
 ```typescript
 import { In, Read, define_system } from "@glom/ecs"

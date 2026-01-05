@@ -18,7 +18,7 @@ const ChildOf = define_relation()
 
 A relationship is an instance of a relation component. They can be thought of as a pairing of `(relation, object)`, where `relation` is the link type and `object` is the target of the relationship.
 
-To create a relationship, use `add_component` and invoke the relation with a single, target entity.
+Use `add_component` and invoke the relation with a single target entity to create a relationship.
 
 ```typescript
 import { add_component, spawn } from "@glom/ecs"
@@ -32,7 +32,7 @@ add_component(world, child, ChildOf(parent))
 
 ## Querying Relationships
 
-To find entities with a specific relationship, use the `Rel` descriptor in your system query to extract components from both the source and the target entities.
+Use the `Rel` descriptor in your system query to extract components from both the source and the target entities to find entities with a specific relationship.
 
 ```typescript
 import { All, Entity, Read, Rel } from "@glom/ecs"
@@ -52,4 +52,4 @@ const follow_parent_system = (
 
 Relationships are integrated into the [Entity Graph](./entity_graph). Adding a relationship to an entity moves it to a node in the graph that represents that specific relationship type and target.
 
-Because these links are part of the graph structure, queries can locate related entities without searching through the entire world. This also means [Transition Queries](./reactivity) can track relationship changes just as they track component changes.
+Queries can locate related entities without searching through the entire world because these links are part of the graph structure. This also means [Transition Queries](./reactivity) can track relationship changes just as they track component changes.

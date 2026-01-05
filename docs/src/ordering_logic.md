@@ -8,7 +8,7 @@ Systems are ordered based on `Read` and `Write` constraints. Glom builds a graph
 
 ### Rule: Write before Read
 
-If System A writes to a component and System B reads from it, System A runs first.
+System A runs first if System A writes to a component and System B reads from it.
 
 ```typescript
 import { All, Read, Write } from "@glom/ecs"
@@ -30,7 +30,7 @@ const rendering_system = (query: All<Read<typeof Position>>) => {
 
 ### Multiple Writers
 
-If multiple systems write to the same component, they run in the order they were added to the schedule. This keeps logic like physics and collision predictable between worlds.
+Multiple systems run in the order they were added to the schedule if they write to the same component. This keeps logic like physics and collision predictable between worlds.
 
 ## Cycles
 
@@ -38,7 +38,7 @@ A cycle happens when system dependencies loop (e.g., A needs B, and B needs A). 
 
 ### Breaking a Cycle
 
-A cycle usually indicates that your systems are too tightly coupled. If you run into one, here are a few ways to resolve it:
+A cycle usually indicates that your systems are too tightly coupled. Here are a few ways to resolve a cycle if you run into one:
 
 1. Move one of the systems to a different schedule (e.g., from `Main` to `PostUpdate`) to enforce a clear execution boundary.
 2. Split a large component into smaller ones. Cycles often occur when a single component is overloaded with multiple responsibilities.
@@ -46,4 +46,4 @@ A cycle usually indicates that your systems are too tightly coupled. If you run 
 
 ## Manual Overrides
 
-For systems with no data overlap, you can control the order by changing the order of `add_system` calls.
+You can control the order by changing the order of `add_system` calls for systems with no data overlap.
