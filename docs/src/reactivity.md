@@ -2,7 +2,7 @@
 
 Systems usually run every frame and check for entities that match a query.
 
-Sometimes you only want to do something when a state changes, like playing a sound when a unit is created or stopping an effect when a buff ends. Glom uses `In` and `Out` **transition queries** to handle this.
+Sometimes you only want to do something when a state changes, like playing a sound when a unit is created or stopping an effect when a buff ends. Glom uses `In` and `Out` transition queries to handle this.
 
 ## State Changes vs. Polling
 

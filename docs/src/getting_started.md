@@ -58,9 +58,9 @@ default defineConfig({
 
 This section briefly describes the building blocks of an Entity-Component System.
 
-**Entities** are simple integer IDs that serve as labels to group data together. They don't contain any logic or data themselves; instead, they act as stable reference points for various **Components**. These components are plain data objects that represent a specific aspect of an entity, such as its position, health, or a player tag.
+Entities are simple integer IDs that serve as labels to group data together. They don't contain any logic or data themselves; instead, they act as stable reference points for various components. These components are plain data objects that represent a specific aspect of an entity, such as its position, health, or a player tag.
 
-The logic of your application is contained within **Systems**, which are functions that operate on entities matching specific component criteria. For example, a movement system might update the position of every entity that has both a position and a velocity component. All of these entities and components are managed by the **World**, the central container that your systems run logic against.
+The logic of your application is contained within systems, which are functions that operate on entities matching specific component criteria. For example, a movement system might update the position of every entity that has both a position and a velocity component. All of these entities and components are managed by the world, the central container that your systems run logic against.
 
 When a system runs, its queries resolve which nodes in the [Entity Graph](./entity_graph.md) match the required components:
 
@@ -99,11 +99,11 @@ const IsPlayer = define_tag()
 
 ## 4. Setting up the World
 
-The `World` is the container for all the entities and components in a simulation. When you create one, you'll need to provide a **domain ID** and a **schema**.
+The `World` is the container for all the entities and components in a simulation. When you create one, you'll need to provide a domain ID and a schema.
 
-The **domain ID** is an integer that helps Glom manage entity creation in networked environments. By giving each peer their own ID, everyone can spawn entities at the same time without their IDs colliding. If you're building a single-player game, you can just set this to `0`.
+The domain ID is an integer that helps Glom manage entity creation in networked environments. By giving each peer their own ID, everyone can spawn entities at the same time without their IDs colliding. If you're building a single-player game, you can just set this to `0`.
 
-The **schema** is a list of the components you plan to use. Glom needs this to pre-allocate storage for those components and to ensure they're identified the same way across different worlds.
+The schema is a list of the components you plan to use. Glom needs this to pre-allocate storage for those components and to ensure they're identified the same way across different worlds.
 
 To set up a `World`, import `make_world` and provide it with a unique domain ID and your component schema.
 

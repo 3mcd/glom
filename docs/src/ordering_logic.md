@@ -40,9 +40,9 @@ A cycle happens when system dependencies loop (e.g., A needs B, and B needs A). 
 
 A cycle usually indicates that your systems are too tightly coupled. If you run into one, here are a few ways to resolve it:
 
-1. **Logical Schedules**: Move one of the systems to a different schedule (e.g., from `Main` to `PostUpdate`) to enforce a clear execution boundary.
-2. **Component Refactoring**: Split a large component into smaller ones. Cycles often occur when a single component is overloaded with multiple responsibilities.
-3. **Event-Driven Decoupling**: Use short-lived "command" entities to pass data between systems across frames, effectively breaking the direct dependency.
+1. Move one of the systems to a different schedule (e.g., from `Main` to `PostUpdate`) to enforce a clear execution boundary.
+2. Split a large component into smaller ones. Cycles often occur when a single component is overloaded with multiple responsibilities.
+3. Use short-lived "command" entities to pass data between systems across frames, effectively breaking the direct dependency.
 
 ## Manual Overrides
 

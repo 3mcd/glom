@@ -4,7 +4,7 @@ The `EntityGraph` organizes entities based on their components. It uses an arche
 
 ## Archetypes
 
-An Archetype is a unique combination of component types. It's represented as a `Vec`, which is an ordered list of component IDs. Each unique `Vec` maps to one `EntityGraphNode`.
+An archetype is a unique combination of component types. It's represented as a `Vec`, which is an ordered list of component IDs. Each unique `Vec` maps to one graph node.
 
 ## Graph Structure
 

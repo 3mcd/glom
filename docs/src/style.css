@@ -217,19 +217,10 @@ hr {
   width: 100%;
 }
 
-.toc-section {
-  border-left: 2px solid var(--border);
-}
-
-.toc-section:first-child {
-  border-left: none;
-}
-
 .toc-header {
   padding: 0.5rem 1rem;
   border-bottom: 2px solid var(--border);
   font-family: var(--font-mono);
-  background: var(--header-bg);
 }
 
 /* Section specific header colors */
@@ -250,10 +241,6 @@ hr {
   list-style: none;
   padding: 1rem;
   margin: 0;
-}
-
-.toc-section li + li {
-  margin-top: 0.5rem;
 }
 
 .toc-section a {
