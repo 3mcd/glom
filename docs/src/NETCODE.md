@@ -10,13 +10,7 @@ Most of these tools are part of the ECS. Things like user inputs are components 
 
 ## 1. Topologies
 
-Glom is designed for both server-authoritative and P2P setups.
-
-### Server-Authoritative
-The server sends authoritative changes to the client. Clients send high-level commands to the server for validation.
-
-### Distributed P2P
-Each agent sends their local changes to all other peers. Conflicts are resolved using strategies like Last-Write-Wins.
+Glom is designed for both server-authoritative and P2P setups. In a **Server-Authoritative** topology, the server sends authoritative changes to the client, while clients send high-level commands to the server for validation. In a **Distributed P2P** topology, each agent sends their local changes to all other peers, and conflicts are resolved using strategies like Last-Write-Wins.
 
 ## 2. Domains
 
@@ -41,23 +35,11 @@ Glom uses an NTP-inspired handshake to calculate round-trip time and clock offse
 
 ## 5. Prediction and Reconciliation
 
-Glom supports predicted simulations with corrections.
-
-### Snapshots
-A snapshot for a tick represents the world state at the start of that tick. This allows the simulation to roll back, apply authoritative changes, and re-simulate to catch up.
-
-### Optimistic Spawning
-Clients can instantly spawn entities in their own domain. The server or other peers will receive these events later.
-
-### Reconciliation Loop
-When a client receives state that differs from its prediction, it rewinds to the tick of the discrepancy, applies the correction, and fast-forwards by re-simulating up to the current tick.
+Glom supports predicted simulations with corrections. **Snapshots** for a tick represent the world state at the start of that tick, allowing the simulation to roll back, apply authoritative changes, and re-simulate to catch up. This enables **Optimistic Spawning**, where clients can instantly spawn entities in their own domain while the server or other peers receive these events later. If a client receives state that differs from its prediction, the **Reconciliation Loop** rewinds to the tick of the discrepancy, applies the correction, and fast-forwards by re-simulating up to the current tick.
 
 ## 6. Predictive Shadowing
 
-When simulation logic is identical on client and server, entities are often spawned by systems. In these cases, we let the server define the permanent ID.
-
-### Transient Entities
-When a client predicts a spawn it doesn't own, it uses a temporary ID in a reserved transient domain. It tags the entity with a key derived from the intent tick. When the server's version arrives with the same key, the client swaps the transient ID for the server's ID while keeping the component data.
+When simulation logic is identical on client and server, entities are often spawned by systems. In these cases, we let the server define the permanent ID. **Transient Entities** are used when a client predicts a spawn it doesn't own; it uses a temporary ID in a reserved transient domain and tags the entity with a key derived from the intent tick. When the server's version arrives with the same key, the client swaps the transient ID for the server's ID while keeping the component data.
 
 ## 7. Custom Protocol
 

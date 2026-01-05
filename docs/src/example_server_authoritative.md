@@ -8,12 +8,10 @@ The simulation below runs both a "Server" world and a "Client" world. The client
 
 ### Key Concepts
 
-- **Command Recording**: The client records move commands instead of directly modifying state.
-- **Client Prediction**: The client applies commands immediately to its local world for zero-latency feedback.
-- **Rollback & Reconciliation**: When server transactions arrive, the client rolls back its local history and re-simulates to ensure it matches the server's authority.
-- **Lag Compensation**: The server handles commands based on the tick they were issued by the client.
+The example client records movement commands instead of directly modifying state. With **Client Prediction**, these commands are applied immediately to the local world for zero-latency feedback. When server transactions eventually arrive, **Rollback & Reconciliation** allows the client to roll back its local history and re-simulate to match the server's authority. Additionally, **Lag Compensation** ensures the server handles commands based on the specific tick they were issued by the client.
 
 ### Controls
-- **Movement**: Use `W`, `A`, `S`, `D` to move.
-- **Action**: Use `Space` to emit a pulse (spawned on server).
+
+Use the `W`, `A`, `S`, and `D` keys to move. You can also predictively spawn an entity by pressing `Space`.
+
 

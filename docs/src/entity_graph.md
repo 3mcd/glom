@@ -8,10 +8,7 @@ An Archetype is a unique combination of component types. It's represented as a `
 
 ## Graph Structure
 
-The graph is a Directed Acyclic Graph. Nodes are linked based on component inclusion.
-
-- **Specialization**: Adding a component moves to a node with more components.
-- **Generalization**: Removing a component moves to a node with fewer components.
+The entity graph is directed and acyclic. Nodes are linked based on component inclusion. When you add a component to an entity, it moves towards a more specialized node with more components. Conversely, removing a component moves the entity toward a more generalized node with fewer components.
 
 ```mermaid
 graph TD

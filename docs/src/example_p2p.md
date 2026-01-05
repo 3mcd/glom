@@ -8,11 +8,9 @@ Two independent Glom worlds are running in the same page, simulating two separat
 
 ### Key Concepts
 
-- **Distributed Domain IDs**: Each peer has its own domain ID (1 and 2), preventing ID collisions.
-- **Bi-directional Replication**: Transactions recorded on one peer are applied to the other.
-- **Conflict Resolution**: Uses Glom's built-in reconciliation to handle out-of-order state updates.
+Each peer is assigned a unique ID (1 or 2) to prevent entity ID collisions across the network. Bi-directional replication ensures that any transactions recorded on one peer are immediately applied to the other. The example uses Glom's built-in reconciliation systems to handle state updates that arrive out of order.
 
 ### Controls
-- **Blue Square (Peer A)**: Use `W`, `A`, `S`, `D` to move.
-- **Red Square (Peer B)**: Use `Arrow Keys` to move.
+
+To control the blue square (Peer A), use the `W`, `A`, `S`, and `D` keys. For the red square (Peer B), use the arrow keys to move around the canvas.
 
