@@ -1,8 +1,10 @@
 # Introduction
 
-Glom is an Entity-Component System written in TypeScript. It's <span class="text-examples">c</span><span class="text-guides">o</span><span class="text-general">o</span><span class="text-reference">l</span> because of its testable systems, entity relationships, networking utilities, and build-time optimizer.
+Glom is an Entity-Component System written in TypeScript. It aims to be a fast, networkable, and testable foundation for games with dynamic needs.
 
-<span class="text-general">Systems</span> are functions. Testing them is like testing any other function.
+## Features
+
+<span class="text-guides">**Systems**</span> are just functions, so they're familiar to write and test.
 
 ```typescript
 const movement = (q: All<Read<Pos>, Write<Vel>>) => {
@@ -12,29 +14,24 @@ const movement = (q: All<Read<Pos>, Write<Vel>>) => {
   }
 }
 
-// in test
-const data = [
-  [{x: 0, y: 1}, {x: 1, y: 1}]
-]
+// in a test
+const pos = {x: 0, y: 1}
+const vel = {x: 1, y: 1}
 
-movement(data)
+movement([[pos, vel]])
 
-expect(data).toEqual([
-  [{x: 1, y: 2}, {x: 1, y: 1}]
-])
+expect(pos).toEqual({x: 1, y: 2})
 ```
 
-<span class="text-guides">Entity relationships</span> model hierarchies and graphs. Relationships are represented as components.
+<span class="text-guides">**Entity relationships**</span> help you model hierarchies and graphs.
 
 ```typescript
 const Contact = define_relation()
 
-const collide = (q: All<Entity, Read<Pos>>, spawn: Spawn<Contact>) => {
-  for (const [a, pa] of q) {
-    for (const [b, pb] of q) {
-      if (intersects(pa, pb)) {
-        spawn(a, Contact(b))
-      }
+const collide = (query: All<Entity, Read<Pos>>, spawn: Spawn<Contact>) => {
+  for (const [a, a_pos] of query) {
+    for (const [b, b_pos] of query) {
+      if (intersects(a_pos, b_pos)) spawn(a, Contact(b))
     }
   }
 }
@@ -47,25 +44,25 @@ const damage = (query: All<Write<Health>, Read<Contact>>, poof: Despawn) => {
 }
 ```
 
-<span class="text-reference">Networking utilities</span> are mix-and-match systems used to replicate and reconcile state between worlds.
+<span class="text-guides">**Networking utilities**</span> are components and systems you can mix-and-match to replicate worlds.
 
 ```typescript
 // built-in systems for reconciliation
-add_system(client, glom.perform_rollback)
-add_system(client, glom.apply_remote_transactions)
-add_system(client, glom.advance_world_tick)
+add_system(schedule, glom.perform_rollback)
+add_system(schedule, glom.apply_remote_transactions)
+add_system(schedule, glom.advance_world_tick)
 
 // tag entities for sync
 add_component(world, player, Replicated)
 ```
 
-<span class="text-examples">The optimizer</span> is a build-time typescript transformer that injects system dependencies and inlines query loops.
+The <span class="text-guides">**optimizer**</span> is a TypeScript transformer that injects system dependencies and inlines query loops.
 
 ```typescript
 // @glom/transformer rewrites:
 for (const [pos, vel] of query) { ... }
 
-// Into while loops:
+// into fast while loops:
 let i = 0
 while (i < count) {
   const pos = pos_store[i]
@@ -75,7 +72,7 @@ while (i < count) {
 
 ## Getting Started
 
-Check out the links in the header to learn more about the different components of Glom.
+Check out the links in the header to learn more, or hop straight to [Getting Started](./getting_started) to get up and running with Glom.
 
 
 

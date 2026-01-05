@@ -22,7 +22,7 @@ The `lo` bits are a unique identifier within a domain. New entities are assigned
 
 ## HI: Domain ID (Provenance)
 
-The `hi` bits identify the origin of the entity. The `domain_id` allows you to track which agent created which entity in multi-agent systems. This ensures conflict avoidance, as different agents can create entities at the same time without their IDs colliding. This addressing scheme supports a capacity of up to 2,048 unique domains.
+The `hi` bits identify the origin of the entity. The `domain_id` allows users to track which agent created which entity in multi-agent systems. This ensures conflict avoidance, as different agents can create entities at the same time without their IDs colliding. This addressing scheme supports a capacity of up to 2,048 unique domains.
 
 ## Why 31 Bits?
 

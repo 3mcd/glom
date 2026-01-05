@@ -16,8 +16,6 @@ export type {Add, Despawn, Remove, Spawn}
 
 export type SystemArgument =
   | AnyAll
-  | In<AnyAll>
-  | Out<AnyAll>
   | Read<ComponentLike>
   | Write<ComponentLike>
   | Has<ComponentLike>

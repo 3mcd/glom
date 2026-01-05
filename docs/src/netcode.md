@@ -4,12 +4,6 @@
 
 This guide covers how Glom handles networking and replication.
 
-## Design Philosophy
-
-Glom provides building blocks that you can combine for different networking needs.
-
-Most of these tools are part of the ECS. Things like user inputs are components and systems. Some utilities, like the fixed timestep logic, are standalone because they are useful outside of the ECS.
-
 ## 1. Topologies
 
 Glom is designed for both server-authoritative and P2P setups. The server sends authoritative changes to the client in a server-authoritative topology, while clients send high-level commands to the server for validation. Each agent sends their local changes to all other peers in a distributed P2P topology, and conflicts are resolved using strategies like Last-Write-Wins.
@@ -57,4 +51,4 @@ Networking systems are integrated into your schedules. We provide groups for rec
 
 ## 10. Selective Replication
 
-You can control which entities are synced using the `Replicated` tag.
+Users can control which entities are synced using the `Replicated` tag.

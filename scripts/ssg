@@ -167,7 +167,7 @@ render_html_file() {
 		if (filename ~ /^(index)\.(md|html)$/) section = "section-general introduction-page"
 		else if (filename ~ /^(glossary)\.(md|html)$/) section = "section-general"
 		else if (filename ~ /^(getting_started|reactivity|relationships|ordering_logic)\.(md|html)$/) section = "section-guides"
-		else if (filename ~ /^(component_storage|entity_graph|entity_provenance|entity_registry|NETCODE)\.(md|html)$/) section = "section-reference"
+		else if (filename ~ /^(component_storage|entity_graph|entity_provenance|entity_registry|netcode)\.(md|html)$/) section = "section-reference"
 		else if (filename ~ /^example_.*\.(md|html)$/) section = "section-examples"
 
 		n = split(ENVIRON["HEADER"], header, /\n/)

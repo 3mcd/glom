@@ -58,7 +58,7 @@ default defineConfig({
 
 This section briefly describes the building blocks of an Entity-Component System.
 
-Entities are simple integer IDs that serve as labels to group data together. They don't contain any logic or data themselves; instead, they act as stable reference points for various components. These components are plain data objects that represent a specific aspect of an entity, such as its position, health, or a player tag.
+Entities are simple integer IDs that serve as labels to group data together. They don't contain any logic or data themselves; instead, they act as a pointer to a set of component instances. A component instance is a plain value that represents a specific aspect of an entity, such as its position, health, or a player tag.
 
 The logic of your application is contained within systems, which are functions that operate on entities matching specific component criteria. A movement system might update the position of every entity that has both a position and a velocity component, for example. All of these entities and components are managed by the world, the central container that your systems run logic against.
 
@@ -105,7 +105,7 @@ The domain ID is an integer that helps Glom manage entity creation in networked 
 
 The schema is a list of the components you plan to use. Glom needs this to pre-allocate storage for those components and to ensure they're identified the same way across different worlds.
 
-Import `make_world` and provide it with a unique domain ID and your component schema to set up a `World`.
+Create a world by calling `make_world` with a unique ID and an array of components it should understand.
 
 ```typescript
 import { make_world } from "@glom/ecs"
@@ -116,7 +116,7 @@ const world = make_world(0, schema) // 0 is the domain ID
 
 ## 5. Writing Systems (with Transformer)
 
-Systems are where you implement your logic. They are functions that receive entity queries as parameters. Declaring dependencies like `Read<Position>` allows the scheduler to determine execution order and optimize storage access.
+Systems are where you implement your logic. They are functions that receive entity queries as parameters. Declaring dependencies like `Read<Position>` allows the scheduler to determine execution order.
 
 Most systems are functions that request a query and iterate over the results.
 

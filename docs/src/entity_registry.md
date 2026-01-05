@@ -16,7 +16,7 @@ Agents can spawn entities immediately in their local world because each has its 
 
 ## Determinism and Rollback
 
-ID allocation is deterministic. The local ID increments within a domain. If you reset the world and run the same spawning logic, you will get the same sequence of IDs.
+ID allocation is deterministic. The local ID increments within a domain. If a user resets the world and runs the same spawning logic, the system generates the same sequence of IDs.
 
 Each domain also tracks an operation sequence number (`op_seq`). This helps remote agents verify that they have received all changes in the correct order.
 

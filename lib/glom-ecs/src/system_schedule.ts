@@ -29,7 +29,7 @@ enum SystemSchedulePhase {
 
 export type SystemSchedule<Requirements extends ComponentLike = never> = {
   __requirements?: (req: Requirements) => void
-  execs: SystemExecutor[]
+  execs: SystemExecutor<any>[]
   phase: SystemSchedulePhase
 }
 
@@ -45,25 +45,25 @@ type ExtractComponent<T> = T extends {readonly __read: infer C}
           ? C
           : never
 
-type SystemResources<T extends SystemArgument[]> = {
+type SystemResources<T extends any[]> = {
   [K in keyof T]: ExtractComponent<T[K]>
 }[number]
 
-export function add_system<R extends ComponentLike, T extends SystemArgument[]>(
+export function add_system<R extends ComponentLike, T extends any[]>(
   schedule: SystemSchedule<R>,
-  system: System<T>,
+  system: (...args: T) => void,
 ): asserts schedule is SystemSchedule<R | SystemResources<T>> {
   const descriptor = Reflect.get(system, system_descriptor_key)
   if (!descriptor) {
     return
   }
-  const executor = make_system_executor(system, descriptor)
-  schedule.execs.push(executor as unknown as SystemExecutor)
+  const executor = make_system_executor(system as any, descriptor)
+  schedule.execs.push(executor as any)
 }
 
 export function make_system_schedule(): SystemSchedule<never> {
   return {
-    execs: [] as SystemExecutor[],
+    execs: [] as SystemExecutor<any>[],
     phase: SystemSchedulePhase.Setup,
   }
 }
