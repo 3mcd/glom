@@ -1,8 +1,8 @@
 # Glom
 
-Glom is an ECS for TypeScript. It's <span class="text-examples">c</span><span class="text-guides">o</span><span class="text-general">o</span><span class="text-reference">l</span> because it includes systems, entity relationships, networking utilities, and a build-time optimizer.
+Glom is an ECS for TypeScript. It's <span class="text-examples">c</span><span class="text-guides">o</span><span class="text-general">o</span><span class="text-reference">l</span> because it includes testable systems, entity relationships, networking utilities, and a build-time optimizer.
 
-<span class="text-general">Systems</span> are defined as functions. Glom uses TypeScript types to determine dependencies and handle reactivity.
+<span class="text-general">Systems</span> are plain functions, so testing them is like testing any other function.
 
 ```typescript
 const movement = (q: All<Read<Pos>, Write<Vel>>) => {

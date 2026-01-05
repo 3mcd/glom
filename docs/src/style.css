@@ -1,3 +1,7 @@
+/* ==========================================================================
+   Variables & Root
+   ========================================================================== */
+
 :root {
   --bg: #0f0f0f;
   --text: #d6d6d6;
@@ -38,6 +42,10 @@
   color: var(--color-examples);
 }
 
+/* ==========================================================================
+   Fonts
+   ========================================================================== */
+
 @font-face {
   font-family: "Aporetic Sans Mono";
   src: url("fonts/aporetic-sans-mono-normalregularupright.ttf")
@@ -68,6 +76,10 @@
   font-style: italic;
 }
 
+/* ==========================================================================
+   Base Layout & Typography
+   ========================================================================== */
+
 * {
   box-sizing: border-box;
 }
@@ -85,126 +97,12 @@ body {
   min-height: 100vh;
 }
 
-/* Layout Styling */
 .content {
   padding: 1.5rem 3rem;
   max-width: 900px;
   margin: 0 auto;
   flex-grow: 1;
   width: 100%;
-}
-
-/* Info Header Box */
-.info-header {
-  font-family: var(--font-mono);
-  border: 2px solid var(--border);
-  background: var(--bg);
-}
-
-.info-header .row {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.5rem 1rem;
-}
-
-.info-header .row.top {
-  border-bottom: 2px solid var(--border);
-}
-
-/* TOC Styling */
-.toc {
-  margin-bottom: 1.5rem;
-  border: 2px solid var(--border);
-  border-top: none;
-}
-
-.toc-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 0;
-  font-family: var(--font-mono);
-  table-layout: fixed;
-}
-
-.toc-table th,
-.toc-table td {
-  border: 2px solid var(--border);
-  padding: 0.5rem 1rem;
-  text-align: left;
-  vertical-align: top;
-}
-
-.toc-table th {
-  background: #1a1a1a;
-  color: var(--text);
-}
-
-.toc-table th:nth-child(1) {
-  color: var(--color-general);
-} /* Blue */
-.toc-table th:nth-child(2) {
-  color: var(--color-guides);
-} /* Green */
-.toc-table th:nth-child(3) {
-  color: var(--color-reference);
-} /* Purple */
-.toc-table th:nth-child(4) {
-  color: var(--color-examples);
-} /* Salmon */
-
-/* Remove outer table borders since .toc has them */
-.toc-table tr:first-child th {
-  border-top: none;
-}
-
-.toc-table td:first-child,
-.toc-table th:first-child {
-  border-left: none;
-}
-
-.toc-table td:last-child,
-.toc-table th:last-child {
-  border-right: none;
-}
-
-.toc-table tr:last-child td {
-  border-bottom: none;
-}
-
-.toc-table ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.toc-table li {
-  margin-bottom: 0.5rem;
-}
-
-.toc-table a {
-  text-decoration: none;
-  color: var(--text);
-  transition: color 0.1s ease;
-}
-
-.toc-table td:nth-child(1) li:hover a {
-  color: var(--color-general);
-}
-
-.toc-table td:nth-child(2) li:hover a {
-  color: var(--color-guides);
-}
-
-.toc-table td:nth-child(3) li:hover a {
-  color: var(--color-reference);
-}
-
-.toc-table td:nth-child(4) li:hover a {
-  color: var(--color-examples);
-}
-
-.toc-table a:hover {
-  text-decoration: none;
 }
 
 h1,
@@ -231,20 +129,6 @@ p {
   margin-bottom: 1rem;
 }
 
-dl {
-  margin-top: 1rem;
-}
-
-dd {
-  margin-left: 1rem;
-  margin-bottom: 1rem;
-}
-
-dt {
-  font-weight: bold;
-  margin-top: 1rem;
-}
-
 a {
   color: var(--text);
   text-decoration: underline;
@@ -255,17 +139,183 @@ a.sourceLine {
   text-decoration: none;
 }
 
-/* Boxed Elements */
+hr {
+  border: 0;
+  border-top: 2px solid var(--border);
+  margin: 1.5rem 0;
+}
+
+/* ==========================================================================
+   Navigation (TOC)
+   ========================================================================== */
+
+.toc {
+  margin-bottom: 1.5rem;
+  border: 2px solid var(--border);
+  border-top: none;
+}
+
+.toc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+  font-family: var(--font-mono);
+  table-layout: fixed;
+}
+
+.toc-table th,
+.toc-table td {
+  border: 2px solid var(--border);
+  padding: 0.5rem 1rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.toc-table th {
+  color: var(--text);
+}
+
+.toc-table th:nth-child(1) {
+  color: var(--color-general);
+}
+.toc-table th:nth-child(2) {
+  color: var(--color-guides);
+}
+.toc-table th:nth-child(3) {
+  color: var(--color-reference);
+}
+.toc-table th:nth-child(4) {
+  color: var(--color-examples);
+}
+
+/* Remove outer table borders since .toc container has them */
+.toc-table tr:first-child th {
+  border-top: none;
+}
+.toc-table td:first-child,
+.toc-table th:first-child {
+  border-left: none;
+}
+.toc-table td:last-child,
+.toc-table th:last-child {
+  border-right: none;
+}
+.toc-table tr:last-child td {
+  border-bottom: none;
+}
+
+.toc-table ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.toc-table li {
+  margin-bottom: 0.5rem;
+}
+
+.toc-table a {
+  text-decoration: none;
+  color: var(--text);
+  transition: color 0.1s ease;
+}
+
+.toc-table td:nth-child(1) li:hover a {
+  color: var(--color-general);
+}
+.toc-table td:nth-child(2) li:hover a {
+  color: var(--color-guides);
+}
+.toc-table td:nth-child(3) li:hover a {
+  color: var(--color-reference);
+}
+.toc-table td:nth-child(4) li:hover a {
+  color: var(--color-examples);
+}
+
+.toc-table a:hover {
+  text-decoration: none;
+}
+
+/* ==========================================================================
+   Other Components (Header & Footer)
+   ========================================================================== */
+
+.info-header {
+  font-family: var(--font-mono);
+  border: 2px solid var(--border);
+  background: var(--bg);
+}
+
+.info-header .row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+}
+
+.info-header .row.top {
+  border-bottom: 2px solid var(--border);
+}
+
+footer {
+  padding: 1.5rem;
+  text-align: center;
+  font-family: var(--font-mono);
+}
+
+/* ==========================================================================
+   Definitions (DL, DT, DD)
+   ========================================================================== */
+
+dl {
+  margin-top: 1rem;
+}
+
+dt {
+  font-weight: bold;
+  margin-top: 1rem;
+}
+
+dd {
+  margin-left: 1rem;
+  margin-bottom: 1rem;
+}
+
+/* ==========================================================================
+   Code & Media Elements
+   ========================================================================== */
+
 pre,
 .mermaid {
   padding: 1.5rem;
   overflow-x: auto;
   background: transparent;
   margin: 1.5rem 0;
-  line-height: 1rem;
+  line-height: 1.4rem;
 }
 
-/* Subtle Scrollbars for Code/Diagrams */
+code {
+  font-family: var(--font-mono);
+  background: #222;
+  padding: 0;
+}
+
+pre code {
+  background: transparent;
+  padding: 0;
+}
+
+/* Remove underlines from links inside code blocks (Pandoc line anchors) */
+pre a {
+  text-decoration: none;
+}
+
+.mermaid {
+  display: flex;
+  justify-content: center;
+}
+
+/* Subtle Scrollbars */
 pre::-webkit-scrollbar,
 .mermaid::-webkit-scrollbar {
   height: 0.5rem;
@@ -293,39 +343,6 @@ pre,
   scrollbar-color: #444 #222;
 }
 
-.mermaid {
-  display: flex;
-  justify-content: center;
-}
-
-code {
-  font-family: var(--font-mono);
-  background: #222;
-  padding: 0;
-}
-
-pre code {
-  background: transparent;
-  padding: 0;
-}
-
-/* Remove underlines from links inside code blocks (Pandoc line anchors) */
-pre a {
-  text-decoration: none;
-}
-
-hr {
-  border: 0;
-  border-top: 2px solid var(--border);
-  margin: 1.5rem 0;
-}
-
-footer {
-  padding: 1.5rem;
-  text-align: center;
-  font-family: var(--font-mono);
-}
-
 .example {
   position: relative;
   padding-bottom: 56.25%; /* 16:9 */
@@ -343,7 +360,10 @@ footer {
   border: none;
 }
 
-/* Syntax Highlighting - Sema Chroma Theme Mapping */
+/* ==========================================================================
+   Syntax Highlighting - Sema Chroma Theme Mapping
+   ========================================================================== */
+
 code span.kw {
   color: #aed7f5;
 } /* Keyword */
