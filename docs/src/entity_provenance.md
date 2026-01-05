@@ -1,5 +1,7 @@
 # Entity Composition and Provenance
 
+**Problem:** Entities need to be uniquely identifiable across a network without the overhead of central coordination or large, heap-allocated identifiers.
+
 An `Entity` is a single 31-bit integer in Glom. It is composed of two parts: the local ID (lo bits) and the domain ID (hi bits).
 
 ## Bit Distribution

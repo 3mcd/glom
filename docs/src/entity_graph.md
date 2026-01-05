@@ -1,5 +1,7 @@
 # Entity Graph
 
+**Problem:** Searching through thousands of entities every frame to find those that match a specific set of components is inefficient and doesn't scale.
+
 The `EntityGraph` organizes entities based on their components. It uses an archetype-based approach, grouping entities with the same set of components into nodes.
 
 ## Archetypes

@@ -1,6 +1,8 @@
 # Component Storage
 
-Glom uses a universal storage model. All values for a component type are stored in one array in the `World` instead of storing component values inside entity objects.
+**Problem:** Storing state within heterogeneous entity objects prevents JavaScript engines from specializing functions and causes frequent "hidden class" transitions during simulation.
+
+Glom uses a universal storage model. All values for a component type are stored in one array in the `World`, indexed by entity ID, instead of storing data within entity objects.
 
 ## Entity Indexing
 
@@ -22,9 +24,9 @@ World
 
 ## Characteristics of this Model
 
-### Memory and GC
+### Memory and Optimization
 
-There is less work for the JavaScript garbage collector because the system uses arrays instead of many small objects. The layout of the component stores is stable, which helps engines optimize access.
+Storing data in homogenous arrays allows the engine to specialize loops and avoid the overhead of looking up properties on varying object shapes. The layout of components should be stable, which helps engines optimize access via hidden classes and code generation.
 
 ### Iteration
 

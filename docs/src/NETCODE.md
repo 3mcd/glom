@@ -1,5 +1,7 @@
 # Netcode
 
+**Problem:** Real-time networked applications must maintain a consistent state across multiple participants despite varying latency and out-of-order data arrival.
+
 This guide covers how Glom handles networking and replication.
 
 ## Design Philosophy

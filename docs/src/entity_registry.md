@@ -1,5 +1,7 @@
 # Entity Registry
 
+**Problem:** Coordinating entity creation across multiple agents in a distributed system often results in ID collisions or high-latency round trips to a central authority.
+
 The `EntityRegistry` manages entity allocation. It is designed so that entities can be created and destroyed across different nodes without ID collisions.
 
 ## Domains
