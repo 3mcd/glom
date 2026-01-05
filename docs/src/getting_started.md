@@ -1,12 +1,12 @@
 # Getting Started
 
-Glom is an ECS for TypeScript with built-in networking capabilities.
+Glom is an ECS for TypeScript with networking.
 
-For more information on how Glom handles synchronization and replication, see the [Netcode](NETCODE.html) documentation.
+For more information on how Glom handles synchronization and replication, see the [Netcode](NETCODE.html) guide.
 
 ## 1. Setting up the Transformer (Optional)
 
-While optional, the transformer is recommended as it allows you to write systems with a much cleaner syntax and optimizes query iteration by rewriting loops at build-time.
+The transformer is a build-time tool that rewrites query loops. It isn't required, but it makes systems easier to write and faster to run.
 
 ### For Bun
 If you're using Bun, use the `glomBunPlugin`:
@@ -36,7 +36,7 @@ export default defineConfig({
 
 ## 2. Defining Components
 
-Components are just data. Use `define_component` for data and `define_tag` for markers.
+Components are data structures. Use `define_component` for data and `define_tag` for markers.
 
 ```typescript
 import { define_component, define_tag } from "@glom/ecs";
@@ -48,7 +48,7 @@ export const IsPlayer = define_tag();
 
 ## 3. Setting up the World
 
-The `World` holds everything. You initialize it with a schema of your components.
+The `World` is the container for entities and components. You initialize it with a list of your components.
 
 ```typescript
 import { make_world } from "@glom/ecs";
@@ -59,7 +59,7 @@ const world = make_world(0, schema); // 0 is the domain ID
 
 ## 4. Writing Systems (with Transformer)
 
-With the transformer enabled, you can write systems as functions. The types you use for parameters tell the transformer how to build the loops.
+When using the transformer, systems are functions. The parameter types tell the transformer which components to query.
 
 ```typescript
 import { All, Write, Read } from "@glom/ecs";
@@ -77,7 +77,7 @@ export const movement_system = (
 
 ## 5. Scheduling and Running
 
-Add systems to a `SystemSchedule`. It sorts them based on component access (reads vs writes).
+Systems are added to a `SystemSchedule`. The schedule sorts them based on whether they read or write to components.
 
 ```typescript
 import { make_system_schedule, add_system, run_schedule } from "@glom/ecs";
@@ -85,13 +85,13 @@ import { make_system_schedule, add_system, run_schedule } from "@glom/ecs";
 const schedule = make_system_schedule();
 add_system(schedule, movement_system);
 
-// In the loop
+// In the main loop
 run_schedule(schedule, world);
 ```
 
 ## 6. Spawning Entities
 
-Spawn an entity and add data to it.
+Entities are created with `spawn`. You can add components to them during or after spawning.
 
 ```typescript
 import { spawn, add_component, world_flush_graph_changes } from "@glom/ecs";
@@ -101,13 +101,13 @@ add_component(world, player, Position, { x: 0, y: 0 });
 add_component(world, player, Velocity, { dx: 1, dy: 1 });
 add_component(world, player, IsPlayer);
 
-// Flush changes to make them available
+// Flush changes to make them available to queries
 world_flush_graph_changes(world);
 ```
 
 ## Appendix: Without the Transformer
 
-If you don't want to use a build step, you can define systems manually using `define_system`. This requires you to explicitly describe the parameters so the scheduler knows how to order them, and the loops won't be as heavily optimized.
+If you don't use the build step, you define systems manually with `define_system`. You have to explicitly describe the parameters so the scheduler can order them.
 
 ```typescript
 import { All, Write, Read, define_system } from "@glom/ecs";

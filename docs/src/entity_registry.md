@@ -1,22 +1,23 @@
-# Entity Registry and Distributed Spawning
+# Entity Registry
 
-The `EntityRegistry` is responsible for managing the allocation and tracking of all entities in the system. In a distributed or multi-agent environment (P2P or server-authoritative), it ensures that entities can be created and destroyed deterministically across all nodes without ID collisions.
+The `EntityRegistry` manages entity allocation. It is designed so that entities can be created and destroyed across different nodes without ID collisions.
 
-## Provenance-based Domains (Buckets)
+## Domains
 
-The registry is organized into discrete domains, often referred to as "buckets." Each domain corresponds to a unique provenance value, represented by the `hi` bits of an `Entity`. In a fully-connected topology, every agent maintains a bucket for themselves and one for every other remote agent they are connected to. This segregated allocation ensures that when an agent with provenance `hi=5` creates an entity, it is allocated from domain 5. Even if another agent creates an entity at the exact same time, there is no risk of collision because their entities will have different `hi` bits.
+The registry uses domains (or "buckets"). Each domain has a unique ID, which is the `hi` bits of an `Entity`.
+
+Every agent owns one domain. When an agent creates an entity, it uses its own domain ID. This prevents collisions because other agents use different domain IDs.
 
 ## Predictive Spawning
 
-One of the key features of the `EntityRegistry` is support for predictive spawning. Each agent acts as the owner of their own bucket, allowing them to spawn entities instantly in their local simulation without waiting for external acknowledgement. Because each agent has a dedicated ID space, remote agents can eventually receive these creation events and add the entity to their local representation of that agent's bucket, maintaining a consistent world state across the network.
+Because each agent has its own ID space, they can spawn entities immediately in their local world. Other agents will receive these events later and add the entity to their local copy of that domain.
 
-## Determinism, Rollback, and Rebase
+## Determinism and Rollback
 
-The registry is designed to support high-performance networking techniques like rollback and rebase through deterministic, atomic operations. Within a domain, the `entity_id` increments monotonically, which means resetting and re-running spawning logic will always produce the exact same sequence of IDs. Each domain also tracks a monotonic `op_seq` that increments with every local mutation, allowing remote agents to verify they have received all operations in the correct order.
+ID allocation is deterministic. Within a domain, the local ID increments. If you reset the world and run the same spawning logic, you will get the same sequence of IDs.
 
-Because an entity belongs to a specific domain for its entire lifecycle, rolling back one agent's simulation does not affect the ID allocation logic of others. This deterministic nature allows a local agent's predicted entity creations to be rebased onto the authoritative state without conflicts once they are confirmed by a server or peer.
+Each domain also tracks an operation sequence number (`op_seq`). This helps remote agents verify that they have received all changes in the correct order.
 
 ## Conflict Avoidance
 
-In a multi-agent system, conflicts usually arise from shared resources. The `EntityRegistry` avoids this by enforcing strict domain ownership where only the assigned agent allocates from a given domain. Every agent can see and track entities from all domains, but they only manage allocation for their own. The internal storage uses an efficient swap-and-pop strategy for removals, preserving the integrity of the remaining entities during high-frequency create/destroy cycles.
-
+Glom avoids conflicts by enforcing domain ownership. Only the assigned agent can allocate IDs from a domain. Other agents can see these entities but cannot create new ones in that space.

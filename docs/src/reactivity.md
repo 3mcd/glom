@@ -1,18 +1,18 @@
-# Reactivity Guide
+# Reactivity
 
-Systems usually run every frame, polling for entities that match a specific component signature. This is good for iteration.
+Systems usually run every frame and check for entities that match a query.
 
-However, some game features are event-driven: you might want to play a sound when a unit is created, or clean up a particle effect when a buff expires. Glom provides reactivity through `In` and `Out` query wrappers, allowing you to write systems that execute exactly when an entity enters or leaves a state.
+Sometimes you only want to do something when a state changes, like playing a sound when a unit is created or stopping an effect when a buff ends. Glom uses `In` and `Out` wrappers to handle this.
 
-## The Problem: State Changes vs. Polling
+## State Changes vs. Polling
 
-Imagine you are building a shield system. When an entity receives a `Shield` component, you want to add a `ShieldVFX` component to enable a visual shader. If you use a standard query, your system will run every frame for every shielded entity, repeatedly trying to add the component. You would then need to manually track whether the VFX is already present, adding boilerplate to your logic.
+If you want to add a `ShieldVFX` when an entity gets a `Shield`, a normal system would try to add the VFX every frame. You would have to check if the VFX is already there to avoid duplicates.
 
-Reactivity handles this by identifying which entities changed since the last time the system ran.
+Reactivity identifies which entities changed since the last time the system ran.
 
 ## Reacting to Component Additions
 
-To respond to a component being added, you wrap your query in the `In` type. In this example, when a `Shield` is added to an entity, we respond by adding a `ShieldVFX` component to enable its visual representation.
+Wrap your query in `In` to match entities that just started matching your criteria.
 
 ```typescript
 import { All, Read, In, Add, Entity, add_component, define_component } from "@glom/ecs"
@@ -20,7 +20,7 @@ import { All, Read, In, Add, Entity, add_component, define_component } from "@gl
 const Shield = define_component<{ power: number }>()
 const ShieldVFX = define_component<{ intensity: number }>()
 
-// This system only iterates over entities that just received a Shield
+// Runs only for entities that just received a Shield
 const on_shield_added = (
   added: In<Entity, Has<typeof Shield>>,
   add_vfx: Add<typeof ShieldVFX>
@@ -31,18 +31,18 @@ const on_shield_added = (
 }
 ```
 
-Because `added` is an `In` query, the loop only executes for entities that moved into the "has Shield" state in the current frame.
+The loop only runs for entities that moved into the "has Shield" state in the current frame.
 
 ## Reacting to Component Removal
 
-The mirror of `In` is `Out`. This matches entities that no longer meet your query's criteria—for example, because the `Shield` component was removed.
+`Out` matches entities that no longer meet your criteria.
 
-A key feature of `Out` queries is that the component data is still accessible in the loop. Glom provides the last known values of the removed components, which is useful for cleanup. In our shield example, we use the `Remove` argument to strip the VFX component when the shield expires.
+`Out` queries provide the last known values of the components. This is useful for cleanup logic.
 
 ```typescript
 import { Out, Remove, Entity } from "@glom/ecs"
 
-// This system runs when an entity loses its Shield
+// Runs when an entity loses its Shield
 const on_shield_removed = (
   removed: Out<Entity, Has<typeof Shield>>,
   remove_vfx: Remove<typeof ShieldVFX>
@@ -55,9 +55,7 @@ const on_shield_removed = (
 
 ## Managing Related Entities
 
-Reactivity is also used to manage the lifecycle of entirely separate entities. In this example, when a player starts attacking, we spawn a laser entity. When they stop, we despawn that specific laser.
-
-We can use **Relationships** to link the player to their laser, making it easy to find and cleanup.
+Reactivity can also manage separate entities. In this example, we spawn a laser when a player attacks and despawn it when they stop.
 
 ```typescript
 import { In, Out, Rel, Spawn, Despawn, Entity, despawn, add_component, define_tag, define_relation } from "@glom/ecs"
@@ -66,7 +64,7 @@ const Attacking = define_tag()
 const LaserBeam = define_tag()
 const HasBeam = define_relation()
 
-// When a player starts attacking, spawn a beam and link it
+// Spawn a beam and link it
 const on_attack_started = (
   added: In<Entity, typeof Attacking>,
   spawn: Spawn<Beam>
@@ -77,7 +75,7 @@ const on_attack_started = (
   }
 }
 
-// When the attack stops, find the beam and despawn it
+// Find the beam and despawn it
 const on_attack_stopped = (
   removed: Out<Rel<typeof HasBeam, Entity>, typeof Attacking>,
   despawn: Despawn
@@ -88,24 +86,24 @@ const on_attack_stopped = (
 }
 ```
 
-In the `on_attack_stopped` example, the `Out` query captures the state of the player exactly as it was before they stopped attacking. This allows us to resolve the `HasBeam` relation to get the `beamEntity` ID, even though the `Attacking` state is already gone.
+In `on_attack_stopped`, the `Out` query provides the state of the player as it was before the attack stopped. This lets us find the `HasBeam` relation even though the `Attacking` tag is gone.
 
-## How it Works
+## How it works
 
-Glom implements reactivity through an incremental, event-driven model integrated with the Entity Graph. Reactive queries subscribe to changes in the graph that match their requirements. When an entity's component composition changes, the graph triggers updates for the affected queries.
+Reactivity is built into the Entity Graph. Queries subscribe to changes in the graph. When an entity moves between nodes, the graph notifies the queries.
 
-Each query tracks the entities that have entered or left its criteria since the query last ran. These changes are processed during the system execution and then cleared, ensuring that only changes occurring between runs are captured.
+Each query keeps track of which entities entered or left its scope. These lists are cleared after the system runs.
 
 ## Manual Definition
 
-If you are not using the transformer, you can define these reactive systems by explicitly providing the `in` or `out` descriptors.
+If you aren't using the transformer, you provide the `in` or `out` descriptors in the system metadata.
 
 ```typescript
 import { define_system, In, Read } from "@glom/ecs"
 
 const on_position_added = define_system((added: In<Read<typeof Position>>) => {
   for (const [pos] of added) {
-    // Your logic here
+    // ...
   }
 }, {
   params: [

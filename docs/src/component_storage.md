@@ -1,56 +1,59 @@
-# Component Storage Architecture
+# Component Storage
 
-Glom ECS uses a **Universal Component Storage (SOA)** model. Instead of storing component values inside objects tied to each entity (AOS), all values for a specific component type are stored in a single, large array at the `World` level.
+Glom uses a universal storage model. Instead of storing component values inside entity objects, all values for a component type are stored in one array in the `World`.
 
-## Entity Indexing and Replication
+## Entity Indexing
 
-To support multi-agent systems and replication without ID collisions, the `World` does not use the raw 31-bit `Entity` ID (or its `lo` bits) to directly index component arrays. Instead, it uses a **Dense Local Mapping**.
+To support networking and multiple agents, the `World` does not use raw entity IDs to index arrays. Instead, it uses a local mapping.
 
-### How it works:
+### How it works
 
-The 31-bit integer remains the unique, global identifier for an entity across the network. When the `World` first encounters an entity, whether through a local spawn or remote replication, it assigns it a local, monotonically increasing index. A `SparseMap` called `entity_to_index` stores the relationship between this global ID and the local index. This allows two different agents to create entities with the same `lo` bits and have them coexist in the same world without their component values overwriting each other.
+Entity IDs are 31-bit integers that are unique across the network. When a `World` sees an entity, it assigns it a local index. A `SparseMap` called `entity_to_index` stores this mapping. This prevents collisions when different agents create entities.
 
 ```text
 World
-├── entity_to_index (SparseMap)
-│   ├── [Entity: hi=1, lo=100] ──> Index: 0
-│   └── [Entity: hi=2, lo=100] ──> Index: 1
-└── storage (Array)
-    ├── [ComponentID: 10] ── [Value(A), Value(B), ...] (Array)
-    └── [ComponentID: 11] ── [Value(A), Value(B), ...] (Array)
+├── entity_to_index
+│   ├── [Entity: 1] ──> Index: 0
+│   └── [Entity: 2] ──> Index: 1
+└── storage
+    ├── [Component A] ── [Value, Value, ...]
+    └── [Component B] ── [Value, Value, ...]
 ```
 
-## Advantages of this Model
+## Characteristics of this Model
 
-### 1. Memory and GC Efficiency
-By using a few large arrays instead of millions of small component objects, we significantly reduce the overhead of the JavaScript engine's garbage collector. The "shape" of the component stores is stable, allowing engines like V8 to optimize access. We also avoid the 40-80 byte overhead associated with creating a new object for every entity-component pair.
+### Memory and GC
 
-### 2. High-Performance Iteration
-When a system runs, it can grab references to the relevant component stores once and then perform direct indexed lookups within its inner loop.
+By using arrays instead of many small objects, there is less work for the JavaScript garbage collector. The layout of the component stores is stable, which helps engines optimize access.
+
+### Iteration
+
+Systems get references to component stores once and use direct indexed lookups in their loops.
 
 ```typescript
-// Conceptual optimized system loop
-const pos_store = world.components.storage[Position.id];
-const vel_store = world.components.storage[Velocity.id];
-const mapping = world.index.entity_to_index.sparse;
+// Conceptual optimized loop
+const pos_store = world.components.storage[Position.id]
+const vel_store = world.components.storage[Velocity.id]
+const mapping = world.index.entity_to_index.sparse
 
 for (const id of entities) {
-  const idx = mapping[id]; // Direct lookup of local index
-  const pos = pos_store[idx];
-  const vel = vel_store[idx];
-  pos.x += vel.x;
+  const idx = mapping[id]
+  const pos = pos_store[idx]
+  const vel = vel_store[idx]
+  pos.x += vel.x
 }
 ```
 
-### 3. Zero-Copy Archetype Migration
-When an entity's archetype changes (e.g., adding a component), its data stays exactly where it is in the universal storage. Only the `EntityGraph` pointers are updated. This is crucial for **Continuous Predicted Simulation**, where entities frequently change state due to local prediction or server corrections.
+### Archetype Migration
 
-### 4. Direct Indexing (SMI Optimization)
-By using a local dense index, we keep the array indices contiguous and low. Modern JS engines can treat these arrays as densely packed "Fast Arrays" indexed by SMIs (Small Integers), which is the most performant way to access data in JavaScript.
+When an entity's archetype changes (like adding a component), its data stays in the same place in storage. Only the pointers in the `EntityGraph` are updated.
+
+### Direct Indexing
+
+Using a local index keeps array indices low and contiguous. This allows engines to use optimized array types for better performance.
 
 ## Accessing Data
 
--   `get_component_value(world, entity, component)`: O(1) lookup of a value.
--   `set_component_value(world, entity, component, value)`: O(1) assignment.
--   `get_component_store(world, component)`: Returns the underlying array for a component, ideal for bulk processing or transformer-based inlining.
-
+- `get_component_value(world, entity, component)`: Look up a value.
+- `set_component_value(world, entity, component, value)`: Assign a value.
+- `get_component_store(world, component)`: Get the underlying array for a component.

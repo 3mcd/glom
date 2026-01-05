@@ -3,6 +3,39 @@
   --text: #d6d6d6;
   --border: #585858;
   --font-mono: "Aporetic Sans Mono", "SFMono-Regular", Consolas, monospace;
+
+  /* Section Colors */
+  --color-general: #aed7f5;
+  --color-guides: #d6d4a6;
+  --color-reference: #e6a4df;
+  --color-examples: #fda293;
+  --section-color: var(--border);
+}
+
+.section-general {
+  --section-color: var(--color-general);
+}
+.section-guides {
+  --section-color: var(--color-guides);
+}
+.section-reference {
+  --section-color: var(--color-reference);
+}
+.section-examples {
+  --section-color: var(--color-examples);
+}
+
+.text-general {
+  color: var(--color-general);
+}
+.text-guides {
+  color: var(--color-guides);
+}
+.text-reference {
+  color: var(--color-reference);
+}
+.text-examples {
+  color: var(--color-examples);
 }
 
 @font-face {
@@ -45,8 +78,8 @@ body {
   font-family: var(--font-mono);
   background: var(--bg);
   color: var(--text);
-  line-height: 1.6;
-  font-size: 18px;
+  line-height: 1.5rem;
+  font-size: 1rem;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -54,7 +87,7 @@ body {
 
 /* Layout Styling */
 .content {
-  padding: 2rem 4rem;
+  padding: 1.5rem 3rem;
   max-width: 900px;
   margin: 0 auto;
   flex-grow: 1;
@@ -65,14 +98,13 @@ body {
 .info-header {
   font-family: var(--font-mono);
   border: 2px solid var(--border);
-  font-size: 0.8rem;
   background: var(--bg);
 }
 
 .info-header .row {
   display: flex;
   justify-content: space-between;
-  padding: 1rem;
+  padding: 0.5rem 1rem;
 }
 
 .info-header .row.top {
@@ -81,7 +113,7 @@ body {
 
 /* TOC Styling */
 .toc {
-  margin-bottom: 3rem;
+  margin-bottom: 1.5rem;
   border: 2px solid var(--border);
   border-top: none;
 }
@@ -91,22 +123,34 @@ body {
   border-collapse: collapse;
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.9rem;
+  table-layout: fixed;
 }
 
 .toc-table th,
 .toc-table td {
   border: 2px solid var(--border);
-  padding: 1rem;
+  padding: 0.5rem 1rem;
   text-align: left;
   vertical-align: top;
 }
 
 .toc-table th {
   background: #1a1a1a;
-  letter-spacing: 0.5px;
   color: var(--text);
 }
+
+.toc-table th:nth-child(1) {
+  color: var(--color-general);
+} /* Blue */
+.toc-table th:nth-child(2) {
+  color: var(--color-guides);
+} /* Green */
+.toc-table th:nth-child(3) {
+  color: var(--color-reference);
+} /* Purple */
+.toc-table th:nth-child(4) {
+  color: var(--color-examples);
+} /* Salmon */
 
 /* Remove outer table borders since .toc has them */
 .toc-table tr:first-child th {
@@ -137,42 +181,68 @@ body {
   margin-bottom: 0.5rem;
 }
 
-.toc-table li::before {
-  content: "■ ";
-  font-size: 0.8rem;
-  vertical-align: middle;
-  color: var(--border);
-}
-
 .toc-table a {
   text-decoration: none;
   color: var(--text);
+  transition: color 0.1s ease;
+}
+
+.toc-table td:nth-child(1) li:hover a {
+  color: var(--color-general);
+}
+
+.toc-table td:nth-child(2) li:hover a {
+  color: var(--color-guides);
+}
+
+.toc-table td:nth-child(3) li:hover a {
+  color: var(--color-reference);
+}
+
+.toc-table td:nth-child(4) li:hover a {
+  color: var(--color-examples);
 }
 
 .toc-table a:hover {
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 h1,
-h2,
+h2 {
+  font-family: var(--font-mono);
+  padding-bottom: 0.5rem;
+  margin-top: 2.5rem;
+  font-size: 1rem;
+  border-bottom: 2px solid var(--border);
+}
+
 h3,
 h4 {
   font-family: var(--font-mono);
-  border-bottom: 2px solid var(--border);
-  padding-bottom: 0.3rem;
-  margin-top: 2.5rem;
-  letter-spacing: 0.5px;
+  margin-top: 2rem;
+  font-size: 1rem;
 }
 
 h1 {
-  font-size: 2rem;
-}
-h2 {
-  font-size: 1.5rem;
+  color: var(--section-color);
 }
 
 p {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+dl {
+  margin-top: 1rem;
+}
+
+dd {
+  margin-left: 1rem;
+  margin-bottom: 1rem;
+}
+
+dt {
+  font-weight: bold;
+  margin-top: 1rem;
 }
 
 a {
@@ -192,13 +262,13 @@ pre,
   overflow-x: auto;
   background: transparent;
   margin: 1.5rem 0;
-  line-height: 1.2;
+  line-height: 1rem;
 }
 
 /* Subtle Scrollbars for Code/Diagrams */
 pre::-webkit-scrollbar,
 .mermaid::-webkit-scrollbar {
-  height: 6px;
+  height: 0.5rem;
 }
 
 pre::-webkit-scrollbar-track,
@@ -231,7 +301,7 @@ pre,
 code {
   font-family: var(--font-mono);
   background: #222;
-  padding: 0.1rem 0.4rem;
+  padding: 0;
 }
 
 pre code {
@@ -247,21 +317,21 @@ pre a {
 hr {
   border: 0;
   border-top: 2px solid var(--border);
-  margin: 2rem 0;
+  margin: 1.5rem 0;
 }
 
 footer {
-  padding: 2rem;
+  padding: 1.5rem;
   text-align: center;
-  font-size: 0.9rem;
   font-family: var(--font-mono);
 }
 
 .example {
   position: relative;
   padding-bottom: 56.25%; /* 16:9 */
-  padding-top: 25px;
   height: 0;
+  margin: 1.5rem auto;
+  background: var(--bg);
 }
 
 .example iframe {

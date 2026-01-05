@@ -4,7 +4,7 @@ This example demonstrates a Peer-to-Peer synchronization model using Glom.
 
 Two independent Glom worlds are running in the same page, simulating two separate peers. They communicate by serializing and deserializing transactions and snapshots directly.
 
-<div class="example"><iframe src="examples/p2p-canvas/"></iframe></div>
+<div class="example"><iframe src="examples/p2p-canvas/" allow="pointer-lock"></iframe></div>
 
 ### Key Concepts
 

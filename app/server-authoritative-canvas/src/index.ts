@@ -161,15 +161,16 @@ const render_system = (
   pulses: g.All<g.Read<typeof Position>, g.Read<typeof Pulse>>,
   ctx: g.Write<typeof CanvasContext>,
 ) => {
-  ctx.fillStyle = "black"
+  ctx.fillStyle = "#0f0f0f" // --bg
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height)
 
   for (const [pos, color_id] of query) {
-    ctx.fillStyle = (color_id as number) === 0 ? "#61dafb" : "#ff4444"
+    // Blue and Yellow from syntax highlighting for colorblind accessibility
+    ctx.fillStyle = (color_id as number) === 0 ? "#aed7f5" : "#d6d4a6"
     ctx.fillRect(pos.x - 10, pos.y - 10, 20, 20)
   }
 
-  ctx.strokeStyle = "yellow"
+  ctx.strokeStyle = "#fda293" // Examples (Salmon)
   ctx.lineWidth = 2
   for (const [pos, size] of pulses) {
     ctx.beginPath()

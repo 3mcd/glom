@@ -64,11 +64,12 @@ const render_system = (
   query: g.All<g.Read<typeof Position>, g.Read<typeof Color>>,
   ctx: g.Write<typeof CanvasContext>,
 ) => {
-  ctx.fillStyle = "black"
+  ctx.fillStyle = "#0f0f0f" // --bg
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height)
 
   for (const [pos, color_id] of query) {
-    ctx.fillStyle = color_id === 1 ? "#ff4444" : "#4444ff"
+    // Blue and Yellow from syntax highlighting for colorblind accessibility
+    ctx.fillStyle = color_id === 1 ? "#aed7f5" : "#d6d4a6"
     ctx.fillRect(pos.x - 10, pos.y - 10, 20, 20)
   }
 }

@@ -123,50 +123,70 @@ list_affected_files() {
 }
 
 render_html_files() {
-	while read -r f; do render_html_file "$3" <"$1/$f" >"$2/$f"; done
+	while read -r f; do render_html_file "$3" "$f" <"$1/$f" >"$2/$f"; done
 }
 
 render_md_files_lowdown() {
 	while read -r f; do
 		lowdown --html-no-escapehtml --html-no-skiphtml --parse-no-metadata --parse-no-autolink <"$1/$f" | \
-			render_html_file "$3" >"$2/${f%\.md}.html"
+			render_html_file "$3" "$f" >"$2/${f%\.md}.html"
 	done
 }
 
 render_md_files_pandoc() {
 	while read -r f; do
 		pandoc -f markdown -t html --highlight-style=pygments <"$1/$f" | \
-			render_html_file "$3" >"$2/${f%\.md}.html"
+			render_html_file "$3" "$f" >"$2/${f%\.md}.html"
 	done
 }
 
 render_md_files_markdown_pl() {
 	while read -r f; do
-		markdown.pl <"$1/$f" | render_html_file "$3" >"$2/${f%\.md}.html"
+		markdown.pl <"$1/$f" | render_html_file "$3" "$f" >"$2/${f%\.md}.html"
 	done
 }
 
 render_html_file() {
-	awk -v title="$1" '
-	{ body = body "\n" $0 }
+	awk -v title="$1" -v filename="$2" '
+	{ body_content = body_content "\n" $0 }
 	END {
-		body = substr(body, 2)
-		if (body ~ /<\/?[Hh][Tt][Mm][Ll]/) { print body; exit }
-		if (match(body, /<[[:space:]]*[Hh]1(>|[[:space:]][^>]*>)/)) {
-			t = substr(body, RSTART + RLENGTH)
+		body_content = substr(body_content, 2)
+		if (body_content ~ /<\/?[Hh][Tt][Mm][Ll]/) { print body_content; exit }
+		if (match(body_content, /<[[:space:]]*[Hh]1(>|[[:space:]][^>]*>)/)) {
+			t = substr(body_content, RSTART + RLENGTH)
 			sub("<[[:space:]]*/[[:space:]]*[Hh]1.*", "", t)
 			gsub(/^[[:space:]]*|[[:space:]]$/, "", t)
 			if (t) title = t " &mdash; " title
 		}
+
+		# Strip leading ./ from filename
+		sub(/^\.\//, "", filename)
+
+		# Determine section class
+		section = ""
+		if (filename ~ /^(index)\.(md|html)$/) section = "section-general introduction-page"
+		else if (filename ~ /^(glossary)\.(md|html)$/) section = "section-general"
+		else if (filename ~ /^(getting_started|reactivity|ordering_logic)\.(md|html)$/) section = "section-guides"
+		else if (filename ~ /^(component_storage|entity_graph|entity_provenance|entity_registry|NETCODE)\.(md|html)$/) section = "section-reference"
+		else if (filename ~ /^example_.*\.(md|html)$/) section = "section-examples"
+
 		n = split(ENVIRON["HEADER"], header, /\n/)
 		for (i = 1; i <= n; i++) {
-			if (match(tolower(header[i]), "<title></title>")) {
-				head = substr(header[i], 1, RSTART - 1)
-				tail = substr(header[i], RSTART + RLENGTH)
+			line = header[i]
+			if (match(tolower(line), "<title></title>")) {
+				head = substr(line, 1, RSTART - 1)
+				tail = substr(line, RSTART + RLENGTH)
 				print head "<title>" title "</title>" tail
-			} else print header[i]
+			} else if (section != "" && match(tolower(line), "<body(>|[[:space:]][^>]*>)")) {
+				if (match(line, /class="/)) {
+					sub(/class="/, "class=\"" section " ", line)
+				} else {
+					sub(/<body/, "<body class=\"" section "\"", line)
+				}
+				print line
+			} else print line
 		}
-		print body
+		print body_content
 		print ENVIRON["FOOTER"]
 	}'
 }
