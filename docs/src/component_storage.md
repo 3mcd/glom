@@ -7,11 +7,8 @@ Glom ECS uses a **Universal Component Storage (SOA)** model. Instead of storing 
 To support multi-agent systems and replication without ID collisions, the `World` does not use the raw 31-bit `Entity` ID (or its `lo` bits) to directly index component arrays. Instead, it uses a **Dense Local Mapping**.
 
 ### How it works:
-1.  **Stable Entity ID**: The 31-bit integer remains the unique, global identifier for an entity across the network.
-2.  **Local Dense Index**: When the `World` first encounters an entity (local spawn or remote replication), it assigns it a local, monotonically increasing index.
-3.  **Mapping**: A `SparseMap` (`entity_to_index`) stores the relationship between the global ID and the local index.
 
-This allows two different agents to create entities with the same `lo` bits (but different `hi` bits) and have them coexist in the same world without their component values overwriting each other.
+The 31-bit integer remains the unique, global identifier for an entity across the network. When the `World` first encounters an entity, whether through a local spawn or remote replication, it assigns it a local, monotonically increasing index. A `SparseMap` called `entity_to_index` stores the relationship between this global ID and the local index. This allows two different agents to create entities with the same `lo` bits and have them coexist in the same world without their component values overwriting each other.
 
 ```text
 World
@@ -26,9 +23,7 @@ World
 ## Advantages of this Model
 
 ### 1. Memory and GC Efficiency
-By using a few large arrays instead of millions of small component objects, we significantly reduce the overhead of the JavaScript engine's garbage collector.
--   **Stable Shapes**: The "shape" of the component stores is stable, allowing engines like V8 to optimize access.
--   **Reduced Object Overhead**: We avoid the 40-80 byte overhead associated with creating a new object for every entity-component pair.
+By using a few large arrays instead of millions of small component objects, we significantly reduce the overhead of the JavaScript engine's garbage collector. The "shape" of the component stores is stable, allowing engines like V8 to optimize access. We also avoid the 40-80 byte overhead associated with creating a new object for every entity-component pair.
 
 ### 2. High-Performance Iteration
 When a system runs, it can grab references to the relevant component stores once and then perform direct indexed lookups within its inner loop.

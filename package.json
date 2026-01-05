@@ -10,7 +10,8 @@
     "dev.share": "ngrok start --config ngrok.yml frontend backend",
     "test": "bun run --elide-lines=0 --filter=* test",
     "bench": "bun run --elide-lines=0 --filter=* bench",
-    "docs.build": "mkdir -p dist && ./scripts/ssg docs/src dist \"Glom Documentation\" \"https://3mcd.github.io/glom\" && touch dist/.nojekyll"
+    "docs.build": "mkdir -p dist && ./scripts/ssg docs/src dist \"Glom Documentation\" \"https://3mcd.github.io/glom\" && touch dist/.nojekyll",
+    "docs.serve": "bun x serve dist"
   },
   "keywords": [],
   "author": "",

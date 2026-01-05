@@ -1,12 +1,12 @@
 # Getting Started
 
-Glom is an ECS for TypeScript with built-in networking capabilities. It uses a transformer to handle the boilerplate of optimized loops, so you can write systems as regular functions.
+Glom is an ECS for TypeScript with built-in networking capabilities.
 
 For more information on how Glom handles synchronization and replication, see the [Netcode](NETCODE.html) documentation.
 
 ## 1. Setting up the Transformer (Optional)
 
-While optional, the transformer is recommended as it allows you to write systems with a much cleaner syntax.
+While optional, the transformer is recommended as it allows you to write systems with a much cleaner syntax and optimizes query iteration by rewriting loops at build-time.
 
 ### For Bun
 If you're using Bun, use the `glomBunPlugin`:
@@ -18,6 +18,19 @@ Bun.build({
   entrypoints: ["./src/index.ts"],
   outdir: "./dist",
   plugins: [glomBunPlugin()],
+});
+```
+
+### For Vite / Rollup
+If you're using Vite or Rollup, you can use the `glomRollupPlugin`:
+
+```typescript
+// vite.config.ts
+import { defineConfig } from "vite";
+import { glomRollupPlugin } from "@glom/transformer-rollup";
+
+export default defineConfig({
+  plugins: [glomRollupPlugin()],
 });
 ```
 
@@ -52,7 +65,7 @@ With the transformer enabled, you can write systems as functions. The types you 
 import { All, Write, Read } from "@glom/ecs";
 
 // Updates position based on velocity
-export const movementSystem = (
+export const movement_system = (
   query: All<Write<typeof Position>, Read<typeof Velocity>>
 ) => {
   for (const [pos, vel] of query) {
@@ -70,7 +83,7 @@ Add systems to a `SystemSchedule`. It sorts them based on component access (read
 import { make_system_schedule, add_system, run_schedule } from "@glom/ecs";
 
 const schedule = make_system_schedule();
-add_system(schedule, movementSystem);
+add_system(schedule, movement_system);
 
 // In the loop
 run_schedule(schedule, world);

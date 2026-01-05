@@ -17,18 +17,16 @@ While we've provided pre-defined system groups for common patterns, you're encou
 Glom's primitives are tested with **Server-Authoritative** and **Distributed P2P (Multi-Master)** topologies in mind but are flexible enough to support other models too.
 
 ### Server-Authoritative
-- **Downstream (Server -> Client)**: The server broadcasts authoritative state changes using `Transaction` operations.
-- **Upstream (Client -> Server)**: Clients send high-level  **Commands** (not raw ECS mutations) which the server validates before applying them to the authoritative world state.
+
+In a server-authoritative model, the server broadcasts authoritative state changes using `Transaction` operations downstream to the client. Conversely, clients send high-level Commands upstream to the server, rather than raw ECS mutations, which the server then validates before applying them to the authoritative world state.
 
 ### Distributed P2P (Multi-Master)
-- Agents broadcast their local `Transaction` operations to all other peers.
-- Conflicts are resolved via **Last-Write-Wins (LWW)** or CRDT-inspired logic based on causal ordering.
+
+In a distributed P2P or multi-master setup, agents broadcast their local Transaction operations to all other peers. Any resulting conflicts are resolved via a Last-Write-Wins (LWW) strategy or CRDT-inspired logic that relies on causal ordering.
 
 ## 2. Entity Registry Domains (Provenance Buckets)
 
-Entities in Glom are represented as unsigned 32-bit integers. Generating unique IDs within this numeric space is a common challenge to networked ECS libraries—if every agent uses a simple counter multiple agents might try to spawn "Entity 1" at the same time and cause conflicts.
-
-We solve this without making everyone talk to a central authority by partitioning that 32-bit space into **Domains**. An `entity` ID is split into two parts: `hi` bits for the domain/provenance and `lo` bits for a monotonic counter. Each agent is assigned its own domain ID and you only "own" that one domain, meaning you're the only one who can `spawn` or `despawn` entities in it. When you receive a remote entity you store it in your local registry under its original domain. This keeps IDs stable and globally unique across the whole network without needing additional ID mapping layers.
+Entities in Glom are represented as unsigned 32-bit integers. Generating unique IDs within this numeric space is a common challenge for networked ECS libraries, as multiple agents might try to spawn the same ID at the same time without a central authority. Glom solves this by partitioning the 32-bit space into Domains. Each entity ID is split into `hi` bits for the domain or provenance and `lo` bits for a monotonic counter. Every agent is assigned its own domain ID and only owns that one domain, meaning they are the only ones who can spawn or despawn entities within it. When a remote entity is received, it is stored in the local registry under its original domain, ensuring that IDs remain stable and globally unique across the whole network without additional mapping layers.
 
 ### Why this matters (An Example)
 Imagine a P2P game with two players, Alice and Bob. 
@@ -41,21 +39,13 @@ When they sync up, there's no confusion. Alice's local world now has `(1, 1)` an
 
 ### Why 32-bit ids?
 
-Glom prioritizes performance. Smaller entity IDs are [engine-friendly](https://medium.com/fhinkel/v8-internals-how-small-is-a-small-integer-e0badc18b6da) and more compact to send over the wire. We use a 32-bit ID format:
-- **11 bits** for the domain (provenance)
-- **21 bits** for the monotonic counter (entity ID)
-
-This means Glom supports up to **2,048 concurrent domains** (e.g., 2k CCU in a P2P setting) and roughly **2 million unique IDs per domain**. Once a domain hits its limit it'll start recycling dead IDs. While this isn't enough for a persistent MMO it's more than enough for most real-time games where you'll rarely have more than ~1 million alive entities per agent at once.
+Glom prioritizes performance by using smaller entity IDs, which are engine-friendly and more compact for transmission. The 32-bit ID format uses 11 bits for the domain provenance and 21 bits for the monotonic counter. This configuration supports up to 2,048 concurrent domains and roughly 2 million unique IDs per domain. While this is not intended for persistent MMOs, it is more than enough for most real-time games where an agent rarely manages more than a million active entities simultaneously.
 
 ## 3. Transactions & Replication
 
-Replication happens through recording and applying discrete **Transactions**.
+Replication occurs through the recording and application of discrete Transactions. A transaction is a bundle of atomic operations from a single domain that must be applied together to guarantee eventual consistency. It includes the domain of the originating agent, a monotonic sequence number, the global simulation tick of the operations, and a list of operations such as spawn, despawn, set, or remove.
 
-### Transaction
-A transaction is a bundle of atomic operations from a single domain that must be applied together to guarantee eventual consistency. It includes the domain of the originating agent (`hi`), a monotonic sequence number (`seq`), the global simulation tick when the operations happened (`tick`), and a list of operations like spawn, despawn, set, or remove.
-
-### Last-Write-Wins (LWW)
-For component data, we handle conflicts using an LWW strategy. Every update gets a version (usually the `tick`) to decide the "truth" if multiple agents try to change the same thing, or when a server correction overrides a client prediction. The `World` keeps a version for every component on every entity so late-arriving old data doesn't overwrite your newer state.
+For component data, conflicts are handled using a Last-Write-Wins (LWW) strategy. Every update is assigned a version, typically the simulation tick, to determine the authoritative truth if multiple agents attempt to modify the same data. The World maintains a version for every component on every entity to ensure that late-arriving or older data does not overwrite newer state.
 
 ## 4. Clock Synchronization
 
@@ -90,9 +80,7 @@ Each agent sends requests to $N$ other peers, usually the ones closest to them. 
 
 ## 5. Prediction and Reconciliation
 
-Glom supports **continuous predicted simulations** with asynchronous correction.
-
-> **Note**: While the building blocks here (snapshots, rollback, re-simulation) are generic, our current focus and testing are on the **server-authoritative** topology. Using these for P2P is currently **untested**, though there's nothing stopping you from composing these primitives to build P2P reconciliation if you need it.
+Glom supports continuous predicted simulations with asynchronous correction. While the building blocks here—such as snapshots, rollback, and re-simulation—are generic, our current focus and testing are on the server-authoritative topology. Using these for P2P is currently untested, though there's nothing stopping you from composing these primitives to build P2P reconciliation if you need it.
 
 ### 5.1 Snapshot Semantics (Start-of-Tick)
 For reconciliation to be deterministic, a snapshot for tick $T$ has to represent the world at the very beginning of the tick, before any systems have run. This lets the reconciliation engine roll back to exactly tick $T$, apply authoritative changes (transactions) for that tick, and re-run simulation logic starting from a corrected baseline.
@@ -147,14 +135,12 @@ We spawn the entity into a reserved **transient domain** (`TRANSIENT_DOMAIN = 20
 In a server-authoritative model, the server is the final authority. Here's how we handle discrepancies:
 
 #### 1. Server rejection (spawn never happens)
-If the server decides the spawn was invalid (maybe you were stunned right as you fired):
-- **Detection**: We track how long transient entities have been around. If the server's tick passes the transient spawn's tick without a matching key arriving, we call it a **ghost**.
-- **Correction**: The client `despawn`s the ghost. Visually, this looks like a projectile "poofing" out of existence.
+
+If the server decides the spawn was invalid (maybe you were stunned right as you fired), we track how long transient entities have been around. If the server's tick passes the transient spawn's tick without a matching key arriving, we call it a ghost and the client despawns it. Visually, this looks like a projectile "poofing" out of existence.
 
 #### 2. Server mismatch (different entity spawns)
-If the server spawns something else (you predicted a fireball, but it was a frostbolt):
-- **The key still matches**: Since the key is based on the *event* (tick + index), they'll still link up.
-- **State overwrite**: Our `apply_transaction` logic for `spawn` is destructive—it'll overwrite your predicted components with the server's truth. The fireball "turns into" a frostbolt in a single frame.
+
+If the server spawns something else—for instance, you predicted a fireball, but it was a frostbolt—the key will still match because it's based on the event (tick and index). In this case, our `apply_transaction` logic for spawns is destructive and will overwrite your predicted components with the server's truth, causing the fireball to "turn into" a frostbolt in a single frame.
 
 ## 7. Binary Protocol
 
@@ -164,24 +150,24 @@ To keep things fast and save bandwidth, Glom uses a custom binary protocol for a
 Every packet starts with a small header containing the message type (`uint8`) and the relevant simulation tick (`uint32`).
 
 ### 7.2 Message Types
-Glom uses several message types to coordinate state. A **Handshake (0x01)** establishes your identity and assigns your domain ID. **ClockSync (0x02)** handles standard NTP-style alignment. A **Transaction (0x03)** is the main way ECS state is replicated, including spawn, set, and remove/despawn operations. **Commands (0x04)** are upstream messages from client to server containing user intent. Finally, a **Full State Sync (0x05)** is used for late joins or recovering from significant state divergence by sending a full compressed stream of the world.
+
+Glom uses several message types to coordinate state. A Handshake establishes identity and assigns a domain ID, while ClockSync handles standard NTP-style alignment. The primary method for replicating ECS state is the Transaction message, which includes spawn, set, and remove operations. Upstream messages from client to server are sent as Commands containing user intent. Finally, a Full State Sync is used for late joins or significant state recovery by sending a compressed stream of the world.
 
 ## 8. Command API
 
 Upstream communication (Client -> Server) uses a **Command API** that turns user intent into discrete events.
 
 ### 8.1 Command Components & Entities
-Commands are just entities with standard ECS components. This is useful because it allows us to reuse component serializers since we use the same encoding logic for commands as we do for state. It also enables relational targeting by using a `CommandOf` relationship to link commands to their targets like your player.
+
+Commands are modeled as standard entities with ECS components, which allows the reuse of the same serializers and encoding logic as state replication. It also enables relational targeting through a `CommandOf` relationship that links commands to their targets.
 
 ### 8.2 Temporal Command Buffer
-The world has a `command_buffer` to store intent across ticks. This tick-indexed buffer manages commands before they're spawned as entities. Commands are buffered locally for prediction and then sent to the server for validation.
+
+The World also includes a `command_buffer` to manage user intent across multiple ticks. This tick-indexed buffer tracks commands before they are spawned as entities, allowing them to be buffered locally for prediction and then sent to the server for validation.
 
 ## 9. Orchestration & Schedules
 
-Glom works best when you add its networking systems directly to your schedules.
-
-### 9.1 System Groups
-Glom provides several pre-defined systems. **Reconciliation** systems handle applying remote transactions (`apply_remote_transactions`) and performing rollbacks (`perform_rollback`). **Command lifecycle** systems manage spawning (`spawn_ephemeral_commands`) and cleaning up (`cleanup_ephemeral_commands`) ephemeral command entities. Finally, **replication** systems package changes into transactions (`commit_pending_mutations`) and prune old history (`prune_temporal_buffers`).
+Glom is designed to work best when its networking systems are integrated directly into your schedules. Several pre-defined system groups are provided to handle common tasks. Reconciliation systems apply remote transactions and perform rollbacks, while command lifecycle systems manage the spawning and cleanup of ephemeral command entities. Replication systems package local changes into transactions and prune old history to maintain efficiency.
 
 ### 9.2 Client orchestration order
 The flowchart below maps out the sequence of reconciliation, simulation, and rendering that ensures the most authoritative state is displayed each frame. Follow this order in your client's main loop:

@@ -135,7 +135,7 @@ render_md_files_lowdown() {
 
 render_md_files_pandoc() {
 	while read -r f; do
-		pandoc -f markdown -t html <"$1/$f" | \
+		pandoc -f markdown -t html --highlight-style=pygments <"$1/$f" | \
 			render_html_file "$3" >"$2/${f%\.md}.html"
 	done
 }
