@@ -2,30 +2,5 @@
     <footer>
         <p class="content">2026 <a href="https://github.com/3mcd">3mcd</a></p>
     </footer>
-    <script type="module">
-        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-        
-        // Initialize Mermaid with a dark theme to match our aesthetic
-        mermaid.initialize({ 
-            startOnLoad: false,
-            theme: 'dark',
-            securityLevel: 'loose',
-            fontFamily: 'Aporetic Sans Mono, monospace'
-        });
-
-        // Find all Pandoc-rendered mermaid blocks
-        const mermaidBlocks = document.querySelectorAll('pre.mermaid');
-        
-        for (const block of mermaidBlocks) {
-            const code = block.textContent;
-            const container = document.createElement('div');
-            container.className = 'mermaid';
-            container.textContent = code;
-            block.parentNode.replaceChild(container, block);
-        }
-
-        // Render everything
-        await mermaid.run();
-    </script>
 </body>
 </html>

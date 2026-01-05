@@ -1,50 +1,169 @@
-/* ==========================================================================
-   Variables & Root
-   ========================================================================== */
+/* Variables & Root */
 
 :root {
+  /* Core Colors (Dark Mode) */
   --bg: #0f0f0f;
   --text: #d6d6d6;
   --border: #585858;
-  --font-mono: "Aporetic Sans Mono", "SFMono-Regular", Consolas, monospace;
+  --header-bg: #1a1a1a;
+  --aside-bg: #1a1a1a;
+  --code-bg: #222;
+  --pre-bg: transparent;
 
   /* Section Colors */
-  --color-general: #aed7f5;
-  --color-guides: #d6d4a6;
-  --color-reference: #e6a4df;
-  --color-examples: #fda293;
+  --color-blue: #7ec7f8;
+  --color-yellow: #dfdd8a;
+  --color-pink: #f089e5;
+  --color-red: #ff8b78;
   --section-color: var(--border);
+
+  /* Syntax Highlighting (Dark Mode) */
+  --syntax-kw: #7ec7f8;
+  --syntax-dt: #dfdd8a;
+  --syntax-dv: #f089e5;
+  --syntax-bn: #f089e5;
+  --syntax-fl: #f089e5;
+  --syntax-ch: #bedd9f;
+  --syntax-st: #bedd9f;
+  --syntax-co: #666;
+  --syntax-ot: #7ec7f8;
+  --syntax-al: #ff8b78;
+  --syntax-fu: #6bcbf7;
+  --syntax-er: #ff8b78;
+  --syntax-wa: #ffffff;
+  --syntax-cn: #f4c1cf;
+  --syntax-sc: #ccccf8;
+  --syntax-vs: #bedd9f;
+  --syntax-ss: #bedd9f;
+  --syntax-im: #7ec7f8;
+  --syntax-va: #d6d6d6;
+  --syntax-cf: #6bcbf7;
+  --syntax-op: #d6d6d6;
+  --syntax-bu: #dfdd8a;
+  --syntax-ex: #6bcbf7;
+  --syntax-pp: #c4d9b0;
+  --syntax-at: #949494;
+  --syntax-do: #ffffff;
+  --syntax-an: #949494;
+  --syntax-cv: #ffffff;
+  --syntax-in: #ffffff;
+
+  /* Fonts */
+  --font-serif: "Aporetic Serif Mono", serif;
+  --font-mono: "Aporetic Sans Mono", "SFMono-Regular", Consolas, monospace;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    /* Core Colors (Light Mode) */
+    --bg: #fefefe;
+    --text: #1a1a1a;
+    --border: #dddddd;
+    --header-bg: #f5f5f5;
+    --aside-bg: #f9f9f9;
+    --code-bg: #f0f0f0;
+    --pre-bg: #fcfcfc;
+
+    /* Section Colors (Slightly darker for better contrast on light bg) */
+    --color-blue: #005a9e;
+    --color-yellow: #6d6d00;
+    --color-pink: #a0008a;
+    --color-red: #b00000;
+
+    /* Syntax Highlighting (Light Mode) */
+    --syntax-kw: #005a9e;
+    --syntax-dt: #6d6d00;
+    --syntax-dv: #a0008a;
+    --syntax-bn: #a0008a;
+    --syntax-fl: #a0008a;
+    --syntax-ch: #2d5a27;
+    --syntax-st: #2d5a27;
+    --syntax-co: #707070;
+    --syntax-ot: #005a9e;
+    --syntax-al: #b00000;
+    --syntax-fu: #0078d4;
+    --syntax-er: #b00000;
+    --syntax-wa: #333333;
+    --syntax-cn: #8a334d;
+    --syntax-sc: #4a4a8a;
+    --syntax-vs: #2d5a27;
+    --syntax-ss: #2d5a27;
+    --syntax-im: #005a9e;
+    --syntax-va: #1a1a1a;
+    --syntax-cf: #0078d4;
+    --syntax-op: #1a1a1a;
+    --syntax-bu: #6d6d00;
+    --syntax-ex: #0078d4;
+    --syntax-pp: #4a6a3a;
+    --syntax-at: #555555;
+    --syntax-do: #1a1a1a;
+    --syntax-an: #555555;
+    --syntax-cv: #1a1a1a;
+    --syntax-in: #1a1a1a;
+  }
 }
 
 .section-general {
-  --section-color: var(--color-general);
+  --section-color: var(--color-blue);
 }
 .section-guides {
-  --section-color: var(--color-guides);
+  --section-color: var(--color-yellow);
 }
 .section-reference {
-  --section-color: var(--color-reference);
+  --section-color: var(--color-pink);
 }
 .section-examples {
-  --section-color: var(--color-examples);
+  --section-color: var(--color-red);
 }
 
 .text-general {
-  color: var(--color-general);
+  color: var(--color-blue);
 }
 .text-guides {
-  color: var(--color-guides);
+  color: var(--color-yellow);
 }
 .text-reference {
-  color: var(--color-reference);
+  color: var(--color-pink);
 }
 .text-examples {
-  color: var(--color-examples);
+  color: var(--color-red);
 }
 
-/* ==========================================================================
-   Fonts
-   ========================================================================== */
+/* Fonts */
+
+@font-face {
+  font-family: "Aporetic Serif Mono";
+  src: url("fonts/aporetic-serif-mono-normalregularupright.ttf")
+    format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Aporetic Serif Mono";
+  src: url("fonts/aporetic-serif-mono-normalregularitalic.ttf")
+    format("truetype");
+  font-weight: normal;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Aporetic Serif Mono";
+  src: url("fonts/aporetic-serif-mono-normalboldupright.ttf") format("truetype");
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Aporetic Serif Mono";
+  src: url("fonts/aporetic-serif-mono-normalbolditalic.ttf") format("truetype");
+  font-weight: bold;
+  font-style: italic;
+  font-display: swap;
+}
 
 @font-face {
   font-family: "Aporetic Sans Mono";
@@ -52,6 +171,7 @@
     format("truetype");
   font-weight: normal;
   font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
@@ -60,6 +180,7 @@
     format("truetype");
   font-weight: normal;
   font-style: italic;
+  font-display: swap;
 }
 
 @font-face {
@@ -67,6 +188,7 @@
   src: url("fonts/aporetic-sans-mono-normalboldupright.ttf") format("truetype");
   font-weight: bold;
   font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
@@ -74,11 +196,10 @@
   src: url("fonts/aporetic-sans-mono-normalbolditalic.ttf") format("truetype");
   font-weight: bold;
   font-style: italic;
+  font-display: swap;
 }
 
-/* ==========================================================================
-   Base Layout & Typography
-   ========================================================================== */
+/* Base Layout & Typography */
 
 * {
   box-sizing: border-box;
@@ -87,7 +208,7 @@
 body {
   margin: 0;
   padding: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-serif);
   background: var(--bg);
   color: var(--text);
   line-height: 1.5rem;
@@ -98,20 +219,29 @@ body {
 }
 
 .content {
-  padding: 1.5rem 3rem;
+  padding: 1rem 1rem;
   max-width: 900px;
   margin: 0 auto;
   flex-grow: 1;
   width: 100%;
 }
 
-h1,
+h1 {
+  font-family: var(--font-mono);
+  padding-bottom: 0.5rem;
+  margin-top: 2.5rem;
+  font-size: 1rem;
+  border-bottom: 2px solid var(--border);
+  color: var(--section-color);
+}
+
 h2 {
   font-family: var(--font-mono);
   padding-bottom: 0.5rem;
   margin-top: 2.5rem;
   font-size: 1rem;
   border-bottom: 2px solid var(--border);
+  width: fit-content;
 }
 
 h3,
@@ -119,10 +249,6 @@ h4 {
   font-family: var(--font-mono);
   margin-top: 2rem;
   font-size: 1rem;
-}
-
-h1 {
-  color: var(--section-color);
 }
 
 p {
@@ -145,9 +271,7 @@ hr {
   margin: 1.5rem 0;
 }
 
-/* ==========================================================================
-   Navigation (TOC)
-   ========================================================================== */
+/* Navigation (TOC) */
 
 .toc {
   margin-bottom: 1.5rem;
@@ -155,91 +279,91 @@ hr {
   border-top: none;
 }
 
-.toc-table {
+.toc-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   width: 100%;
-  border-collapse: collapse;
-  margin: 0;
-  font-family: var(--font-mono);
-  table-layout: fixed;
 }
 
-.toc-table th,
-.toc-table td {
-  border: 2px solid var(--border);
-  padding: 0.5rem 1rem;
-  text-align: left;
-  vertical-align: top;
+.toc-section {
+  border-left: 2px solid var(--border);
 }
 
-.toc-table th {
-  color: var(--text);
-}
-
-.toc-table th:nth-child(1) {
-  color: var(--color-general);
-}
-.toc-table th:nth-child(2) {
-  color: var(--color-guides);
-}
-.toc-table th:nth-child(3) {
-  color: var(--color-reference);
-}
-.toc-table th:nth-child(4) {
-  color: var(--color-examples);
-}
-
-/* Remove outer table borders since .toc container has them */
-.toc-table tr:first-child th {
-  border-top: none;
-}
-.toc-table td:first-child,
-.toc-table th:first-child {
+.toc-section:first-child {
   border-left: none;
 }
-.toc-table td:last-child,
-.toc-table th:last-child {
-  border-right: none;
-}
-.toc-table tr:last-child td {
-  border-bottom: none;
+
+.toc-header {
+  padding: 0.5rem 1rem;
+  border-bottom: 2px solid var(--border);
+  font-family: var(--font-mono);
+  background: var(--header-bg);
 }
 
-.toc-table ul {
+/* Section specific header colors */
+.toc-section:nth-child(1) .toc-header {
+  color: var(--color-blue);
+}
+.toc-section:nth-child(2) .toc-header {
+  color: var(--color-yellow);
+}
+.toc-section:nth-child(3) .toc-header {
+  color: var(--color-pink);
+}
+.toc-section:nth-child(4) .toc-header {
+  color: var(--color-red);
+}
+
+.toc-section ul {
   list-style: none;
-  padding: 0;
+  padding: 1rem;
   margin: 0;
 }
 
-.toc-table li {
-  margin-bottom: 0.5rem;
+.toc-section li + li {
+  margin-top: 0.5rem;
 }
 
-.toc-table a {
+.toc-section a {
   text-decoration: none;
   color: var(--text);
   transition: color 0.1s ease;
 }
 
-.toc-table td:nth-child(1) li:hover a {
-  color: var(--color-general);
+/* Section specific hover colors */
+.toc-section:nth-child(1) li:hover a {
+  color: var(--color-blue);
 }
-.toc-table td:nth-child(2) li:hover a {
-  color: var(--color-guides);
+.toc-section:nth-child(2) li:hover a {
+  color: var(--color-yellow);
 }
-.toc-table td:nth-child(3) li:hover a {
-  color: var(--color-reference);
+.toc-section:nth-child(3) li:hover a {
+  color: var(--color-pink);
 }
-.toc-table td:nth-child(4) li:hover a {
-  color: var(--color-examples);
+.toc-section:nth-child(4) li:hover a {
+  color: var(--color-red);
 }
 
-.toc-table a:hover {
+.toc-section a:hover {
   text-decoration: none;
 }
 
-/* ==========================================================================
-   Other Components (Header & Footer)
-   ========================================================================== */
+@media (max-width: 768px) {
+  .toc-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .toc-section {
+    border-left: none;
+    border-bottom: 2px solid var(--border);
+  }
+
+  .toc-section:last-child {
+    border-bottom: none;
+  }
+}
+
+/* Other Components (Header & Footer) */
 
 .info-header {
   font-family: var(--font-mono);
@@ -253,19 +377,13 @@ hr {
   padding: 0.5rem 1rem;
 }
 
-.info-header .row.top {
-  border-bottom: 2px solid var(--border);
-}
-
 footer {
   padding: 1.5rem;
   text-align: center;
   font-family: var(--font-mono);
 }
 
-/* ==========================================================================
-   Definitions (DL, DT, DD)
-   ========================================================================== */
+/* Definitions (DL, DT, DD) */
 
 dl {
   margin-top: 1rem;
@@ -281,23 +399,31 @@ dd {
   margin-bottom: 1rem;
 }
 
-/* ==========================================================================
-   Code & Media Elements
-   ========================================================================== */
+/* Asides */
+
+aside {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border-left: 4px solid var(--section-color);
+  background: var(--aside-bg);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+/* Code & Media Elements */
 
 pre,
-.mermaid {
-  padding: 1.5rem;
+.mermaid,
+.mermaid-static {
   overflow-x: auto;
-  background: transparent;
-  margin: 1.5rem 0;
+  background: var(--pre-bg);
+  margin: 2rem;
   line-height: 1.4rem;
 }
 
 code {
   font-family: var(--font-mono);
-  background: #222;
-  padding: 0;
+  background: var(--code-bg);
 }
 
 pre code {
@@ -310,37 +436,118 @@ pre a {
   text-decoration: none;
 }
 
-.mermaid {
+.mermaid,
+.mermaid-static {
   display: flex;
   justify-content: center;
 }
 
+.mermaid-static svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Custom styling for static Mermaid SVGs to match theme */
+.mermaid-static svg .node rect,
+.mermaid-static svg .node polygon,
+.mermaid-static svg .node circle,
+.mermaid-static svg .node ellipse,
+.mermaid-static svg .node path {
+  fill: var(--header-bg) !important;
+  stroke: var(--border) !important;
+}
+
+.mermaid-static svg .node .label,
+.mermaid-static svg .node .nodeLabel,
+.mermaid-static svg .node .label p,
+.mermaid-static svg .node foreignObject div {
+  color: var(--text) !important;
+  fill: var(--text) !important;
+}
+
+.mermaid-static svg .edgePath .path {
+  stroke: var(--text) !important;
+}
+
+.mermaid-static svg .marker {
+  fill: var(--text) !important;
+  stroke: var(--text) !important;
+}
+
+@media (prefers-color-scheme: light) {
+  .mermaid-static svg {
+    /* Remove the old filter since we're styling manually now */
+    filter: none;
+  }
+}
+
+img {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 2rem auto;
+  image-rendering: pixelated;
+}
+
 /* Subtle Scrollbars */
 pre::-webkit-scrollbar,
-.mermaid::-webkit-scrollbar {
+.mermaid::-webkit-scrollbar,
+.mermaid-static::-webkit-scrollbar {
   height: 0.5rem;
 }
 
 pre::-webkit-scrollbar-track,
-.mermaid::-webkit-scrollbar-track {
+.mermaid::-webkit-scrollbar-track,
+.mermaid-static::-webkit-scrollbar-track {
   background: #222;
 }
 
 pre::-webkit-scrollbar-thumb,
-.mermaid::-webkit-scrollbar-thumb {
+.mermaid::-webkit-scrollbar-thumb,
+.mermaid-static::-webkit-scrollbar-thumb {
   background: #444;
 }
 
 pre::-webkit-scrollbar-thumb:hover,
-.mermaid::-webkit-scrollbar-thumb:hover {
+.mermaid::-webkit-scrollbar-thumb:hover,
+.mermaid-static::-webkit-scrollbar-thumb:hover {
   background: #666;
+}
+
+@media (prefers-color-scheme: light) {
+  pre::-webkit-scrollbar-track,
+  .mermaid::-webkit-scrollbar-track,
+  .mermaid-static::-webkit-scrollbar-track {
+    background: #f0f0f0;
+  }
+
+  pre::-webkit-scrollbar-thumb,
+  .mermaid::-webkit-scrollbar-thumb,
+  .mermaid-static::-webkit-scrollbar-thumb {
+    background: #ccc;
+  }
+
+  pre::-webkit-scrollbar-thumb:hover,
+  .mermaid::-webkit-scrollbar-thumb:hover,
+  .mermaid-static::-webkit-scrollbar-thumb:hover {
+    background: #bbb;
+  }
 }
 
 /* Firefox Support */
 pre,
-.mermaid {
+.mermaid,
+.mermaid-static {
   scrollbar-width: thin;
   scrollbar-color: #444 #222;
+}
+
+@media (prefers-color-scheme: light) {
+  pre,
+  .mermaid,
+  .mermaid-static {
+    scrollbar-color: #ccc #f0f0f0;
+  }
 }
 
 .example {
@@ -360,100 +567,98 @@ pre,
   border: none;
 }
 
-/* ==========================================================================
-   Syntax Highlighting - Sema Chroma Theme Mapping
-   ========================================================================== */
+/* Syntax Highlighting - Sema Chroma Theme Mapping */
 
 code span.kw {
-  color: #aed7f5;
+  color: var(--syntax-kw);
 } /* Keyword */
 code span.dt {
-  color: #d6d4a6;
+  color: var(--syntax-dt);
 } /* DataType / Type */
 code span.dv {
-  color: #e6a4df;
+  color: var(--syntax-dv);
 } /* DecVal / Number */
 code span.bn {
-  color: #e6a4df;
+  color: var(--syntax-bn);
 } /* BaseN */
 code span.fl {
-  color: #e6a4df;
+  color: var(--syntax-fl);
 } /* Float */
 code span.ch {
-  color: #bedd9f;
+  color: var(--syntax-ch);
 } /* Char */
 code span.st {
-  color: #bedd9f;
+  color: var(--syntax-st);
 } /* String */
 code span.co {
-  color: #666;
+  color: var(--syntax-co);
   font-style: italic;
 } /* Comment */
 code span.ot {
-  color: #aed7f5;
+  color: var(--syntax-ot);
 } /* Other */
 code span.al {
-  color: #fda293;
+  color: var(--syntax-al);
 } /* Alert */
 code span.fu {
-  color: #6bcbf7;
+  color: var(--syntax-fu);
 } /* Function */
 code span.er {
-  color: #fda293;
+  color: var(--syntax-er);
 } /* Error */
 code span.wa {
-  color: #ffffff;
+  color: var(--syntax-wa);
   font-style: italic;
 } /* Warning */
 code span.cn {
-  color: #f4c1cf;
+  color: var(--syntax-cn);
 } /* Constant */
 code span.sc {
-  color: #ccccf8;
+  color: var(--syntax-sc);
 } /* SpecialChar */
 code span.vs {
-  color: #bedd9f;
+  color: var(--syntax-vs);
 } /* VerbatimString */
 code span.ss {
-  color: #bedd9f;
+  color: var(--syntax-ss);
 } /* SpecialString */
 code span.im {
-  color: #aed7f5;
+  color: var(--syntax-im);
 } /* Import */
 code span.va {
-  color: #d6d6d6;
+  color: var(--syntax-va);
 } /* Variable */
 code span.cf {
-  color: #6bcbf7;
+  color: var(--syntax-cf);
 } /* ControlFlow */
 code span.op {
-  color: #d6d6d6;
+  color: var(--syntax-op);
 } /* Operator */
 code span.bu {
-  color: #d6d4a6;
+  color: var(--syntax-bu);
 } /* BuiltIn */
 code span.ex {
-  color: #6bcbf7;
+  color: var(--syntax-ex);
 } /* Extension */
 code span.pp {
-  color: #c4d9b0;
+  color: var(--syntax-pp);
 } /* Preprocessor */
 code span.at {
-  color: #949494;
+  color: var(--syntax-at);
 } /* Attribute */
 code span.do {
-  color: #ffffff;
+  color: var(--syntax-do);
   font-style: italic;
 } /* Documentation */
 code span.an {
-  color: #949494;
+  color: var(--syntax-an);
   font-style: italic;
 } /* Annotation */
 code span.cv {
-  color: #ffffff;
+  color: var(--syntax-cv);
   font-style: italic;
 } /* CommentVar */
 code span.in {
-  color: #ffffff;
+  color: var(--syntax-in);
   font-style: italic;
 } /* Information */

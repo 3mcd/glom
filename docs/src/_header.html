@@ -9,59 +9,48 @@
 <body>
     <main class="content">
         <header class="info-header">
-            <div class="row top">
+            <div class="row">
                 <span>
                     <a href="/">@glom/ecs</a>
                 </span>
                 <span>v1.0.0</span>
             </div>
-            <div class="row">
-                <span><a href="https://opensource.org/licenses/MIT">MIT</a></span>
-                <span>2026-01-04</span>
-            </div>
         </header>
 
         <nav class="toc">
-            <table class="toc-table">
-                <thead>
-                    <tr>
-                        <th>General</th>
-                        <th>Guides</th>
-                        <th>Reference</th>
-                        <th>Examples</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>
-                            <ul>
-                                <li><a href="index.html">Introduction</a></li>
-                                <li><a href="glossary.html">Glossary</a></li>
-                            </ul>
-                        </td>
-                        <td>
-                            <ul>
-                                <li><a href="getting_started.html">Getting Started</a></li>
-                                <li><a href="reactivity.html">Reactivity</a></li>
-                                <li><a href="ordering_logic.html">Ordering Logic</a></li>
-                            </ul>
-                        </td>
-                        <td>
-                            <ul>
-                                <li><a href="component_storage.html">Component Storage</a></li>
-                                <li><a href="entity_graph.html">Entity Graph</a></li>
-                                <li><a href="entity_provenance.html">Entity Provenance</a></li>
-                                <li><a href="entity_registry.html">Entity Registry</a></li>
-                                <li><a href="NETCODE.html">Netcode</a></li>
-                            </ul>
-                        </td>
-                        <td>
-                            <ul>
-                                <li><a href="example_p2p.html">P2P Canvas</a></li>
-                                <li><a href="example_server_authoritative.html">Authoritative Canvas</a></li>
-                            </ul>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+            <div class="toc-grid">
+                <div class="toc-section">
+                    <div class="toc-header">General</div>
+                    <ul>
+                        <li><a href="index.html">Introduction</a></li>
+                        <li><a href="glossary.html">Glossary</a></li>
+                    </ul>
+                </div>
+                <div class="toc-section">
+                    <div class="toc-header">Guides</div>
+                    <ul>
+                        <li><a href="getting_started.html">Getting Started</a></li>
+                        <li><a href="reactivity.html">Reactivity</a></li>
+                        <li><a href="relationships.html">Relationships</a></li>
+                        <li><a href="ordering_logic.html">Ordering Logic</a></li>
+                    </ul>
+                </div>
+                <div class="toc-section">
+                    <div class="toc-header">Reference</div>
+                    <ul>
+                        <li><a href="component_storage.html">Component Storage</a></li>
+                        <li><a href="entity_graph.html">Entity Graph</a></li>
+                        <li><a href="entity_provenance.html">Entity Provenance</a></li>
+                        <li><a href="entity_registry.html">Entity Registry</a></li>
+                        <li><a href="NETCODE.html">Netcode</a></li>
+                    </ul>
+                </div>
+                <div class="toc-section">
+                    <div class="toc-header">Examples</div>
+                    <ul>
+                        <li><a href="example_p2p.html">P2P Canvas</a></li>
+                        <li><a href="example_server_authoritative.html">Authoritative Canvas</a></li>
+                    </ul>
+                </div>
+            </div>
         </nav>

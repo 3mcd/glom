@@ -2,29 +2,29 @@
 
 Systems usually run every frame and check for entities that match a query.
 
-Sometimes you only want to do something when a state changes, like playing a sound when a unit is created or stopping an effect when a buff ends. Glom uses `In` and `Out` wrappers to handle this.
+Sometimes you only want to do something when a state changes, like playing a sound when a unit is created or stopping an effect when a buff ends. Glom uses `In` and `Out` **transition queries** to handle this.
 
 ## State Changes vs. Polling
 
-If you want to add a `ShieldVFX` when an entity gets a `Shield`, a normal system would try to add the VFX every frame. You would have to check if the VFX is already there to avoid duplicates.
+Performing side effects with regular `All` queries is possible, but you'd need to read component values to avoid repeating the effect every frame.
 
-Reactivity identifies which entities changed since the last time the system ran.
+Transition queries identify which entities changed since the last time the system ran. If you wanted to add a `ShieldVFX` when an entity gets a `Shield`, you could just use `In<typeof Shield>`.
 
 ## Reacting to Component Additions
 
-Wrap your query in `In` to match entities that just started matching your criteria.
+Define queries with `In` to match entities that just started matching your criteria.
 
 ```typescript
-import { All, Read, In, Add, Entity, add_component, define_component } from "@glom/ecs"
+import { Add, All, Entity, In, Read, define_component } from "@glom/ecs"
 
 const Shield = define_component<{ power: number }>()
 const ShieldVFX = define_component<{ intensity: number }>()
 
-// Runs only for entities that just received a Shield
 const on_shield_added = (
   added: In<Entity, Has<typeof Shield>>,
   add_vfx: Add<typeof ShieldVFX>
 ) => {
+  // yields only entities that just received a shield
   for (const [entity] of added) {
     add_vfx(entity, ShieldVFX, { intensity: 1.0 })
   }
@@ -35,15 +35,13 @@ The loop only runs for entities that moved into the "has Shield" state in the cu
 
 ## Reacting to Component Removal
 
-`Out` matches entities that no longer meet your criteria.
-
-`Out` queries provide the last known values of the components. This is useful for cleanup logic.
+`Out` matches entities that no longer match a component signature.
 
 ```typescript
-import { Out, Remove, Entity } from "@glom/ecs"
+import { Entity, Out, Remove } from "@glom/ecs"
 
-// Runs when an entity loses its Shield
 const on_shield_removed = (
+  // yields only entities that just lost its shield
   removed: Out<Entity, Has<typeof Shield>>,
   remove_vfx: Remove<typeof ShieldVFX>
 ) => {
@@ -55,29 +53,29 @@ const on_shield_removed = (
 
 ## Managing Related Entities
 
-Reactivity can also manage separate entities. In this example, we spawn a laser when a player attacks and despawn it when they stop.
+Transition queries can also manage separate entities. In this example, we spawn a laser when a player attacks and despawn it when they stop.
 
 ```typescript
-import { In, Out, Rel, Spawn, Despawn, Entity, despawn, add_component, define_tag, define_relation } from "@glom/ecs"
+import { Add, Despawn, Entity, In, Out, Rel, Spawn, define_relation, define_tag } from "@glom/ecs"
 
 const Attacking = define_tag()
 const LaserBeam = define_tag()
-const HasBeam = define_relation()
+const EmitsFrom = define_relation()
 
-// Spawn a beam and link it
+// spawn a beam and link it
 const on_attack_started = (
   added: In<Entity, typeof Attacking>,
-  spawn: Spawn<Beam>
+  spawn: Spawn<Beam, EmitsFrom>,
+  bind: Add<EmitsFrom>
 ) => {
   for (const [player] of added) {
-    const beam = spawn(spawner, LaserBeam)
-    add_component(player, HasBeam(beam))
+    spawn(spawner, LaserBeam, EmitsFrom(player))
   }
 }
 
-// Find the beam and despawn it
+// find the beam and despawn it
 const on_attack_stopped = (
-  removed: Out<Rel<typeof HasBeam, Entity>, typeof Attacking>,
+  removed: Out<Entity, Rel<typeof EmitsFrom, Has<typeof Attacking>>>,
   despawn: Despawn
 ) => {
   for (const [beam] of removed) {
@@ -86,11 +84,11 @@ const on_attack_stopped = (
 }
 ```
 
-In `on_attack_stopped`, the `Out` query provides the state of the player as it was before the attack stopped. This lets us find the `HasBeam` relation even though the `Attacking` tag is gone.
+In `on_attack_stopped`, the `Out` query yields entities that no longer emit from attacking entities, which means they can be cleaned up.
 
 ## How it works
 
-Reactivity is built into the Entity Graph. Queries subscribe to changes in the graph. When an entity moves between nodes, the graph notifies the queries.
+Transition queries subscribe to changes in the [Entity Graph](./entity_graph). When an entity moves between nodes, the graph notifies the queries.
 
 Each query keeps track of which entities entered or left its scope. These lists are cleared after the system runs.
 
@@ -99,7 +97,7 @@ Each query keeps track of which entities entered or left its scope. These lists 
 If you aren't using the transformer, you provide the `in` or `out` descriptors in the system metadata.
 
 ```typescript
-import { define_system, In, Read } from "@glom/ecs"
+import { In, Read, define_system } from "@glom/ecs"
 
 const on_position_added = define_system((added: In<Read<typeof Position>>) => {
   for (const [pos] of added) {
@@ -107,7 +105,7 @@ const on_position_added = define_system((added: In<Read<typeof Position>>) => {
   }
 }, {
   params: [
-    { in: { all: [{ read: Position }] } }
+    { in: [{ read: Position }] }
   ]
 })
 ```

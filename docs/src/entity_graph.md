@@ -8,7 +8,7 @@ An Archetype is a unique combination of component types. It's represented as a `
 
 ## Graph Structure
 
-The graph is a Directed Acyclic Graph (DAG). Nodes are linked based on component inclusion.
+The graph is a Directed Acyclic Graph. Nodes are linked based on component inclusion.
 
 - **Specialization**: Adding a component moves to a node with more components.
 - **Generalization**: Removing a component moves to a node with fewer components.
