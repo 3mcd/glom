@@ -29,7 +29,7 @@ describe("command api", () => {
 
   test("record and execute relational commands", () => {
     const world = makeWorld({domainId: 1, schema})
-    const player = spawn(world, [])
+    const player = spawn(world)
 
     recordCommand(world, player, Jump, 10)
     recordCommand(world, player, Move({x: 5, y: 10}), 10)
@@ -142,7 +142,7 @@ describe("command api", () => {
 
   test("pruning", () => {
     const world = makeWorld({domainId: 1, schema})
-    const player = spawn(world, [])
+    const player = spawn(world)
     recordCommand(world, player, Jump, 10)
     recordCommand(world, player, Jump, 20)
 

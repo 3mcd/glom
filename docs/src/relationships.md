@@ -31,8 +31,8 @@ addComponent(world, child, ChildOf(parent))
 
 // within a system:
 const linkSystem = (spawn: Spawn<typeof ChildOf>) => {
-  const parent = spawn([])
-  const child = spawn([ChildOf(parent)])
+  const parent = spawn()
+  const child = spawn(ChildOf(parent))
 }
 ```
 

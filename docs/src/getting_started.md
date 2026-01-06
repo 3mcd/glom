@@ -200,22 +200,16 @@ addSystem(schedule, playPickupSfx)
 addSystem(schedule, processSfx)
 
 // initialize our world
-import { spawn, addComponent, addResource, flushGraphChanges } from "@glom/ecs"
+import { spawn, addResource, flushGraphChanges } from "@glom/ecs"
 
 // create the global SFX singleton
-const manager = spawn(world)
-addComponent(world, manager, SfxManager)
+const manager = spawn(world, SfxManager)
 
 // spawn a player
-const p = spawn(world)
-addComponent(world, p, Player)
-addComponent(world, p, Pos, { x: 0, y: 0 })
-addComponent(world, p, Vel, { dx: 0.1, dy: 0.1 })
+const p = spawn(world, Player, Pos({ x: 0, y: 0 }), Vel({ dx: 0.1, dy: 0.1 }))
 
 // spawn an item
-const i = spawn(world)
-addComponent(world, i, Item)
-addComponent(world, i, Pos, { x: 5, y: 5 })
+const i = spawn(world, Item, Pos({ x: 5, y: 5 }))
 
 flushGraphChanges(world)
 ```

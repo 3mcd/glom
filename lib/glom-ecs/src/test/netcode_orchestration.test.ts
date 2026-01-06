@@ -17,7 +17,7 @@ describe("netcode orchestration", () => {
 
   test("networked schedule lifecycle", () => {
     const world = makeWorld({domainId: 1, schema})
-    const player = spawn(world, [Position({x: 0, y: 0}), Replicated])
+    const player = spawn(world, Position({x: 0, y: 0}), Replicated)
 
     const schedule = makeSystemSchedule()
 

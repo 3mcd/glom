@@ -28,6 +28,7 @@ import {
   commitTransaction,
   getResource,
   spawn,
+  spawnInDomain,
 } from "../world_api"
 
 describe("reconciliation", () => {
@@ -46,7 +47,7 @@ describe("reconciliation", () => {
 
     pushSnapshot(world, history)
 
-    const entity = spawn(world, [Position({x: 0, y: 0})])
+    const entity = spawn(world, Position({x: 0, y: 0}))
     commitTransaction(world)
     advanceTick(world)
 
@@ -139,7 +140,7 @@ describe("reconciliation", () => {
     const world = makeWorld({domainId: 1, schema: [Position]})
 
     world.tick = 10
-    const entity = spawn(world, [Position({x: 0, y: 0})], TRANSIENT_DOMAIN)
+    const entity = spawnInDomain(world, [Position({x: 0, y: 0})], TRANSIENT_DOMAIN)
     expect(world.transientRegistry.size).toBe(1)
 
     world.tick = 20
@@ -154,7 +155,7 @@ describe("reconciliation", () => {
     const world = makeWorld({domainId: 1, schema: [Position]})
     addResource(world, IncomingSnapshots(new Map()))
 
-    const entity = spawn(world, [])
+    const entity = spawn(world)
     commitTransaction(world)
 
     const snapshot = {
@@ -184,7 +185,7 @@ describe("reconciliation", () => {
     const world = makeWorld({domainId: 1, schema: [Position]})
     addResource(world, IncomingTransactions(new Map()))
 
-    const entity = spawn(world, [])
+    const entity = spawn(world)
     commitTransaction(world)
 
     const transaction: Transaction = {
@@ -239,7 +240,7 @@ describe("reconciliation", () => {
     addSystem(schedule, moveSystem)
 
     // Tick 0
-    const entity = spawn(world, [Position({x: 0, y: 0})])
+    const entity = spawn(world, Position({x: 0, y: 0}))
     runSchedule(schedule, world) // x -> 1
     commitTransaction(world)
     advanceTick(world) // world.tick = 1, pushes snapshot of state at START of tick 1 (x=1)
@@ -300,7 +301,7 @@ describe("reconciliation", () => {
     const incomingTransactions = new Map<number, Transaction[]>()
     addResource(world, IncomingTransactions(incomingTransactions))
 
-    const entity = spawn(world, [Position({x: 0, y: 0})])
+    const entity = spawn(world, Position({x: 0, y: 0}))
     commitTransaction(world)
 
     // Advance 5 ticks, only 2 snapshots will remain (maxSize=2)

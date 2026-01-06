@@ -80,7 +80,7 @@ const pulseSpawnerSystem = (
   world: g.World,
 ) => {
   for (const [playerEnt, pos, intentTick] of query) {
-    g.spawn(
+    g.spawnInDomain(
       world,
       [Position(pos), Pulse(5), PulseOf(playerEnt), g.Replicated],
       world.registry.domainId,
@@ -250,11 +250,12 @@ const client = createClient(1, reconcileSchedule)
 const clientToServer = [] as {time: number; packet: Uint8Array}[]
 const serverToClient = [] as {time: number; packet: Uint8Array}[]
 
-const player = g.spawn(server.world, [
+const player = g.spawn(
+  server.world,
   Position({x: 125, y: 125}),
   Color(0),
   g.Replicated,
-])
+)
 
 const writer = new g.ByteWriter()
 g.writeHandshakeServer(writer, server.world.tick, {

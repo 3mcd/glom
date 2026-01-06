@@ -12,7 +12,7 @@ import {
   despawn,
   getResource,
   removeComponent,
-  spawn,
+  spawnInDomain,
 } from "./world_api"
 
 export const CommandOf = defineRelation(2)
@@ -113,7 +113,7 @@ export const spawnEphemeralCommands = defineSystem(
       let commandEntity: Entity
       const baseComponents = [IntentTick(cmd.intentTick), CommandEntity]
       if (cmd.data !== undefined) {
-        commandEntity = spawn(
+        commandEntity = spawnInDomain(
           world,
           [
             {component: comp as Component<unknown>, value: cmd.data},
@@ -122,7 +122,11 @@ export const spawnEphemeralCommands = defineSystem(
           COMMAND_DOMAIN,
         )
       } else {
-        commandEntity = spawn(world, [comp, ...baseComponents], COMMAND_DOMAIN)
+        commandEntity = spawnInDomain(
+          world,
+          [comp, ...baseComponents],
+          COMMAND_DOMAIN,
+        )
       }
 
       addComponent(world, cmd.target, CommandOf(commandEntity))

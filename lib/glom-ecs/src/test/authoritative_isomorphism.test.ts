@@ -87,7 +87,7 @@ const pulseSpawnerSystem = g.defineSystem(
     world: g.World,
   ) => {
     for (const [playerEnt, pos, _hasFire, intentTick] of query) {
-      g.spawn(
+      g.spawnInDomain(
         world,
         [Position({...pos}), Pulse(5), PulseOf(playerEnt), g.Replicated],
         world.registry.domainId,
@@ -340,7 +340,7 @@ test("rigorous straight-line movement isomorphism", () => {
   const {world: serverWorld, schedule: serverSchedule} = sim.server
   const {world: clientWorld, schedule: clientSchedule} = sim.client
 
-  const player = g.spawn(serverWorld, [Position({x: 0, y: 0}), g.Replicated])
+  const player = g.spawn(serverWorld, Position({x: 0, y: 0}), g.Replicated)
 
   const handshakeWriter = new g.ByteWriter()
   g.writeHandshakeServer(handshakeWriter, serverWorld.tick, {
@@ -410,7 +410,7 @@ test("stop-and-go movement isomorphism", () => {
   const {world: serverWorld, schedule: serverSchedule} = sim.server
   const {world: clientWorld, schedule: clientSchedule} = sim.client
 
-  const player = g.spawn(serverWorld, [Position({x: 0, y: 0}), g.Replicated])
+  const player = g.spawn(serverWorld, Position({x: 0, y: 0}), g.Replicated)
 
   const handshakeWriter = new g.ByteWriter()
   g.writeHandshakeServer(handshakeWriter, serverWorld.tick, {
@@ -480,7 +480,7 @@ test("predictive spawning and rebinding isomorphism", () => {
   const {world: serverWorld, schedule: serverSchedule} = sim.server
   const {world: clientWorld, schedule: clientSchedule} = sim.client
 
-  const player = g.spawn(serverWorld, [Position({x: 0, y: 0}), g.Replicated])
+  const player = g.spawn(serverWorld, Position({x: 0, y: 0}), g.Replicated)
 
   const handshakeWriter = new g.ByteWriter()
   g.writeHandshakeServer(handshakeWriter, serverWorld.tick, {

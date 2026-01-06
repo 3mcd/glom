@@ -22,7 +22,7 @@ describe("relation", () => {
   test("all relation features", () => {
     const schema = [Name, ChildOf]
     const world = makeWorld({domainId: 0, schema})
-    const parent = spawn(world, [Name("Parent")])
+    const parent = spawn(world, Name("Parent"))
 
     let childName = ""
     const system1 = defineSystem(
@@ -38,7 +38,7 @@ describe("relation", () => {
     const schedule1 = makeSystemSchedule()
     addSystem(schedule1, system1)
 
-    spawn(world, [Name("Child"), ChildOf(parent)])
+    spawn(world, Name("Child"), ChildOf(parent))
     runSchedule(schedule1, world)
 
     expect(childName).toBe("Child")

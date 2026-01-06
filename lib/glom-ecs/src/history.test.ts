@@ -31,7 +31,7 @@ describe("history", () => {
     addResource(world, HistoryBuffer(history))
     pushSnapshot(world, history)
 
-    const entity = spawn(world, [Position({x: 0, y: 0})])
+    const entity = spawn(world, Position({x: 0, y: 0}))
     commitTransaction(world)
     advanceTick(world)
 
@@ -56,7 +56,7 @@ describe("history", () => {
     addResource(world, HistoryBuffer(history))
     pushSnapshot(world, history)
 
-    const entity = spawn(world, [Position({x: 10, y: 10})])
+    const entity = spawn(world, Position({x: 10, y: 10}))
     commitTransaction(world)
     advanceTick(world)
 
@@ -72,7 +72,7 @@ describe("history", () => {
     const history = {snapshots: [], maxSize: 10}
     addResource(world, HistoryBuffer(history))
 
-    const entity = spawn(world, [Position({x: 10, y: 10})])
+    const entity = spawn(world, Position({x: 10, y: 10}))
     commitTransaction(world)
     pushSnapshot(world, history)
 
@@ -98,7 +98,7 @@ describe("history", () => {
     const inputBuffer = new Map<number, unknown>()
     addResource(world, InputBuffer(inputBuffer))
 
-    const entity = spawn(world, [Position({x: 0, y: 0})])
+    const entity = spawn(world, Position({x: 0, y: 0}))
     commitTransaction(world)
 
     pushSnapshot(world, history)
@@ -151,8 +151,8 @@ describe("history", () => {
     const ChildOf = defineRelation()
     const world = makeWorld({domainId: 1, schema: [Position, ChildOf]})
 
-    const parent = spawn(world, [Position({x: 0, y: 0})])
-    const child = spawn(world, [ChildOf(parent)])
+    const parent = spawn(world, Position({x: 0, y: 0}))
+    const child = spawn(world, ChildOf(parent))
     commitTransaction(world)
 
     const snapshot = captureSnapshot(world)

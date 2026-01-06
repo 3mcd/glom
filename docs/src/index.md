@@ -30,7 +30,7 @@ const Contact = defineRelation()
 
 const collide = (query: Join<All<Entity, Pos>, All<Entity, Pos>>, spawn: Spawn<typeof Contact>) => {
   for (const [a, aPos, b, bPos] of query) {
-    if (a !== b && intersects(aPos, bPos)) spawn([Contact(b)])
+    if (a !== b && intersects(aPos, bPos)) spawn(Contact(b))
   }
 }
 

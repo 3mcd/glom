@@ -68,7 +68,7 @@ const onAttackStarted = (
   spawn: Spawn<typeof LaserBeam>
 ) => {
   for (const [player] of added) {
-    spawn([LaserBeam, EmitsFrom(player)])
+    spawn(LaserBeam, EmitsFrom(player))
   }
 }
 
@@ -87,7 +87,7 @@ The world API equivalents for these operations:
 
 ```typescript
 // spawning with initial components
-const beam = spawn(world, [LaserBeam, EmitsFrom(player)])
+const beam = spawn(world, LaserBeam, EmitsFrom(player))
 
 // despawning
 despawn(world, beam)

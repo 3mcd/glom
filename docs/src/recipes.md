@@ -44,7 +44,7 @@ const EmitsFrom = defineRelation()
 const onLevelUp = (added: In<Entity, typeof LeveledUp>, spawn: Spawn<typeof Vfx>) => {
   for (const [entity] of added) {
     // spawn a particle effect at the leveled-up entity
-    spawn([Vfx, EmitsFrom(entity)])
+    spawn(Vfx, EmitsFrom(entity))
   }
 }
 ```
@@ -143,7 +143,7 @@ import { Spawn, defineComponent } from "@glom/ecs"
 const Pos = defineComponent<{x: number, y: number}>()
 
 const spawnSystem = (spawn: Spawn<typeof Pos>) => {
-  const entity = spawn([Pos({x: 0, y: 0})])
+  const entity = spawn(Pos({x: 0, y: 0}))
 }
 ```
 

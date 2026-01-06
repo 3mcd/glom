@@ -133,6 +133,13 @@ export function setEntityNode(
 
 export function spawn(
   world: World,
+  ...components: (ComponentInstance<unknown> | ComponentLike)[]
+): Entity {
+  return spawnInDomain(world, components)
+}
+
+export function spawnInDomain(
+  world: World,
   components: (ComponentInstance<unknown> | ComponentLike)[],
   domainId = world.registry.domainId,
   intentTick = world.tick,

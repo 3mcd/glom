@@ -283,28 +283,6 @@ export class AllRuntime implements AnyAll {
     }
   }
 
-  private *_yield_entity(
-    entity: Entity,
-    node: EntityGraphNode,
-    termIdx: number,
-    currentResult: unknown[],
-  ): IterableIterator<unknown[]> {
-    // This is now replaced by _yield_at_level/yield_terms_at_level
-    // but kept for compatibility if needed, though I've updated the iterator.
-    if (termIdx === this._term_infos.length) {
-      yield [...currentResult]
-      return
-    }
-
-    const info = this._term_infos[termIdx] as TermInfo
-    const values = this._get_term_values(entity, info, node)
-
-    for (const val of values) {
-      currentResult[termIdx] = val
-      yield* this._yield_entity(entity, node, termIdx + 1, currentResult)
-    }
-  }
-
   private _get_term_values(
     entity: Entity,
     info: TermInfo,

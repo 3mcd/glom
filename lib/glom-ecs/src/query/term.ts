@@ -16,7 +16,7 @@ import type {Relation} from "../relation"
 
 export interface Spawn<T extends ComponentLike = never> {
   readonly __spawn: T | true
-  (components: (ComponentInstance<unknown> | ComponentLike)[]): Entity
+  (...components: (ComponentInstance<unknown> | ComponentLike)[]): Entity
 }
 
 export interface Despawn {

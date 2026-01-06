@@ -17,6 +17,7 @@ import {
   despawn,
   removeComponent,
   spawn,
+  spawnInDomain,
 } from "../world_api"
 
 describe("replication", () => {
@@ -41,7 +42,7 @@ describe("replication", () => {
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
     const worldB = makeWorld({domainId: 2, schema})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const entityA = spawn(worldA, [Position({x: 10, y: 20}), Replicated])
+    const entityA = spawn(worldA, Position({x: 10, y: 20}), Replicated)
     commitTransaction(worldA)
     sync(worldA, worldB)
 
@@ -59,7 +60,7 @@ describe("replication", () => {
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
     const worldB = makeWorld({domainId: 2, schema})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const entityA = spawn(worldA, [Position({x: 10, y: 20}), Replicated])
+    const entityA = spawn(worldA, Position({x: 10, y: 20}), Replicated)
     addComponent(worldA, entityA, Position({x: 30, y: 40}))
     commitTransaction(worldA)
     sync(worldA, worldB)
@@ -76,7 +77,7 @@ describe("replication", () => {
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
     const worldB = makeWorld({domainId: 2, schema})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const entityA = spawn(worldA, [IsStatic, Replicated])
+    const entityA = spawn(worldA, IsStatic, Replicated)
     commitTransaction(worldA)
     sync(worldA, worldB)
 
@@ -95,8 +96,8 @@ describe("replication", () => {
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
     const worldB = makeWorld({domainId: 2, schema})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const parent = spawn(worldA, [Position({x: 10, y: 10}), Replicated])
-    const child = spawn(worldA, [ChildOf(parent), Replicated])
+    const parent = spawn(worldA, Position({x: 10, y: 10}), Replicated)
+    const child = spawn(worldA, ChildOf(parent), Replicated)
     commitTransaction(worldA)
     sync(worldA, worldB)
 
@@ -118,8 +119,8 @@ describe("replication", () => {
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
     const worldB = makeWorld({domainId: 2, schema})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const parent = spawn(worldA, [Position({x: 10, y: 10}), Replicated])
-    const child = spawn(worldA, [ChildOf(parent), Replicated])
+    const parent = spawn(worldA, Position({x: 10, y: 10}), Replicated)
+    const child = spawn(worldA, ChildOf(parent), Replicated)
     commitTransaction(worldA)
     sync(worldA, worldB)
 
@@ -137,7 +138,7 @@ describe("replication", () => {
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
     const worldB = makeWorld({domainId: 2, schema})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const entityA = spawn(worldA, [Position({x: 10, y: 20}), Replicated])
+    const entityA = spawn(worldA, Position({x: 10, y: 20}), Replicated)
     addComponent(worldA, entityA, Velocity({dx: 1, dy: 1}))
     commitTransaction(worldA)
     sync(worldA, worldB)
@@ -155,11 +156,12 @@ describe("replication", () => {
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
     const worldB = makeWorld({domainId: 2, schema})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const entityA = spawn(worldA, [
+    const entityA = spawn(
+      worldA,
       Position({x: 10, y: 20}),
       Velocity({dx: 1, dy: 1}),
       Replicated,
-    ])
+    )
     commitTransaction(worldA)
     sync(worldA, worldB)
     expect(getComponentValue(worldB, entityA, Velocity)).toBeDefined()
@@ -177,7 +179,7 @@ describe("replication", () => {
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
     const worldB = makeWorld({domainId: 2, schema})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const entityA = spawn(worldA, [Position({x: 10, y: 20}), Replicated])
+    const entityA = spawn(worldA, Position({x: 10, y: 20}), Replicated)
     commitTransaction(worldA)
     sync(worldA, worldB)
     expect(getComponentValue(worldB, entityA, Position)).toBeDefined()
@@ -193,7 +195,7 @@ describe("replication", () => {
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
     const worldB = makeWorld({domainId: 2, schema})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const entity = spawn(worldA, [Position({x: 0, y: 0}), Replicated])
+    const entity = spawn(worldA, Position({x: 0, y: 0}), Replicated)
     commitTransaction(worldA)
     sync(worldA, worldB)
 
@@ -240,8 +242,8 @@ describe("replication", () => {
     const worldB = makeWorld({domainId: 2, schema})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
 
-    const entityA = spawn(worldA, [Position({x: 1, y: 1}), Replicated])
-    const entityB = spawn(worldB, [Position({x: 2, y: 2}), Replicated])
+    const entityA = spawn(worldA, Position({x: 1, y: 1}), Replicated)
+    const entityB = spawn(worldB, Position({x: 2, y: 2}), Replicated)
 
     commitTransaction(worldA)
     sync(worldA, worldB)
@@ -263,7 +265,7 @@ describe("replication", () => {
     const world = makeWorld({domainId: 1, schema})
     const causalKey = 12345
 
-    const transientEntity = spawn(
+    const transientEntity = spawnInDomain(
       world,
       [Position({x: 100, y: 100}), Replicated],
       TRANSIENT_DOMAIN,
@@ -321,17 +323,18 @@ describe("replication", () => {
     worldClient.tick = 100
     worldServer.tick = 100
 
-    const predictedEntity = spawn(
+    const predictedEntity = spawnInDomain(
       worldClient,
       [Position({x: 1, y: 1}), Replicated],
       TRANSIENT_DOMAIN,
     )
     expect(worldClient.transientRegistry.size).toBe(1)
 
-    const authoritativeEntity = spawn(worldServer, [
+    const authoritativeEntity = spawn(
+      worldServer,
       Position({x: 2, y: 2}),
       Replicated,
-    ])
+    )
 
     commitTransaction(worldServer)
     const serverTransaction = getResource(worldServer, ReplicationStream)?.transactions[0]
@@ -367,7 +370,7 @@ describe("replication", () => {
     const causalKey = 54321
 
     // A predicted parent entity
-    const transientParent = spawn(
+    const transientParent = spawnInDomain(
       world,
       [Position({x: 10, y: 10}), Replicated],
       TRANSIENT_DOMAIN,
@@ -378,7 +381,7 @@ describe("replication", () => {
     })
 
     // A child of the predicted parent
-    const child = spawn(world, [ChildOf(transientParent), Replicated])
+    const child = spawn(world, ChildOf(transientParent), Replicated)
     commitTransaction(world)
 
     expect(world.relations.objectToSubjects.has(transientParent)).toBe(true)
@@ -415,8 +418,8 @@ describe("replication", () => {
 
   test("relationship in set op", () => {
     const world = makeWorld({domainId: 1, schema})
-    const parent = spawn(world, [Position({x: 1, y: 1}), Replicated])
-    const child = spawn(world, [Position({x: 0, y: 0}), Replicated])
+    const parent = spawn(world, Position({x: 1, y: 1}), Replicated)
+    const child = spawn(world, Position({x: 0, y: 0}), Replicated)
     commitTransaction(world)
 
     const childOfParentId = 1000000 // A virtual ID
@@ -444,8 +447,8 @@ describe("replication", () => {
 
   test("relationship cleanup on despawn", () => {
     const world = makeWorld({domainId: 1, schema})
-    const parent = spawn(world, [Position({x: 1, y: 1}), Replicated])
-    const child = spawn(world, [ChildOf(parent), Replicated])
+    const parent = spawn(world, Position({x: 1, y: 1}), Replicated)
+    const child = spawn(world, ChildOf(parent), Replicated)
     commitTransaction(world)
 
     expect(world.relations.objectToSubjects.has(parent)).toBe(true)

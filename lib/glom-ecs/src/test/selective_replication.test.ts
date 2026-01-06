@@ -26,7 +26,7 @@ describe("selective replication", () => {
       }
     }
 
-    const e1 = spawn(worldA, [Position({x: 0, y: 0})])
+    const e1 = spawn(worldA, Position({x: 0, y: 0}))
     commitTransaction(worldA)
     sync()
     expect(totalTransactionCount).toBe(0)
@@ -44,7 +44,7 @@ describe("selective replication", () => {
     expect(totalTransactionCount).toBe(2)
     expect(getComponentValue(worldB, e1, Position)?.x).toBe(10)
 
-    const e2 = spawn(worldA, [Position({x: 100, y: 100}), Replicated])
+    const e2 = spawn(worldA, Position({x: 100, y: 100}), Replicated)
     commitTransaction(worldA)
     sync()
     expect(totalTransactionCount).toBe(3)

@@ -25,7 +25,7 @@ describe("monitorRuntime", () => {
     const monitor = makeIn({in: query})
     setupAll(monitor, world)
 
-    const e = spawn(world, [Position({x: 10, y: 20})])
+    const e = spawn(world, Position({x: 10, y: 20}))
 
     expect(Array.from(monitor)).toHaveLength(0)
 
@@ -46,7 +46,7 @@ describe("monitorRuntime", () => {
     const monitor = makeOut({out: query})
     setupAll(monitor, world)
 
-    const e = spawn(world, [Position({x: 10, y: 20})])
+    const e = spawn(world, Position({x: 10, y: 20}))
     flushGraphChanges(world)
     monitor.clear()
     flushDeletions(world)
@@ -71,7 +71,7 @@ describe("monitorRuntime", () => {
     const monitor = makeOut({out: query})
     setupAll(monitor, world)
 
-    const e = spawn(world, [Position({x: 10, y: 20})])
+    const e = spawn(world, Position({x: 10, y: 20}))
     flushGraphChanges(world)
     monitor.clear()
     flushDeletions(world)
@@ -91,7 +91,7 @@ describe("monitorRuntime", () => {
     setupAll(inMonitor, world)
     setupAll(outMonitor, world)
 
-    const e = spawn(world, [])
+    const e = spawn(world)
     despawn(world, e)
 
     flushGraphChanges(world)
@@ -108,7 +108,7 @@ describe("monitorRuntime", () => {
     setupAll(inMonitor, world)
     setupAll(outMonitor, world)
 
-    const e = spawn(world, [])
+    const e = spawn(world)
     flushGraphChanges(world)
     inMonitor.clear()
     outMonitor.clear()
@@ -132,7 +132,7 @@ describe("monitorRuntime", () => {
     const monitor_B = makeIn({in: {all: [Entity, {has: B}]}})
     setupAll(monitor_B, world)
 
-    const e = spawn(world, [A])
+    const e = spawn(world, A)
     flushGraphChanges(world)
     monitor_B.clear()
     flushDeletions(world)
@@ -152,7 +152,7 @@ describe("monitorRuntime", () => {
     const monitor = makeOut({out: {all: [{read: Position}]}})
     setupAll(monitor, world)
 
-    const e = spawn(world, [Position({x: 1, y: 1})])
+    const e = spawn(world, Position({x: 1, y: 1}))
     flushGraphChanges(world)
     monitor.clear()
     flushDeletions(world)
@@ -177,10 +177,10 @@ describe("monitorRuntime", () => {
     })
 
     // 1. Create a player that is Attacking
-    const player = spawn(world, [Attacking, Position({x: 10, y: 10})])
+    const player = spawn(world, Attacking, Position({x: 10, y: 10}))
 
     // 2. Create a beam that EmitsFrom the player
-    const beam = spawn(world, [Position({x: 1, y: 1}), EmitsFrom(player)])
+    const beam = spawn(world, Position({x: 1, y: 1}), EmitsFrom(player))
 
     // 3. Define the query: Entity that EmitsFrom an entity that Has Attacking
     const query = {
@@ -220,7 +220,7 @@ describe("monitorRuntime", () => {
     const monitor = makeOut({out: query})
     setupAll(monitor, world)
 
-    const e = spawn(world, [Tag])
+    const e = spawn(world, Tag)
     flushGraphChanges(world)
     monitor.clear()
 

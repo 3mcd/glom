@@ -23,9 +23,9 @@ describe("snapshot streaming", () => {
     const worldA = makeWorld({domainId: 1, schema: [Position]})
     const worldB = makeWorld({domainId: 2, schema: [Position]})
 
-    const e1 = spawn(worldA, [Position({x: 10, y: 20}), Replicated])
-    const e2 = spawn(worldA, [Position({x: 100, y: 200}), Replicated])
-    const e3 = spawn(worldA, [Position({x: 5, y: 5})])
+    const e1 = spawn(worldA, Position({x: 10, y: 20}), Replicated)
+    const e2 = spawn(worldA, Position({x: 100, y: 200}), Replicated)
+    const e3 = spawn(worldA, Position({x: 5, y: 5}))
 
     const posId = worldA.componentRegistry.getId(Position)
     const blocks = captureSnapshotStream(worldA, [posId])
@@ -54,7 +54,7 @@ describe("snapshot streaming", () => {
   test("LWW versioning in snapshots", () => {
     const world = makeWorld({domainId: 1, schema: [Position]})
     world.tick = 50
-    const entity = spawn(world, [Position({x: 50, y: 50}), Replicated])
+    const entity = spawn(world, Position({x: 50, y: 50}), Replicated)
     const posId = world.componentRegistry.getId(Position)
 
     const oldMessage = {

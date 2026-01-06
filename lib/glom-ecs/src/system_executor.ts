@@ -121,8 +121,8 @@ export function setupSystemExecutor<
     } else if (isNotDescriptor(desc)) {
       args[i] = makeNot(desc, world)
     } else if (isSpawnDescriptor(desc)) {
-      args[i] = ((components: (ComponentInstance<unknown> | ComponentLike)[]) =>
-        spawn(world, components)) as unknown as Spawn
+      args[i] = ((...components: (ComponentInstance<unknown> | ComponentLike)[]) =>
+        spawn(world, ...components)) as unknown as Spawn
     } else if (isDespawnDescriptor(desc)) {
       args[i] = ((entity: Entity) =>
         despawn(world, entity)) as unknown as Despawn

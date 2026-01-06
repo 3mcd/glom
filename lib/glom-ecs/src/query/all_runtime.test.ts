@@ -169,11 +169,11 @@ describe("allRuntime", () => {
     const all = makeAll(descWithNot) as AllRuntime
     setupAll(all, world)
 
-    spawn(world, [{component: c1, value: {val: 10}}])
-    spawn(world, [
+    spawn(world, {component: c1, value: {val: 10}})
+    spawn(world, 
       {component: c1, value: {val: 20}},
       {component: c3, value: {val: 30}},
-    ])
+    )
 
     const results = []
     for (const r of all) {
@@ -195,11 +195,11 @@ describe("allRuntime", () => {
     const all = makeAll(descWithJoinNot) as AllRuntime
     setupAll(all, world)
 
-    const obj1 = spawn(world, [])
-    const obj2 = spawn(world, [{component: c3, value: {val: 30}}])
+    const obj1 = spawn(world)
+    const obj2 = spawn(world, {component: c3, value: {val: 30}})
 
-    const sub1 = spawn(world, [])
-    const sub2 = spawn(world, [])
+    const sub1 = spawn(world)
+    const sub2 = spawn(world)
 
     addComponent(world, sub1, rel(obj1))
     addComponent(world, sub2, rel(obj2))

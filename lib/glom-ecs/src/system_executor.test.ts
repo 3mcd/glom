@@ -43,7 +43,7 @@ describe("system_executor", () => {
     setupSystemExecutor(exec, world)
     
     const monitor = exec.args[0] as any
-    spawn(world, [Position({x: 1, y: 1})])
+    spawn(world, Position({x: 1, y: 1}))
     // The monitor should have something in its 'added' set now
     // (Actual logic for monitors is tested elsewhere, we just want to see clear() called)
     
@@ -69,7 +69,7 @@ describe("system_executor", () => {
       ],
     }
 
-    const entity = spawn(world, [])
+    const entity = spawn(world)
     
     const systemToRun = (
       has: any,
@@ -79,9 +79,12 @@ describe("system_executor", () => {
       addFn: any,
       removeFn: any
     ) => {
-      const e = spawnFn([IsStatic])
+      // Test variadic spawn
+      const e = spawnFn(IsStatic, Position({x: 5, y: 5}))
       const nodeE = entityGraphGetEntityNode(world.entityGraph, e)
       expect(nodeE?.vec.sparse.has(world.componentRegistry.getId(IsStatic))).toBe(true)
+      expect(nodeE?.vec.sparse.has(world.componentRegistry.getId(Position))).toBe(true)
+      expect(getComponentValue(world, e, Position)?.x).toBe(5)
       
       addFn(entity, {x: 10, y: 10})
       expect(getComponentValue(world, entity, Position)?.x).toBe(10)
@@ -99,7 +102,7 @@ describe("system_executor", () => {
 
   test("Add descriptor with Tag", () => {
     const world = makeWorld({domainId: 0, schema})
-    const entity = spawn(world, [])
+    const entity = spawn(world)
     
     const desc = {
       params: [{add: IsStatic}],
