@@ -5,6 +5,7 @@ import {
   applyRemoteSnapshots,
   applyRemoteTransactions,
   cleanupTransientEntities,
+  performBatchReconciliation,
   pruneBuffers,
   receiveSnapshot,
   reconcileTransaction,
@@ -20,6 +21,9 @@ import {
   InputBuffer,
 } from "../replication_config"
 import {getComponentValue, makeWorld} from "../world"
+import {Read, World as WorldTerm} from "../query/term"
+import {defineSystem} from "../system"
+import {addSystem, makeSystemSchedule, runSchedule} from "../system_schedule"
 import {
   addComponent,
   addResource,
@@ -201,5 +205,123 @@ describe("reconciliation", () => {
     const pos = getComponentValue(world, entity, Position)
     expect(pos).toEqual({x: 100, y: 200})
     expect(incoming.has(0)).toBe(false)
+  })
+
+  test("performBatchReconciliation re-simulates multiple ticks", () => {
+    const world = makeWorld({domainId: 1, schema: [Position]})
+    const history = {snapshots: [], maxSize: 10}
+    addResource(world, HistoryBuffer(history))
+    const incomingTransactions = new Map<number, Transaction[]>()
+    addResource(world, IncomingTransactions(incomingTransactions))
+
+    const moveSystem = defineSystem(
+      (q: any, update: any) => {
+        for (const [entity, pos] of q) {
+          update(entity, {x: pos.x + 1, y: pos.y})
+        }
+      },
+      {
+        params: [{all: [{entity: true}, {read: Position}]} as any, {add: Position} as any],
+        name: "move",
+      },
+    )
+
+    const schedule = makeSystemSchedule()
+    addSystem(schedule, moveSystem)
+
+    // Tick 0
+    const entity = spawn(world, [Position({x: 0, y: 0})])
+    runSchedule(schedule, world) // x -> 1
+    commitTransaction(world)
+    advanceTick(world) // world.tick = 1, pushes snapshot of state at START of tick 1 (x=1)
+
+    // Tick 1
+    runSchedule(schedule, world) // x -> 2
+    commitTransaction(world)
+    advanceTick(world) // world.tick = 2, pushes snapshot of state at START of tick 2 (x=2)
+
+    // Tick 2
+    runSchedule(schedule, world) // x -> 3
+    commitTransaction(world)
+    advanceTick(world) // world.tick = 3, pushes snapshot of state at START of tick 3 (x=3)
+
+    expect(getComponentValue(world, entity, Position)?.x).toBe(3)
+
+    // Inject a transaction at Tick 1 that teleports the entity to x=10
+    const teleportTx: Transaction = {
+      domainId: 0,
+      seq: 1,
+      tick: 1,
+      ops: [
+        {
+          type: "set",
+          entity,
+          componentId: world.componentRegistry.getId(Position),
+          data: {x: 10, y: 0},
+        },
+      ],
+    }
+    incomingTransactions.set(1, [teleportTx])
+
+    // Perform batch reconciliation
+    performBatchReconciliation(world, schedule)
+
+    // Results of performBatchReconciliation:
+    // 1. rollBackToTick(1): world.tick = 1, state = x:1 (start of tick 1)
+    // 2. Loop world.tick=1 < 3:
+    //    - runSchedule: x becomes 2
+    //    - applyTransaction(tick 1): x becomes 10 (teleport)
+    //    - advanceTick: world.tick = 2
+    // 3. Loop world.tick=2 < 3:
+    //    - runSchedule: x becomes 11
+    //    - advanceTick: world.tick = 3
+    // 4. End.
+    expect(world.tick).toBe(3)
+    expect(getComponentValue(world, entity, Position)?.x).toBe(11)
+    expect(incomingTransactions.has(1)).toBe(false)
+  })
+
+  test("performBatchReconciliation handles transactions older than history", () => {
+    const world = makeWorld({domainId: 1, schema: [Position]})
+    const history = {snapshots: [], maxSize: 2} // Small history
+    addResource(world, HistoryBuffer(history))
+    const incomingTransactions = new Map<number, Transaction[]>()
+    addResource(world, IncomingTransactions(incomingTransactions))
+
+    const entity = spawn(world, [Position({x: 0, y: 0})])
+    commitTransaction(world)
+
+    // Advance 5 ticks, only 2 snapshots will remain (maxSize=2)
+    for (let i = 0; i < 5; i++) {
+      advanceTick(world)
+    }
+
+    // world.tick is 5. history should contain snapshots for tick 4 and 5 (or similar).
+    // Let's check oldest tick in history
+    const oldestHistoryTick = history.snapshots[0]!.tick
+    expect(oldestHistoryTick).toBeGreaterThan(0)
+
+    // Inject a transaction for tick 0 (older than oldest snapshot)
+    const oldTx: Transaction = {
+      domainId: 0,
+      seq: 1,
+      tick: 0,
+      ops: [
+        {
+          type: "set",
+          entity,
+          componentId: world.componentRegistry.getId(Position),
+          data: {x: 100, y: 0},
+        },
+      ],
+    }
+    incomingTransactions.set(0, [oldTx])
+
+    const schedule = makeSystemSchedule()
+    performBatchReconciliation(world, schedule)
+
+    // The transaction should be applied directly because it's too old to rollback
+    expect(getComponentValue(world, entity, Position)?.x).toBe(100)
+    expect(incomingTransactions.has(0)).toBe(false)
   })
 })
