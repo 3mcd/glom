@@ -262,6 +262,32 @@ describe("transformer", () => {
     expect(output).toContain("params: [{ read: Position }]")
   })
 
+  test("transforms Unique query parameter", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const mySystem = (pos: g.Unique<typeof Position>) => {
+        console.log(pos.x)
+      }
+    `
+    const output = transform(input)
+    expect(output).toContain(".get()")
+    expect(output).toContain("params: [{ unique: [{ read: Position }] }]")
+  })
+
+  test("transforms Unique query parameter with destructuring", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const mySystem = ([pos]: g.Unique<typeof Position>) => {
+        console.log(pos.x)
+      }
+    `
+    const output = transform(input)
+    expect(output).toContain("const [pos] = _unique_query_1.get()")
+    expect(output).toContain("params: [{ unique: [{ read: Position }] }]")
+  })
+
   test("transforms aliased World", () => {
     const input = `
       namespace g {

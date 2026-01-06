@@ -10,10 +10,10 @@ import type {
   SpawnDescriptor,
   WorldDescriptor,
   WriteDescriptor,
+  UniqueDescriptor,
 } from "../descriptors"
 import type {Entity} from "../entity"
 import type {Relation} from "../relation"
-export type {ComponentLike}
 
 export interface Spawn {
   readonly __spawn: true
@@ -53,6 +53,11 @@ export type Write<T extends ComponentLike> =
 
 export interface Has<T extends ComponentLike> {
   readonly __has: T
+}
+
+export interface Unique<T extends unknown[]> {
+  readonly __unique: true
+  readonly terms: T
 }
 
 export interface Not<T extends ComponentLike> {

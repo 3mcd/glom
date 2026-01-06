@@ -1,6 +1,9 @@
 import {assertDefined} from "../assert"
 import type {ComponentLike} from "../component"
-import type {AllDescriptor as RawAllDescriptor} from "../descriptors"
+import type {
+  AllDescriptor as RawAllDescriptor,
+  UniqueDescriptor as RawUniqueDescriptor,
+} from "../descriptors"
 import type {Entity} from "../entity"
 import {
   type EntityGraphNode,
@@ -491,8 +494,30 @@ export class AllRuntime implements AnyAll {
   }
 }
 
+export class UniqueRuntime extends AllRuntime {
+  readonly __unique = true
+
+  constructor(readonly desc: RawUniqueDescriptor) {
+    super({all: desc.unique})
+  }
+
+  get(): unknown {
+    const it = this[Symbol.iterator]()
+    const result = it.next()
+    if (result.done) {
+      throw new Error(`Unique query failed: no entity found matching terms`)
+    }
+    const val = result.value
+    return val.length === 1 ? val[0] : val
+  }
+}
+
 export function makeAll(desc: RawAllDescriptor): AnyAll {
   return new AllRuntime(desc)
+}
+
+export function makeUnique(desc: RawUniqueDescriptor): AnyAll {
+  return new UniqueRuntime(desc)
 }
 
 export function setupAll(all: AnyAll, world: World) {

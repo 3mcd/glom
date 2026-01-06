@@ -33,6 +33,19 @@ export type OutDescriptor<T extends AllDescriptor = AllDescriptor> = {
   out: T
 }
 
+export type UniqueDescriptor<
+  T0 = unknown,
+  T1 = unknown,
+  T2 = unknown,
+  T3 = unknown,
+  T4 = unknown,
+  T5 = unknown,
+  T6 = unknown,
+  T7 = unknown,
+> = {
+  unique: unknown[]
+}
+
 export type AllDescriptor<
   T0 = unknown,
   T1 = unknown,
@@ -143,6 +156,16 @@ export function isAllDescriptor(
     typeof desc === "object" &&
     desc !== null &&
     "all" in (desc as Record<string, unknown>)
+  )
+}
+
+export function isUniqueDescriptor(
+  desc: unknown,
+): desc is UniqueDescriptor<unknown> {
+  return (
+    typeof desc === "object" &&
+    desc !== null &&
+    "unique" in (desc as Record<string, unknown>)
   )
 }
 

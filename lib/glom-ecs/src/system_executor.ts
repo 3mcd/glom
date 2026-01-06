@@ -2,14 +2,9 @@ import {assertDefined} from "./assert"
 import type {ComponentInstance, ComponentLike} from "./component"
 import type {Entity} from "./entity"
 import {isAll} from "./query/all"
-import {makeAll, setupAll, teardownAll} from "./query/all_runtime"
+import {makeAll, makeUnique, setupAll, teardownAll} from "./query/all_runtime"
 import {MonitorRuntime, makeIn, makeOut} from "./query/monitor_runtime"
-import {
-  makeHas,
-  makeNot,
-  makeRead,
-  makeWrite,
-} from "./query/resource_runtime"
+import {makeHas, makeNot, makeRead, makeWrite} from "./query/resource_runtime"
 import type {System} from "./system"
 import type {
   Add,
@@ -29,6 +24,7 @@ import {
   isReadDescriptor,
   isRemoveDescriptor,
   isSpawnDescriptor,
+  isUniqueDescriptor,
   isWorldDescriptor,
   isWriteDescriptor,
   type SystemDescriptor,
@@ -69,6 +65,10 @@ export function setupSystemExecutor<
       const all = makeAll(desc)
       setupAll(all, world)
       args[i] = all
+    } else if (isUniqueDescriptor(desc)) {
+      const unique = makeUnique(desc)
+      setupAll(unique, world)
+      args[i] = unique
     } else if (isInDescriptor(desc)) {
       const monitor = makeIn(desc)
       setupAll(monitor, world)

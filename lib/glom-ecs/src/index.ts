@@ -60,7 +60,7 @@ export {
   writeSnapshot,
   writeTransaction,
 } from "./protocol"
-export {All, In, Out} from "./query/all"
+export {All, In, Out, Unique} from "./query/all"
 export {
   Add,
   Despawn,

@@ -126,8 +126,9 @@ interface TransformationResult {
 }
 
 interface ParamQueryInfo {
-  paramName: string
+  paramName: ts.BindingName
   terms: QueryTerm[]
+  isUnique: boolean
 }
 
 function transformSystem(
@@ -172,6 +173,9 @@ function transformSystem(
     const typeNode = param.type
     const type = typeChecker.getTypeOfSymbolAtLocation(params[i], systemNode)
     const isAll = isGlomAllType(type)
+    const actualName =
+      type.aliasSymbol?.getName() || type.getSymbol()?.getName()
+    const isUnique = actualName === "Unique" || !!type.getProperty("__unique")
 
     if (isAll && typeNode && ts.isTypeReferenceNode(typeNode)) {
       const terms = extractAllTermsFromNode(
@@ -180,12 +184,11 @@ function transformSystem(
         typeChecker,
       )
       if (terms.length > 0) {
-        if (ts.isIdentifier(param.name)) {
-          allQueryInfos.push({
-            paramName: param.name.text,
-            terms,
-          })
-        }
+        allQueryInfos.push({
+          paramName: param.name,
+          terms,
+          isUnique,
+        })
       }
     }
 
@@ -311,20 +314,27 @@ function isGlomAllType(type: ts.Type): boolean {
   if (
     type.getProperty("__all") ||
     type.getProperty("__in") ||
-    type.getProperty("__out")
+    type.getProperty("__out") ||
+    type.getProperty("__unique")
   )
     return true
   const symbol = type.getSymbol() || type.aliasSymbol
   if (!symbol) return false
   const name = symbol.getName()
-  if (name === "All" || name === "In" || name === "Out") return true
+  if (name === "All" || name === "In" || name === "Out" || name === "Unique")
+    return true
 
   const target = (type as {target?: ts.Type}).target
   if (target) {
     const targetSymbol = target.getSymbol() || target.aliasSymbol
     if (targetSymbol) {
       const targetName = targetSymbol.getName()
-      if (targetName === "All" || targetName === "In" || targetName === "Out")
+      if (
+        targetName === "All" ||
+        targetName === "In" ||
+        targetName === "Out" ||
+        targetName === "Unique"
+      )
         return true
     }
   }
@@ -336,13 +346,6 @@ function extractAllTermsFromNode(
   factory: ts.NodeFactory,
   typeChecker: ts.TypeChecker,
 ): QueryTerm[] {
-  const typeName = typeNode.typeName
-  const name = ts.isIdentifier(typeName)
-    ? typeName.text
-    : ts.isQualifiedName(typeName)
-      ? typeName.right.text
-      : ""
-
   if (typeNode.typeArguments === undefined) {
     const type = typeChecker.getTypeAtLocation(typeNode)
     const symbol = type.aliasSymbol || type.getSymbol()
@@ -375,7 +378,10 @@ function extractAllTermsFromNode(
           : ""
 
       if (name === "Read" || name === "Write") {
-        const componentExpr = extractRuntimeExpr(factory, node.typeArguments?.[0])
+        const componentExpr = extractRuntimeExpr(
+          factory,
+          node.typeArguments?.[0],
+        )
         return {
           type: name === "Read" ? "read" : "write",
           storeIndex: storeIndex++,
@@ -385,7 +391,10 @@ function extractAllTermsFromNode(
       }
 
       if (name === "Has" || name === "Not") {
-        const componentExpr = extractRuntimeExpr(factory, node.typeArguments?.[0])
+        const componentExpr = extractRuntimeExpr(
+          factory,
+          node.typeArguments?.[0],
+        )
         return {
           type: name === "Has" ? "has" : "not",
           joinIndex: currentJoinIndex,
@@ -423,9 +432,15 @@ function extractAllTermsFromNode(
         type.getProperty("__component_brand") ||
         ts.isTypeQueryNode(node) ||
         (type.getSymbol()?.getName() === "Component" &&
-          !["Read", "Write", "Has", "Not", "Rel", "Entity", "EntityTerm"].includes(
-            type.getSymbol()?.getName() || "",
-          ))
+          ![
+            "Read",
+            "Write",
+            "Has",
+            "Not",
+            "Rel",
+            "Entity",
+            "EntityTerm",
+          ].includes(type.getSymbol()?.getName() || ""))
       ) {
         return {
           type: "read",
@@ -479,6 +494,7 @@ function extractRuntimeExpr(
 function generateAllDescriptor(
   terms: QueryTerm[],
   factory: ts.NodeFactory,
+  key: "all" | "unique" = "all",
 ): ts.Expression {
   const generateTerm = (term: QueryTerm): ts.Expression => {
     switch (term.type) {
@@ -531,7 +547,7 @@ function generateAllDescriptor(
 
   return factory.createObjectLiteralExpression([
     factory.createPropertyAssignment(
-      "all",
+      key,
       factory.createArrayLiteralExpression(terms.map(generateTerm)),
     ),
   ])
@@ -596,6 +612,14 @@ function generateParamDescriptor(
         ),
       ),
     ])
+  }
+
+  if (actualName === "Unique" || type.getProperty("__unique")) {
+    return generateAllDescriptor(
+      extractAllTermsFromNode(node, factory, typeChecker),
+      factory,
+      "unique",
+    )
   }
 
   if (isGlomAllType(type)) {
@@ -688,8 +712,75 @@ function rewriteSystemFunction(
   const originalBody = fn.body
   if (!originalBody || !ts.isBlock(originalBody)) return fn
 
-  const queryMap = new Map(queryInfos.map((q) => [q.paramName, q.terms]))
+  const queryMap = new Map<string, QueryTerm[]>()
+  const uniqueParams = new Set<string>()
+  const destructuredUnique = new Map<ts.BindingPattern, string>()
+
+  queryInfos.forEach((q) => {
+    if (ts.isIdentifier(q.paramName)) {
+      queryMap.set(q.paramName.text, q.terms)
+      if (q.isUnique) uniqueParams.add(q.paramName.text)
+    }
+  })
+
   const usedQueries = new Set<string>()
+
+  const uniqueExtractions: ts.Statement[] = []
+  const newParameters = fn.parameters.map((p) => {
+    const info = queryInfos.find((q) => q.paramName === p.name)
+    if (info) {
+      if (!info.isUnique) return p
+
+      const originalBinding = p.name
+      const newName = factory.createUniqueName(
+        ts.isIdentifier(originalBinding)
+          ? `_unique_${originalBinding.text}`
+          : "_unique_query",
+      )
+      const newNameText = newName.text
+
+      if (ts.isIdentifier(originalBinding)) {
+        uniqueParams.add(originalBinding.text)
+        queryMap.set(originalBinding.text, info.terms)
+      } else {
+        destructuredUnique.set(
+          originalBinding as ts.BindingPattern,
+          newNameText,
+        )
+      }
+
+      uniqueExtractions.push(
+        factory.createVariableStatement(
+          undefined,
+          factory.createVariableDeclarationList(
+            [
+              factory.createVariableDeclaration(
+                originalBinding,
+                undefined,
+                undefined,
+                factory.createCallExpression(
+                  factory.createPropertyAccessExpression(newName, "get"),
+                  undefined,
+                  [],
+                ),
+              ),
+            ],
+            ts.NodeFlags.Const,
+          ),
+        ),
+      )
+      return factory.updateParameterDeclaration(
+        p,
+        p.modifiers,
+        p.dotDotDotToken,
+        newName,
+        p.questionToken,
+        p.type,
+        p.initializer,
+      )
+    }
+    return p
+  })
 
   const transformNode = (node: ts.Node): ts.Node => {
     if (ts.isForOfStatement(node)) {
@@ -748,7 +839,7 @@ function rewriteSystemFunction(
   })
 
   const finalBody = factory.createBlock(
-    [...preambles, ...updatedBody.statements],
+    [...uniqueExtractions, ...preambles, ...updatedBody.statements],
     true,
   )
 
@@ -757,7 +848,7 @@ function rewriteSystemFunction(
       fn,
       fn.modifiers,
       fn.typeParameters,
-      fn.parameters,
+      newParameters,
       fn.type,
       fn.equalsGreaterThanToken,
       finalBody,
@@ -769,7 +860,7 @@ function rewriteSystemFunction(
       fn.asteriskToken,
       fn.name,
       fn.typeParameters,
-      fn.parameters,
+      newParameters,
       fn.type,
       finalBody,
     )
@@ -780,7 +871,7 @@ function rewriteSystemFunction(
       fn.asteriskToken,
       fn.name,
       fn.typeParameters,
-      fn.parameters,
+      newParameters,
       fn.type,
       finalBody,
     )

@@ -1,16 +1,16 @@
 # Getting Started
 
-This guide explains how to set up Glom and the reasoning behind its core patterns.
+This guide walks you through building a complete, reactive application in Glom. We will build a small logic loop where players move around and collect items, triggering sound effects reactively.
 
 ## Installation
 
-Install the core ECS package first:
+Install the core ECS package:
 
 ```bash
 bun add @glom/ecs
 ```
 
-You'll also need the corresponding plugin for your bundler if you plan on using the build-time transformer:
+We recommend using the build-time transformer to enable idiomatic TypeScript signatures:
 
 ```bash
 # if using Bun
@@ -20,15 +20,11 @@ bun add -d @glom/transformer-bun
 bun add -d @glom/transformer-rollup
 ```
 
-## 1. Setting up the Transformer (Optional)
+## 1. Setting up the Transformer
 
-Glom includes a build-time transformer. It is used to inline query loops and determine system dependencies before your code runs.
-
-The transformer rewrites standard JavaScript generators into fast while loops and infers system dependencies based on parameter types.
+Glom uses a build-time transformer to inline query loops and infer system dependencies.
 
 ### For Bun
-
-Register the `glomBunPlugin` in your build configuration to use the transformer with Bun.
 
 ```typescript
 import { glomBunPlugin } from "@glom/transformer-bun"
@@ -42,77 +38,49 @@ Bun.build({
 
 ### For Vite / Rollup
 
-Add the `glomRollupPlugin` to your plugins list to use the transformer with Vite or Rollup.
-
 ```typescript
-// vite.config.ts
 import { defineConfig } from "vite"
 import { glomRollupPlugin } from "@glom/transformer-rollup"
 
-default defineConfig({
+export default defineConfig({
   plugins: [glomRollupPlugin()],
 })
 ```
 
-## 2. ECS 101
+## 2. Defining Components
 
-This section briefly describes the building blocks of an Entity-Component System.
-
-Entities are simple integer IDs. They don't encapsulate any logic or data themselves; instead, they act as a pointer to a set of component instances. A component instance is a plain value that represents a specific aspect of an entity, such as its position, health, or a player tag.
-
-The logic of your application is contained within systems, which are functions that operate on entities matching specific component criteria. A movement system might update the position of every entity that has both a position and a velocity component, for example. All of these entities and components are managed by the world, the central container that your systems run logic against.
-
-
-<aside>
-  <p>Each world uses an [Entity Graph](./entity_graph) to organize entities based on their component signatures, allowing systems to efficiently find their matches without scanning the entire world.</p>
-</aside>
-
-## 3. Defining Components
-
-Components define the shape of game state. When you add a component to an entity, you need to provide a **component instance**. They can be any JavaScript data type.
-
-Each entity can have only one instance of a specific component type at a time. An entity can't have two `Position` components, for example.
-
-<aside>
-  <p>You can achieve something close to entities with multiple components with [relationships](./relationships).</p>
-</aside>
-
-`defineComponent` creates a component that holds data, which you'll use to access and modify state in your systems.
+Components are plain data structures. Use `defineComponent` for data and `defineTag` for markers.
 
 ```typescript
-import { defineComponent, defineTag } from "@glom/ecs"
+import { defineComponent, defineTag, defineRelation, Entity } from "@glom/ecs"
 
-const Position = defineComponent<{ x: number; y: number }>()
-const Velocity = defineComponent<{ dx: number; dy: number }>()
+// Data components
+const Pos = defineComponent<{ x: number; y: number }>()
+const Vel = defineComponent<{ dx: number; dy: number }>()
+const Sfx = defineComponent<{ clip: string }>()
+
+// Tags (markers)
+const Player = defineTag()
+const Item = defineTag()
+const Collected = defineTag()
+const SfxManager = defineTag()
+
+// Relationships
+const PlaysOn = defineRelation()
 ```
 
-`defineTag` defines a tag component, or a marker that doesn't hold any data.
+## 3. Writing Systems
+
+Systems are functions that implement your logic. They use iterable **queries** to find entities.
+
+### The Movement System (Standard Query)
+Uses `All` to iterate over every entity that has both `Pos` and `Vel`.
 
 ```typescript
-const IsPlayer = defineTag()
-```
+import { All, Write } from "@glom/ecs"
 
-## 4. Setting up the World
-
-The `World` is the container for all the entities and components in an application.
-
-Create a world by calling `makeWorld`.
-
-```typescript
-import { makeWorld } from "@glom/ecs"
-
-const world = makeWorld()
-```
-
-## 5. Writing Systems (with Transformer)
-
-Systems are functions where you implement your logic. They receive entity queries as parameters, and declaring dependencies like `Position` allows the scheduler to determine execution order.
-
-```typescript
-import { All, Read, Write } from "@glom/ecs"
-
-const movementSystem = (
-  query: All<Write<typeof Position>, typeof Velocity>
+const movePlayers = (
+  query: All<Write<typeof Pos>, typeof Vel>
 ) => {
   for (const [pos, vel] of query) {
     pos.x += vel.dx
@@ -121,98 +89,126 @@ const movementSystem = (
 }
 ```
 
-## 6. Scheduling and Running
-
-Systems are organized into a `SystemSchedule`, which uses `Read` and `Write` requirements to determine their execution order. Systems that write to a component are sorted to run before systems that read from the same component.
-
-Add your systems to a schedule and run it in your main loop:
+### The Collection System (Cross-Query)
+Identifies when a player is close enough to an item to "collect" it.
 
 ```typescript
-import { addSystem, makeSystemSchedule, runSchedule } from "@glom/ecs"
+import { Add, Entity, All } from "@glom/ecs"
 
-const schedule = makeSystemSchedule()
-addSystem(schedule, movementSystem)
-
-// in your main loop
-runSchedule(schedule, world)
-```
-
-## 7. Spawning Entities
-
-Entities are unique integer IDs that associate components. When you spawn an entity or change its components, call `flushGraphChanges` to update the internal entity graph and make those changes visible to queries.
-
-```typescript
-import { addComponent, spawn, flushGraphChanges } from "@glom/ecs"
-
-const player = spawn(world)
-addComponent(world, player, Position, { x: 0, y: 0 })
-addComponent(world, player, Velocity, { dx: 1, dy: 1 })
-addComponent(world, player, IsPlayer)
-
-// flush changes so they're available to queries
-flushGraphChanges(world)
-```
-
-Within a system, you use the `Spawn` and `Add` descriptors to perform these operations:
-
-```typescript
-import { Add, Spawn } from "@glom/ecs"
-
-const playerSpawner = (spawn: Spawn, addPosition: Add<typeof Position>) => {
-  const player = spawn([IsPlayer])
-  addPosition(player, { x: 0, y: 0 })
+const collectItems = (
+  players: All<typeof Pos, typeof Player>,
+  items: All<Entity, typeof Pos, typeof Item>,
+  collect: Add<typeof Collected>
+) => {
+  for (const [pPos] of players) {
+    for (const [item, iPos] of items) {
+      const dist = Math.hypot(pPos.x - iPos.x, pPos.y - iPos.y)
+      if (dist < 1.0) {
+        collect(item)
+      }
+    }
+  }
 }
 ```
 
-## 8. Despawning and Removing Components
-
-Removing data or entities is just as straightforward.
-
-```typescript
-import { despawn, removeComponent } from "@glom/ecs"
-
-// remove a single component
-removeComponent(world, player, Velocity)
-
-// remove the entire entity
-despawn(world, player)
-```
-
-And the system equivalents using `Remove` and `Despawn`:
+### Reactive Systems (In/Out Monitors)
+Glom provides `In` and `Out` monitors to react to state changes.
 
 ```typescript
-import { Despawn, Remove } from "@glom/ecs"
+import { In, Out, Spawn, Despawn, Add, Unique } from "@glom/ecs"
 
-const cleanupSystem = (
-  query: All<Entity, Has<typeof IsDead>>,
-  remove: Remove<typeof IsDead>,
+// despawn items as soon as they are collected
+const despawnCollected = (
+  items: In<typeof Collected>,
   despawn: Despawn
 ) => {
-  for (const [entity] of query) {
-    remove(entity)
+  for (const [entity] of items) {
     despawn(entity)
   }
 }
-```
 
-## Appendix: Without the Transformer
-
-If your workflow doesn't support a build-time transformer, you can use the `defineSystem` helper to provide metadata explicitly in your code.
-
-```typescript
-import { All, Read, Write, defineSystem } from "@glom/ecs"
-
-const movementSystem = (query: All<Write<typeof Position>, typeof Velocity>) => {
-  for (const [pos, vel] of query) {
-    pos.x += vel.dx
-    pos.y += vel.dy
+// play a sound when an item is removed from the world
+const playPickupSfx = (
+  removedItems: Out<typeof Item>,
+  spawn: Spawn<typeof Sfx>,
+  play: Add<typeof PlaysOn>,
+  // `Unique` identifies a single entity matching the criteria
+  [manager]: Unique<Entity, typeof SfxManager>
+) => {
+  for (const [entity] of removedItems) {
+    // spawn a temporary sound entity
+    const sfx = spawn(Sfx({ clip: "pickup.wav" }))
+    // link it to the global SFX manager entity
+    play(sfx, PlaysOn, manager)
   }
 }
-
-// manually define the system metadata
-defineSystem(movementSystem, {
-  params: [
-    { all: [{ write: Position }, { read: Velocity }] }
-  ]
-})
 ```
+
+## 4. Scheduling and Running
+
+Systems are organized into a `SystemSchedule`. Glom automatically sorts them based on their data requirements.
+
+```typescript
+import { makeWorld, makeSystemSchedule, addSystem, runSchedule } from "@glom/ecs"
+
+const world = makeWorld()
+const schedule = makeSystemSchedule()
+
+addSystem(schedule, movePlayers)
+addSystem(schedule, collectItems)
+addSystem(schedule, despawnCollected)
+addSystem(schedule, playPickupSfx)
+
+// initialize our world
+import { spawn, addComponent, addResource, flushGraphChanges } from "@glom/ecs"
+
+// create the global SFX singleton
+const manager = spawn(world)
+addComponent(world, manager, SfxManager)
+
+// spawn a player
+const p = spawn(world)
+addComponent(world, p, Player)
+addComponent(world, p, Pos, { x: 0, y: 0 })
+addComponent(world, p, Vel, { dx: 0.1, dy: 0.1 })
+
+// spawn an item
+const i = spawn(world)
+addComponent(world, i, Item)
+addComponent(world, i, Pos, { x: 5, y: 5 })
+
+flushGraphChanges(world)
+```
+
+## 5. The Main Loop (Fixed Timestep)
+
+For predictable logic, use a fixed timestep loop.
+
+```typescript
+import { makeTimestep, timestepUpdate } from "@glom/ecs"
+
+const timestep = makeTimestep(60) // 60fps logic
+
+function loop() {
+  const now = performance.now()
+  
+  // step the logic in fixed increments
+  timestepUpdate(timestep, now, (delta) => {
+    runSchedule(schedule, world)
+  })
+  
+  requestAnimationFrame(loop)
+}
+
+loop()
+```
+
+## Summary
+
+In this example, we:
+
+1. Defined components, including tags and relations.
+2. Built systems using `All`, `In`, and `Out` queries.
+3. Utilized system arguments (`Spawn`, `Add`, `Despawn`) to modify world state inside systems.
+4. Created a singleton using `addResource`.
+5. Set up a system schedule and a fixed game loop.
