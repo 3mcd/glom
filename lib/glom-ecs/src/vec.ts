@@ -1,6 +1,6 @@
-import {assert_defined} from "./assert"
+import {assertDefined} from "./assert"
 import type {ComponentLike} from "./component"
-import {hash_word, hash_words} from "./lib/hash"
+import {hashWord, hashWords} from "./lib/hash"
 import type {ComponentRegistry} from "./registry"
 
 export type Vec = {
@@ -13,7 +13,7 @@ export type Vec = {
   readonly intersections: WeakMap<Vec, Vec>
 }
 
-export function make_vec(
+export function makeVec(
   components: ComponentLike[],
   registry: ComponentRegistry,
 ): Vec {
@@ -21,32 +21,32 @@ export function make_vec(
   const seen = new Set<number>()
   for (let i = 0; i < components.length; i++) {
     const c = components[i]
-    assert_defined(c)
-    const id = registry.get_id(c)
+    assertDefined(c)
+    const id = registry.getId(c)
     if (!seen.has(id)) {
       elements.push(c)
       seen.add(id)
     }
   }
-  elements.sort((a, b) => registry.get_id(a) - registry.get_id(b))
-  return make_vec_sorted(elements, registry)
+  elements.sort((a, b) => registry.getId(a) - registry.getId(b))
+  return makeVecSorted(elements, registry)
 }
 
-export function make_vec_sorted(
+export function makeVecSorted(
   elements: ComponentLike[],
   registry: ComponentRegistry,
 ): Vec {
-  const ids = elements.map((c) => registry.get_id(c))
+  const ids = elements.map((c) => registry.getId(c))
   const sparse = new Map<number, number>()
   for (let i = 0; i < elements.length; i++) {
     const component = elements[i]
-    assert_defined(component)
-    sparse.set(registry.get_id(component), i)
+    assertDefined(component)
+    sparse.set(registry.getId(component), i)
   }
   return {
     elements,
     ids,
-    hash: hash_words(ids),
+    hash: hashWords(ids),
     sparse,
     sums: new WeakMap(),
     differences: new WeakMap(),
@@ -54,55 +54,55 @@ export function make_vec_sorted(
   }
 }
 
-export function vec_has(
+export function vecHas(
   vec: Vec,
   component: ComponentLike,
   registry: ComponentRegistry,
 ): boolean {
-  return vec.ids.includes(registry.get_id(component))
+  return vec.ids.includes(registry.getId(component))
 }
 
-export function vec_xor_hash(a: Vec, b: Vec): number {
+export function vecXorHash(a: Vec, b: Vec): number {
   if (a.hash === b.hash) {
     return 0
   }
-  const a_len = a.ids.length
-  const b_len = b.ids.length
-  let a_idx = 0
-  let b_idx = 0
+  const aLen = a.ids.length
+  const bLen = b.ids.length
+  let aIdx = 0
+  let bIdx = 0
   let xor = 0
-  while (a_idx < a_len && b_idx < b_len) {
-    const a_id = a.ids[a_idx]
-    const b_id = b.ids[b_idx]
-    assert_defined(a_id)
-    assert_defined(b_id)
-    if (a_id === b_id) {
-      a_idx++
-      b_idx++
-    } else if (a_id < b_id) {
-      xor = hash_word(xor, a_id)
-      a_idx++
+  while (aIdx < aLen && bIdx < bLen) {
+    const aId = a.ids[aIdx]
+    const bId = b.ids[bIdx]
+    assertDefined(aId)
+    assertDefined(bId)
+    if (aId === bId) {
+      aIdx++
+      bIdx++
+    } else if (aId < bId) {
+      xor = hashWord(xor, aId)
+      aIdx++
     } else {
-      xor = hash_word(xor, b_id)
-      b_idx++
+      xor = hashWord(xor, bId)
+      bIdx++
     }
   }
-  while (a_idx < a_len) {
-    const a_id = a.ids[a_idx]
-    assert_defined(a_id)
-    xor = hash_word(xor, a_id)
-    a_idx++
+  while (aIdx < aLen) {
+    const aId = a.ids[aIdx]
+    assertDefined(aId)
+    xor = hashWord(xor, aId)
+    aIdx++
   }
-  while (b_idx < b_len) {
-    const b_id = b.ids[b_idx]
-    assert_defined(b_id)
-    xor = hash_word(xor, b_id)
-    b_idx++
+  while (bIdx < bLen) {
+    const bId = b.ids[bIdx]
+    assertDefined(bId)
+    xor = hashWord(xor, bId)
+    bIdx++
   }
   return xor >>> 0
 }
 
-export function vec_is_superset_of(a: Vec, b: Vec): boolean {
+export function vecIsSupersetOf(a: Vec, b: Vec): boolean {
   if (a.hash === b.hash) {
     return true
   }
@@ -112,79 +112,79 @@ export function vec_is_superset_of(a: Vec, b: Vec): boolean {
   if (a.ids.length < b.ids.length) {
     return false
   }
-  const a_len = a.ids.length
-  const b_len = b.ids.length
-  let a_idx = 0
-  let b_idx = 0
-  while (a_idx < a_len && b_idx < b_len) {
-    const a_id = a.ids[a_idx]
-    const b_id = b.ids[b_idx]
-    assert_defined(a_id)
-    assert_defined(b_id)
-    if (a_id < b_id) {
-      a_idx++
-    } else if (a_id > b_id) {
+  const aLen = a.ids.length
+  const bLen = b.ids.length
+  let aIdx = 0
+  let bIdx = 0
+  while (aIdx < aLen && bIdx < bLen) {
+    const aId = a.ids[aIdx]
+    const bId = b.ids[bIdx]
+    assertDefined(aId)
+    assertDefined(bId)
+    if (aId < bId) {
+      aIdx++
+    } else if (aId > bId) {
       return false
     } else {
-      a_idx++
-      b_idx++
+      aIdx++
+      bIdx++
     }
   }
-  return b_idx === b.ids.length
+  return bIdx === b.ids.length
 }
 
-export function vec_sum(a: Vec, b: Vec, registry: ComponentRegistry): Vec {
+export function vecSum(a: Vec, b: Vec, registry: ComponentRegistry): Vec {
   let cached = a.sums.get(b)
   if (cached) {
     return cached
   }
-  const a_len = a.ids.length
-  const b_len = b.ids.length
+  const aLen = a.ids.length
+  const bLen = b.ids.length
   const sum: ComponentLike[] = []
-  let a_idx = 0
-  let b_idx = 0
-  while (a_idx < a_len && b_idx < b_len) {
-    const a_id = a.ids[a_idx]
-    const b_id = b.ids[b_idx]
-    assert_defined(a_id)
-    assert_defined(b_id)
-    if (a_id === b_id) {
-      const element = a.elements[a_idx]
-      assert_defined(element)
+  let aIdx = 0
+  let bIdx = 0
+  while (aIdx < aLen && bIdx < bLen) {
+    const aId = a.ids[aIdx]
+    const bId = b.ids[bIdx]
+    assertDefined(aId)
+    assertDefined(bId)
+    if (aId === bId) {
+      const element = a.elements[aIdx]
+      assertDefined(element)
       sum.push(element)
-      a_idx++
-      b_idx++
-    } else if (a_id < b_id) {
-      const element = a.elements[a_idx]
-      assert_defined(element)
+      aIdx++
+      bIdx++
+    } else if (aId < bId) {
+      const element = a.elements[aIdx]
+      assertDefined(element)
       sum.push(element)
-      a_idx++
+      aIdx++
     } else {
-      const element = b.elements[b_idx]
-      assert_defined(element)
+      const element = b.elements[bIdx]
+      assertDefined(element)
       sum.push(element)
-      b_idx++
+      bIdx++
     }
   }
-  while (a_idx < a_len) {
-    const element = a.elements[a_idx]
-    assert_defined(element)
+  while (aIdx < aLen) {
+    const element = a.elements[aIdx]
+    assertDefined(element)
     sum.push(element)
-    a_idx++
+    aIdx++
   }
-  while (b_idx < b_len) {
-    const element = b.elements[b_idx]
-    assert_defined(element)
+  while (bIdx < bLen) {
+    const element = b.elements[bIdx]
+    assertDefined(element)
     sum.push(element)
-    b_idx++
+    bIdx++
   }
-  cached = make_vec_sorted(sum, registry)
+  cached = makeVecSorted(sum, registry)
   a.sums.set(b, cached)
   b.sums.set(a, cached)
   return cached
 }
 
-export function vec_difference(
+export function vecDifference(
   a: Vec,
   b: Vec,
   registry: ComponentRegistry,
@@ -193,41 +193,41 @@ export function vec_difference(
   if (cached) {
     return cached
   }
-  const a_len = a.ids.length
-  const b_len = b.ids.length
+  const aLen = a.ids.length
+  const bLen = b.ids.length
   const difference: ComponentLike[] = []
-  let a_idx = 0
-  let b_idx = 0
-  while (a_idx < a_len && b_idx < b_len) {
-    const a_id = a.ids[a_idx]
-    const b_id = b.ids[b_idx]
-    assert_defined(a_id)
-    assert_defined(b_id)
-    if (a_id === b_id) {
-      a_idx++
-      b_idx++
-    } else if (a_id < b_id) {
-      const element = a.elements[a_idx]
-      assert_defined(element)
+  let aIdx = 0
+  let bIdx = 0
+  while (aIdx < aLen && bIdx < bLen) {
+    const aId = a.ids[aIdx]
+    const bId = b.ids[bIdx]
+    assertDefined(aId)
+    assertDefined(bId)
+    if (aId === bId) {
+      aIdx++
+      bIdx++
+    } else if (aId < bId) {
+      const element = a.elements[aIdx]
+      assertDefined(element)
       difference.push(element)
-      a_idx++
+      aIdx++
     } else {
-      b_idx++
+      bIdx++
     }
   }
-  while (a_idx < a_len) {
-    const element = a.elements[a_idx]
-    assert_defined(element)
+  while (aIdx < aLen) {
+    const element = a.elements[aIdx]
+    assertDefined(element)
     difference.push(element)
-    a_idx++
+    aIdx++
   }
-  cached = make_vec_sorted(difference, registry)
+  cached = makeVecSorted(difference, registry)
   a.differences.set(b, cached)
   b.differences.set(a, cached)
   return cached
 }
 
-export function vec_intersection(
+export function vecIntersection(
   a: Vec,
   b: Vec,
   registry: ComponentRegistry,
@@ -236,29 +236,29 @@ export function vec_intersection(
   if (cached) {
     return cached
   }
-  const a_len = a.ids.length
-  const b_len = b.ids.length
+  const aLen = a.ids.length
+  const bLen = b.ids.length
   const intersection: ComponentLike[] = []
-  let a_idx = 0
-  let b_idx = 0
-  while (a_idx < a_len && b_idx < b_len) {
-    const a_id = a.ids[a_idx]
-    const b_id = b.ids[b_idx]
-    assert_defined(a_id)
-    assert_defined(b_id)
-    if (a_id === b_id) {
-      const element = a.elements[a_idx]
-      assert_defined(element)
+  let aIdx = 0
+  let bIdx = 0
+  while (aIdx < aLen && bIdx < bLen) {
+    const aId = a.ids[aIdx]
+    const bId = b.ids[bIdx]
+    assertDefined(aId)
+    assertDefined(bId)
+    if (aId === bId) {
+      const element = a.elements[aIdx]
+      assertDefined(element)
       intersection.push(element)
-      a_idx++
-      b_idx++
-    } else if (a_id < b_id) {
-      a_idx++
+      aIdx++
+      bIdx++
+    } else if (aId < bId) {
+      aIdx++
     } else {
-      b_idx++
+      bIdx++
     }
   }
-  cached = make_vec_sorted(intersection, registry)
+  cached = makeVecSorted(intersection, registry)
   a.intersections.set(b, cached)
   b.intersections.set(a, cached)
   return cached

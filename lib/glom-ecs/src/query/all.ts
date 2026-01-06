@@ -4,7 +4,7 @@ import type {Term, TermValue} from "./term"
 
 export type Join = {
   readonly nodes: EntityGraphNode[]
-  readonly join_on?: {readonly id: number}
+  readonly joinOn?: {readonly id: number}
 }
 
 export interface AnyAll {
@@ -12,7 +12,7 @@ export interface AnyAll {
   readonly desc: AllDescriptor | InDescriptor | OutDescriptor
   readonly stores: unknown[][]
   readonly joins: Join[]
-  readonly entity_to_index: {
+  readonly entityToIndex: {
     readonly sparse: Map<number, number>
     readonly dense: number[]
   }
@@ -94,7 +94,7 @@ export function All<T extends unknown[]>(...terms: T): {all: T} {
   return {all: terms}
 }
 
-export function is_all(val: unknown): val is AnyAll {
+export function isAll(val: unknown): val is AnyAll {
   return typeof val === "object" && val !== null && "__all" in val
 }
 

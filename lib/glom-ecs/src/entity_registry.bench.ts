@@ -1,45 +1,45 @@
 import {bench, group, run} from "mitata"
 import {
-  alloc_entity,
-  make_entity_registry,
-  remove_entity,
+  allocEntity,
+  makeEntityRegistry,
+  removeEntity,
 } from "./entity_registry"
 
-group("entity_registry", () => {
-  const entity_count = 10000
-  const entities = new Array(entity_count)
+group("entityRegistry", () => {
+  const entityCount = 10000
+  const entities = new Array(entityCount)
 
-  bench(`alloc ${entity_count} entities (single domain)`, () => {
-    const registry = make_entity_registry(0)
-    for (let i = 0; i < entity_count; i++) {
-      entities[i] = alloc_entity(registry, 0)
+  bench(`alloc ${entityCount} entities (single domain)`, () => {
+    const registry = makeEntityRegistry(0)
+    for (let i = 0; i < entityCount; i++) {
+      entities[i] = allocEntity(registry, 0)
     }
   })
 
-  bench(`remove ${entity_count} entities (single domain)`, () => {
-    const registry = make_entity_registry(0)
-    for (let i = 0; i < entity_count; i++) {
-      entities[i] = alloc_entity(registry, 0)
+  bench(`remove ${entityCount} entities (single domain)`, () => {
+    const registry = makeEntityRegistry(0)
+    for (let i = 0; i < entityCount; i++) {
+      entities[i] = allocEntity(registry, 0)
     }
-    for (let i = 0; i < entity_count; i++) {
-      remove_entity(registry, entities[i])
-    }
-  })
-
-  bench(`alloc ${entity_count} entities (multi domain)`, () => {
-    const registry = make_entity_registry(0)
-    for (let i = 0; i < entity_count; i++) {
-      entities[i] = alloc_entity(registry, i % 10)
+    for (let i = 0; i < entityCount; i++) {
+      removeEntity(registry, entities[i])
     }
   })
 
-  bench(`remove ${entity_count} entities (multi domain)`, () => {
-    const registry = make_entity_registry(0)
-    for (let i = 0; i < entity_count; i++) {
-      entities[i] = alloc_entity(registry, i % 10)
+  bench(`alloc ${entityCount} entities (multi domain)`, () => {
+    const registry = makeEntityRegistry(0)
+    for (let i = 0; i < entityCount; i++) {
+      entities[i] = allocEntity(registry, i % 10)
     }
-    for (let i = 0; i < entity_count; i++) {
-      remove_entity(registry, entities[i])
+  })
+
+  bench(`remove ${entityCount} entities (multi domain)`, () => {
+    const registry = makeEntityRegistry(0)
+    for (let i = 0; i < entityCount; i++) {
+      entities[i] = allocEntity(registry, i % 10)
+    }
+    for (let i = 0; i < entityCount; i++) {
+      removeEntity(registry, entities[i])
     }
   })
 })

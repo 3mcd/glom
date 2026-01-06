@@ -5,23 +5,23 @@ export type ClockSyncSample = {
 
 export type AgentSync = {
   readonly samples: ClockSyncSample[]
-  smoothed_rtt: number
-  smoothed_offset: number
+  smoothedRtt: number
+  smoothedOffset: number
 }
 
 export type ClockSyncManager = {
   readonly agents: Map<number, AgentSync>
-  readonly max_samples: number
+  readonly maxSamples: number
 }
 
-export function make_clocksync_manager(max_samples = 16): ClockSyncManager {
+export function makeClocksyncManager(maxSamples = 16): ClockSyncManager {
   return {
     agents: new Map(),
-    max_samples,
+    maxSamples,
   }
 }
 
-export function calculate_offset_and_rtt(
+export function calculateOffsetAndRtt(
   t0: number,
   t1: number,
   t2: number,
@@ -32,27 +32,27 @@ export function calculate_offset_and_rtt(
   return {rtt, offset}
 }
 
-export function add_clocksync_sample(
+export function addClocksyncSample(
   manager: ClockSyncManager,
-  agent_id: number,
+  agentId: number,
   t0: number,
   t1: number,
   t2: number,
 ) {
-  let sync = manager.agents.get(agent_id)
+  let sync = manager.agents.get(agentId)
   if (!sync) {
     sync = {
       samples: [],
-      smoothed_rtt: 0,
-      smoothed_offset: 0,
+      smoothedRtt: 0,
+      smoothedOffset: 0,
     }
-    manager.agents.set(agent_id, sync)
+    manager.agents.set(agentId, sync)
   }
 
-  const sample = calculate_offset_and_rtt(t0, t1, t2)
+  const sample = calculateOffsetAndRtt(t0, t1, t2)
   sync.samples.push(sample)
 
-  if (sync.samples.length > manager.max_samples) {
+  if (sync.samples.length > manager.maxSamples) {
     sync.samples.shift()
   }
 
@@ -61,32 +61,32 @@ export function add_clocksync_sample(
   const mid = Math.floor(rtts.length / 2)
 
   if (rtts.length % 2 === 0) {
-    sync.smoothed_rtt = (rtts[mid - 1]! + rtts[mid]!) / 2
-    sync.smoothed_offset = (offsets[mid - 1]! + offsets[mid]!) / 2
+    sync.smoothedRtt = (rtts[mid - 1]! + rtts[mid]!) / 2
+    sync.smoothedOffset = (offsets[mid - 1]! + offsets[mid]!) / 2
   } else {
-    sync.smoothed_rtt = rtts[mid]!
-    sync.smoothed_offset = offsets[mid]!
+    sync.smoothedRtt = rtts[mid]!
+    sync.smoothedOffset = offsets[mid]!
   }
 }
 
-export function get_consensus_offset(manager: ClockSyncManager): number {
+export function getConsensusOffset(manager: ClockSyncManager): number {
   if (manager.agents.size === 0) return 0
 
-  let total_offset = 0
+  let totalOffset = 0
   for (const sync of manager.agents.values()) {
-    total_offset += sync.smoothed_offset
+    totalOffset += sync.smoothedOffset
   }
 
-  return total_offset / manager.agents.size
+  return totalOffset / manager.agents.size
 }
 
-export function get_average_rtt(manager: ClockSyncManager): number {
+export function getAverageRtt(manager: ClockSyncManager): number {
   if (manager.agents.size === 0) return 0
 
-  let total_rtt = 0
+  let totalRtt = 0
   for (const sync of manager.agents.values()) {
-    total_rtt += sync.smoothed_rtt
+    totalRtt += sync.smoothedRtt
   }
 
-  return total_rtt / manager.agents.size
+  return totalRtt / manager.agents.size
 }

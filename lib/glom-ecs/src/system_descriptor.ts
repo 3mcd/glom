@@ -162,4 +162,4 @@ export type SystemDescriptor<T extends SystemArgument[]> = {
   name?: string
 }
 
-export const system_descriptor_key = "__system_desc"
+export const systemDescriptorKey = "__system_desc"

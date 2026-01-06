@@ -7,7 +7,7 @@ export type ComponentDecode<T> = (reader: ByteReader, value?: T) => T
 export type ComponentSerde<T> = {
   encode: ComponentEncode<T>
   decode: ComponentDecode<T>
-  bytes_per_element: number
+  bytesPerElement: number
 }
 
 export type ComponentInstance<T> = {
@@ -18,7 +18,7 @@ export type ComponentInstance<T> = {
 export type ComponentLike = {
   readonly __component_brand: true
   readonly id?: number
-  readonly is_tag?: boolean
+  readonly isTag?: boolean
 }
 
 export type Component<T> = ComponentLike & {
@@ -31,11 +31,11 @@ export type SerializedComponent<T> = Component<T> & {
 }
 
 export interface ComponentResolver {
-  get_serde(component_id: number): ComponentSerde<unknown> | undefined
-  is_tag(component_id: number): boolean
+  getSerde(componentId: number): ComponentSerde<unknown> | undefined
+  isTag(componentId: number): boolean
 }
 
-export function define_component<T>(
+export function defineComponent<T>(
   serde?: ComponentSerde<T>,
   id?: number,
 ): Component<T> {
@@ -51,14 +51,14 @@ export function define_component<T>(
   return component as unknown as Component<T>
 }
 
-export function define_tag(id?: number): Component<void> {
+export function defineTag(id?: number): Component<void> {
   const component = ((value: void): ComponentInstance<void> => ({
     component: component as unknown as ComponentLike,
     value,
   })) as unknown as Record<string, unknown>
 
   if (id !== undefined) component["id"] = id
-  component["is_tag"] = true
+  component["isTag"] = true
   component["__component_brand"] = true
 
   return component as unknown as Component<void>

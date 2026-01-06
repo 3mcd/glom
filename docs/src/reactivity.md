@@ -15,18 +15,18 @@ Transition queries identify which entities changed since the last time the syste
 Define queries with `In` to match entities that just started matching your criteria.
 
 ```typescript
-import { Add, All, Entity, In, Read, define_component } from "@glom/ecs"
+import { Add, All, Entity, In, Read, defineComponent } from "@glom/ecs"
 
-const Shield = define_component<{ power: number }>()
-const ShieldVFX = define_component<{ intensity: number }>()
+const Shield = defineComponent<{ power: number }>()
+const ShieldVFX = defineComponent<{ intensity: number }>()
 
-const on_shield_added = (
+const onShieldAdded = (
   added: In<Entity, Has<typeof Shield>>,
-  add_vfx: Add<typeof ShieldVFX>
+  addVfx: Add<typeof ShieldVFX>
 ) => {
   // yields only entities that just received a shield
   for (const [entity] of added) {
-    add_vfx(entity, ShieldVFX, { intensity: 1.0 })
+    addVfx(entity, ShieldVFX, { intensity: 1.0 })
   }
 }
 ```
@@ -40,33 +40,32 @@ The loop only runs for entities that moved into the "has Shield" state in the cu
 ```typescript
 import { Entity, Out, Remove } from "@glom/ecs"
 
-const on_shield_removed = (
+const onShieldRemoved = (
   // yields only entities that just lost its shield
   removed: Out<Entity, Has<typeof Shield>>,
-  remove_vfx: Remove<typeof ShieldVFX>
+  removeVfx: Remove<typeof ShieldVFX>
 ) => {
   for (const [entity] of removed) {
-    remove_vfx(entity, ShieldVFX)
+    removeVfx(entity, ShieldVFX)
   }
 }
 ```
 
 ## Managing Related Entities
 
-Transition queries can also manage separate entities. We spawn a laser when a player attacks and despawn it when they stop in this example.
+Transition queries can also manage separate entities. This example demonstrates spawning a laser when a player begins attacking, and despawning it when they stop.
 
 ```typescript
-import { Add, Despawn, Entity, In, Out, Rel, Spawn, define_relation, define_tag } from "@glom/ecs"
+import { Despawn, Entity, In, Out, Rel, Spawn, defineRelation, defineTag } from "@glom/ecs"
 
-const Attacking = define_tag()
-const LaserBeam = define_tag()
-const EmitsFrom = define_relation()
+const Attacking = defineTag()
+const LaserBeam = defineTag()
+const EmitsFrom = defineRelation()
 
 // spawn a beam and link it
-const on_attack_started = (
+const onAttackStarted = (
   added: In<Entity, typeof Attacking>,
-  spawn: Spawn<Beam, EmitsFrom>,
-  bind: Add<EmitsFrom>
+  spawn: Spawn<Beam, EmitsFrom>
 ) => {
   for (const [player] of added) {
     spawn(spawner, LaserBeam, EmitsFrom(player))
@@ -74,7 +73,7 @@ const on_attack_started = (
 }
 
 // find the beam and despawn it
-const on_attack_stopped = (
+const onAttackStopped = (
   removed: Out<Entity, Rel<typeof EmitsFrom, Has<typeof Attacking>>>,
   despawn: Despawn
 ) => {
@@ -84,11 +83,11 @@ const on_attack_stopped = (
 }
 ```
 
-The `Out` query yields entities that no longer emit from attacking entities in `on_attack_stopped`, which means they can be cleaned up.
+The `Out` query yields entities that no longer emit from attacking entities in `onAttackStopped`, which means they can be cleaned up.
 
 ## How it works
 
-Transition queries subscribe to changes in the [Entity Graph](./entity_graph). The graph notifies the queries when an entity moves between nodes.
+Transition queries subscribe to changes in the [Entity Graph](./entityGraph). The graph notifies the queries when an entity moves between nodes.
 
 Each query keeps track of which entities entered or left its scope. These lists are cleared after the system runs.
 
@@ -97,9 +96,9 @@ Each query keeps track of which entities entered or left its scope. These lists 
 Provide the `in` or `out` descriptors in the system metadata if you aren't using the transformer.
 
 ```typescript
-import { In, Read, define_system } from "@glom/ecs"
+import { In, Read, defineSystem } from "@glom/ecs"
 
-const on_position_added = define_system((added: In<Read<typeof Position>>) => {
+const onPositionAdded = defineSystem((added: In<Read<typeof Position>>) => {
   for (const [pos] of added) {
     // ...
   }

@@ -8,11 +8,11 @@ The `World` does not use raw entity IDs to index arrays to support networking an
 
 ### How it works
 
-Entity IDs are 31-bit integers that are unique across the network. The `World` assigns a local index when it sees an entity. A `SparseMap` called `entity_to_index` stores this mapping. This prevents collisions when different agents create entities.
+Entity IDs are 31-bit integers that are unique across the network. The `World` assigns a local index when it sees an entity. A `SparseMap` called `entityToIndex` stores this mapping. This prevents collisions when different agents create entities.
 
 ```text
 World
-├── entity_to_index
+├── entityToIndex
 │   ├── [Entity: 1] ──> Index: 0
 │   └── [Entity: 2] ──> Index: 1
 └── storage
@@ -32,14 +32,14 @@ Systems get references to component stores once and use direct indexed lookups i
 
 ```typescript
 // Conceptual optimized loop
-const pos_store = world.components.storage[Position.id]
-const vel_store = world.components.storage[Velocity.id]
-const mapping = world.index.entity_to_index.sparse
+const posStore = world.components.storage[Position.id]
+const velStore = world.components.storage[Velocity.id]
+const mapping = world.index.entityToIndex.sparse
 
 for (const id of entities) {
   const idx = mapping[id]
-  const pos = pos_store[idx]
-  const vel = vel_store[idx]
+  const pos = posStore[idx]
+  const vel = velStore[idx]
   pos.x += vel.x
 }
 ```
@@ -54,6 +54,6 @@ Using a local index keeps array indices low and contiguous. This allows engines 
 
 ## Accessing Data
 
-- `get_component_value(world, entity, component)`: Look up a value.
-- `set_component_value(world, entity, component, value)`: Assign a value.
-- `get_component_store(world, component)`: Get the underlying array for a component.
+- `getComponentValue(world, entity, component)`: Look up a value.
+- `setComponentValue(world, entity, component, value)`: Assign a value.
+- `getComponentStore(world, component)`: Get the underlying array for a component.

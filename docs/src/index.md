@@ -26,12 +26,12 @@ expect(pos).toEqual({x: 1, y: 2})
 <span class="text-guides">**Entity relationships**</span> help you model hierarchies and graphs.
 
 ```typescript
-const Contact = define_relation()
+const Contact = defineRelation()
 
 const collide = (query: All<Entity, Read<Pos>>, spawn: Spawn<Contact>) => {
-  for (const [a, a_pos] of query) {
-    for (const [b, b_pos] of query) {
-      if (intersects(a_pos, b_pos)) spawn(a, Contact(b))
+  for (const [a, aPos] of query) {
+    for (const [b, bPos] of query) {
+      if (intersects(aPos, bPos)) spawn(a, Contact(b))
     }
   }
 }
@@ -48,12 +48,12 @@ const damage = (query: All<Write<Health>, Read<Contact>>, poof: Despawn) => {
 
 ```typescript
 // built-in systems for reconciliation
-add_system(schedule, glom.perform_rollback)
-add_system(schedule, glom.apply_remote_transactions)
-add_system(schedule, glom.advance_world_tick)
+addSystem(schedule, glom.performRollback)
+addSystem(schedule, glom.applyRemoteTransactions)
+addSystem(schedule, glom.advanceWorldTick)
 
 // tag entities for sync
-add_component(world, player, Replicated)
+addComponent(world, player, Replicated)
 ```
 
 The <span class="text-guides">**optimizer**</span> is a TypeScript transformer that injects system dependencies and inlines query loops.
@@ -65,14 +65,14 @@ for (const [pos, vel] of query) { ... }
 // into fast while loops:
 let i = 0
 while (i < count) {
-  const pos = pos_store[i]
+  const pos = posStore[i]
   // ...
 }
 ```
 
 ## Getting Started
 
-Check out the links in the header to learn more, or hop straight to [Getting Started](./getting_started) to get up and running with Glom.
+Check out the links in the header to learn more, or hop straight to [Getting Started](./gettingStarted) to get up and running with Glom.
 
 
 

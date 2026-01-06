@@ -162,7 +162,7 @@ function transformSystem(
       ? systemNode.name.text
       : ts.isFunctionExpression(systemNode) && systemNode.name
         ? systemNode.name.text
-        : "anonymous_system")
+        : "anonymousSystem")
 
   const paramDescriptors: ts.Expression[] = []
   let isGlomSystem = false
@@ -783,7 +783,7 @@ function generatePreamble(
             undefined,
             factory.createPropertyAccessExpression(
               factory.createIdentifier(queryParamName),
-              factory.createIdentifier("entity_to_index"),
+              factory.createIdentifier("entityToIndex"),
             ),
           ),
         ],
@@ -1045,7 +1045,7 @@ function generateLoops(
       const joinOnIdIdent = factory.createPropertyAccessExpression(
         factory.createPropertyAccessExpression(
           qIdent,
-          factory.createIdentifier("join_on"),
+          factory.createIdentifier("joinOn"),
         ),
         factory.createIdentifier("id"),
       )
@@ -1115,7 +1115,7 @@ function generateLoops(
                       factory.createElementAccessExpression(
                         factory.createPropertyAccessExpression(
                           nIdent,
-                          factory.createIdentifier("rel_maps"),
+                          factory.createIdentifier("relMaps"),
                         ),
                         joinOnIdIdent,
                       ),
@@ -1143,7 +1143,7 @@ function generateLoops(
                         factory.createPropertyAccessExpression(
                           factory.createPropertyAccessExpression(
                             relIdent,
-                            factory.createIdentifier("subject_to_objects"),
+                            factory.createIdentifier("subjectToObjects"),
                           ),
                           factory.createIdentifier("get"),
                         ),

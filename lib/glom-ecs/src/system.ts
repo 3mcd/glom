@@ -1,18 +1,18 @@
 import type {SystemArgument} from "./system_argument"
-import {type SystemDescriptor, system_descriptor_key} from "./system_descriptor"
+import {type SystemDescriptor, systemDescriptorKey} from "./system_descriptor"
 
 export type System<T extends SystemArgument[]> = (
   ...args: T
 ) => void
 
 export type DefinedSystem<T extends SystemArgument[]> = {
-  readonly [system_descriptor_key]: SystemDescriptor<T>
+  readonly [systemDescriptorKey]: SystemDescriptor<T>
 } & System<T>
 
-export function define_system<T extends SystemArgument[]>(
+export function defineSystem<T extends SystemArgument[]>(
   system: System<T>,
-  system_descriptor: SystemDescriptor<T>,
+  systemDescriptor: SystemDescriptor<T>,
 ): DefinedSystem<T> {
-  Reflect.set(system, system_descriptor_key, system_descriptor)
+  Reflect.set(system, systemDescriptorKey, systemDescriptor)
   return system as DefinedSystem<T>
 }

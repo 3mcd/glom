@@ -1,60 +1,61 @@
 import {describe, expect, test} from "bun:test"
-import {define_component, define_tag} from "../component"
+import {defineComponent, defineTag} from "../component"
 import {Entity} from "../entity"
-import {make_world} from "../world"
+import {defineRelation} from "../relation"
+import {makeWorld} from "../world"
 import {
-  add_component,
+  addComponent,
   despawn,
-  remove_component,
+  removeComponent,
   spawn,
-  world_flush_deletions,
-  world_flush_graph_changes,
+  worldFlushDeletions,
+  worldFlushGraphChanges,
 } from "../world_api"
-import {setup_all} from "./all_runtime"
-import {make_in, make_out} from "./monitor_runtime"
+import {setupAll} from "./all_runtime"
+import {makeIn, makeOut} from "./monitor_runtime"
 
-describe("monitor_runtime", () => {
-  const Position = define_component<{x: number; y: number}>()
-  const Tag = define_tag()
+describe("monitorRuntime", () => {
+  const Position = defineComponent<{x: number; y: number}>()
+  const Tag = defineTag()
   const schema = [Position, Tag]
 
   test("In<Q> catches new matching entities after flush", () => {
-    const world = make_world({domain_id: 0, schema})
+    const world = makeWorld({domainId: 0, schema})
     const query = {all: [Entity, {read: Position}]}
-    const monitor = make_in({in: query})
-    setup_all(monitor, world)
+    const monitor = makeIn({in: query})
+    setupAll(monitor, world)
 
     const e = spawn(world, [Position({x: 10, y: 20})])
 
     expect(Array.from(monitor)).toHaveLength(0)
 
-    world_flush_graph_changes(world)
+    worldFlushGraphChanges(world)
 
     const results = Array.from(monitor)
     expect(results).toHaveLength(1)
     expect(results[0]).toEqual([e, {x: 10, y: 20}])
 
     monitor.clear()
-    world_flush_deletions(world)
+    worldFlushDeletions(world)
     expect(Array.from(monitor)).toHaveLength(0)
   })
 
   test("Out<Q> catches entities that no longer match", () => {
-    const world = make_world({domain_id: 0, schema})
+    const world = makeWorld({domainId: 0, schema})
     const query = {all: [Entity, {read: Position}]}
-    const monitor = make_out({out: query})
-    setup_all(monitor, world)
+    const monitor = makeOut({out: query})
+    setupAll(monitor, world)
 
     const e = spawn(world, [Position({x: 10, y: 20})])
-    world_flush_graph_changes(world)
+    worldFlushGraphChanges(world)
     monitor.clear()
-    world_flush_deletions(world)
+    worldFlushDeletions(world)
 
-    remove_component(world, e, Position)
+    removeComponent(world, e, Position)
 
     expect(Array.from(monitor)).toHaveLength(0)
 
-    world_flush_graph_changes(world)
+    worldFlushGraphChanges(world)
 
     const results = Array.from(monitor)
     expect(results).toHaveLength(1)
@@ -65,18 +66,18 @@ describe("monitor_runtime", () => {
   })
 
   test("Out<Q> catches despawned entities", () => {
-    const world = make_world({domain_id: 0, schema})
+    const world = makeWorld({domainId: 0, schema})
     const query = {all: [Entity, {read: Position}]}
-    const monitor = make_out({out: query})
-    setup_all(monitor, world)
+    const monitor = makeOut({out: query})
+    setupAll(monitor, world)
 
     const e = spawn(world, [Position({x: 10, y: 20})])
-    world_flush_graph_changes(world)
+    worldFlushGraphChanges(world)
     monitor.clear()
-    world_flush_deletions(world)
+    worldFlushDeletions(world)
 
     despawn(world, e)
-    world_flush_graph_changes(world)
+    worldFlushGraphChanges(world)
 
     const results = Array.from(monitor)
     expect(results).toHaveLength(1)
@@ -84,86 +85,146 @@ describe("monitor_runtime", () => {
   })
 
   test("Transaction Reduction: Spawn then Despawn in same tick is a no-op", () => {
-    const world = make_world({domain_id: 0, schema})
-    const in_monitor = make_in({in: {all: [Entity]}})
-    const out_monitor = make_out({out: {all: [Entity]}})
-    setup_all(in_monitor, world)
-    setup_all(out_monitor, world)
+    const world = makeWorld({domainId: 0, schema})
+    const inMonitor = makeIn({in: {all: [Entity]}})
+    const outMonitor = makeOut({out: {all: [Entity]}})
+    setupAll(inMonitor, world)
+    setupAll(outMonitor, world)
 
     const e = spawn(world, [])
     despawn(world, e)
 
-    world_flush_graph_changes(world)
+    worldFlushGraphChanges(world)
 
-    expect(Array.from(in_monitor)).toHaveLength(0)
-    expect(Array.from(out_monitor)).toHaveLength(0)
+    expect(Array.from(inMonitor)).toHaveLength(0)
+    expect(Array.from(outMonitor)).toHaveLength(0)
   })
 
   test("Transaction Reduction: Add then Remove in same tick is a no-op", () => {
-    const world = make_world({domain_id: 0, schema})
+    const world = makeWorld({domainId: 0, schema})
     const query = {all: [Entity, {has: Tag}]}
-    const in_monitor = make_in({in: query})
-    const out_monitor = make_out({out: query})
-    setup_all(in_monitor, world)
-    setup_all(out_monitor, world)
+    const inMonitor = makeIn({in: query})
+    const outMonitor = makeOut({out: query})
+    setupAll(inMonitor, world)
+    setupAll(outMonitor, world)
 
     const e = spawn(world, [])
-    world_flush_graph_changes(world)
-    in_monitor.clear()
-    out_monitor.clear()
-    world_flush_deletions(world)
+    worldFlushGraphChanges(world)
+    inMonitor.clear()
+    outMonitor.clear()
+    worldFlushDeletions(world)
 
-    add_component(world, e, Tag)
-    remove_component(world, e, Tag)
+    addComponent(world, e, Tag)
+    removeComponent(world, e, Tag)
 
-    world_flush_graph_changes(world)
+    worldFlushGraphChanges(world)
 
-    expect(Array.from(in_monitor)).toHaveLength(0)
-    expect(Array.from(out_monitor)).toHaveLength(0)
+    expect(Array.from(inMonitor)).toHaveLength(0)
+    expect(Array.from(outMonitor)).toHaveLength(0)
   })
 
   test("Multi-step transition: A -> B -> C only triggers In if net move is In", () => {
-    const A = define_tag()
-    const B = define_tag()
-    const C = define_tag()
-    const world = make_world({domain_id: 0, schema: [A, B, C]})
+    const A = defineTag()
+    const B = defineTag()
+    const C = defineTag()
+    const world = makeWorld({domainId: 0, schema: [A, B, C]})
 
-    const monitor_B = make_in({in: {all: [Entity, {has: B}]}})
-    setup_all(monitor_B, world)
+    const monitor_B = makeIn({in: {all: [Entity, {has: B}]}})
+    setupAll(monitor_B, world)
 
     const e = spawn(world, [A])
-    world_flush_graph_changes(world)
+    worldFlushGraphChanges(world)
     monitor_B.clear()
-    world_flush_deletions(world)
+    worldFlushDeletions(world)
 
-    remove_component(world, e, A)
-    add_component(world, e, B)
-    remove_component(world, e, B)
-    add_component(world, e, C)
+    removeComponent(world, e, A)
+    addComponent(world, e, B)
+    removeComponent(world, e, B)
+    addComponent(world, e, C)
 
-    world_flush_graph_changes(world)
+    worldFlushGraphChanges(world)
 
     expect(Array.from(monitor_B)).toHaveLength(0)
   })
 
   test("Out<Q> yields data before deferred deletion clears it", () => {
-    const world = make_world({domain_id: 0, schema})
-    const monitor = make_out({out: {all: [{read: Position}]}})
-    setup_all(monitor, world)
+    const world = makeWorld({domainId: 0, schema})
+    const monitor = makeOut({out: {all: [{read: Position}]}})
+    setupAll(monitor, world)
 
     const e = spawn(world, [Position({x: 1, y: 1})])
-    world_flush_graph_changes(world)
+    worldFlushGraphChanges(world)
     monitor.clear()
-    world_flush_deletions(world)
+    worldFlushDeletions(world)
 
     despawn(world, e)
 
-    world_flush_graph_changes(world)
+    worldFlushGraphChanges(world)
     const results = Array.from(monitor)
     expect(results).toHaveLength(1)
     expect(results[0]).toEqual([{x: 1, y: 1}])
 
-    world_flush_deletions(world)
-    expect(world.index.entity_to_index.dense).toHaveLength(0)
+    worldFlushDeletions(world)
+    expect(world.index.entityToIndex.dense).toHaveLength(0)
+  })
+
+  test("Out fires when the related entity has a tag removed", () => {
+    const Attacking = defineTag()
+    const EmitsFrom = defineRelation()
+    const world = makeWorld({
+      domainId: 0,
+      schema: [Attacking, EmitsFrom, Position],
+    })
+
+    // 1. Create a player that is Attacking
+    const player = spawn(world, [Attacking, Position({x: 10, y: 10})])
+
+    // 2. Create a beam that EmitsFrom the player
+    const beam = spawn(world, [Position({x: 1, y: 1}), EmitsFrom(player)])
+
+    // 3. Define the query: Entity that EmitsFrom an entity that Has Attacking
+    const query = {
+      all: [Entity, {rel: [EmitsFrom, {has: Attacking}]}],
+    }
+
+    const monitor = makeOut({out: query})
+    setupAll(monitor, world)
+
+    // Initial state: beam matches, so it shouldn't be in Out monitor yet
+    worldFlushGraphChanges(world)
+    expect(Array.from(monitor)).toHaveLength(0)
+
+    // 4. Remove Attacking from player
+    removeComponent(world, player, Attacking)
+
+    // 5. Flush changes
+    worldFlushGraphChanges(world)
+
+    // 6. Verify that the beam is now in the Out monitor
+    const results = Array.from(monitor)
+    expect(results).toHaveLength(1)
+    expect(results[0]).toEqual([beam, undefined])
+
+    monitor.clear()
+    worldFlushDeletions(world)
+    expect(Array.from(monitor)).toHaveLength(0)
+  })
+
+  test("Out<Has<Tag>> should fire when Tag is removed", () => {
+    const world = makeWorld({domainId: 0, schema})
+    const query = {all: [Entity, {has: Tag}]}
+    const monitor = makeOut({out: query})
+    setupAll(monitor, world)
+
+    const e = spawn(world, [Tag])
+    worldFlushGraphChanges(world)
+    monitor.clear()
+
+    removeComponent(world, e, Tag)
+    worldFlushGraphChanges(world)
+
+    const results = Array.from(monitor)
+    expect(results).toHaveLength(1)
+    expect(results[0]).toEqual([e, undefined])
   })
 })

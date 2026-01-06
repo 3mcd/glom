@@ -14,14 +14,14 @@ System A runs first if System A writes to a component and System B reads from it
 import { All, Read, Write } from "@glom/ecs"
 
 // physics writes Position
-const physics_system = (query: All<Write<typeof Position>>) => {
+const physicsSystem = (query: All<Write<typeof Position>>) => {
   for (const [pos] of query) {
     pos.x += 1
   }
 }
 
 // rendering reads Position
-const rendering_system = (query: All<Read<typeof Position>>) => {
+const renderingSystem = (query: All<Read<typeof Position>>) => {
   for (const [pos] of query) {
     // runs after physics
   }
@@ -46,4 +46,4 @@ A cycle usually indicates that your systems are too tightly coupled. Here are a 
 
 ## Manual Overrides
 
-You can control the order by changing the order of `add_system` calls for systems with no data overlap.
+You can control the order by changing the order of `addSystem` calls for systems with no data overlap.

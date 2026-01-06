@@ -1,67 +1,67 @@
 import {describe, expect, test} from "bun:test"
-import {define_component, define_tag} from "../component"
+import {defineComponent, defineTag} from "../component"
 import type {AllDescriptor} from "../descriptors"
-import {Entity, make_entity} from "../entity"
+import {Entity, makeEntity} from "../entity"
 import {
   type EntityGraphNode,
-  entity_graph_set_entity_node,
+  entityGraphSetEntityNode,
 } from "../entity_graph"
-import {define_relation} from "../relation"
+import {defineRelation} from "../relation"
 import {
-  make_world,
-  set_component_value,
-  world_get_or_create_index,
+  makeWorld,
+  setComponentValue,
+  worldGetOrCreateIndex,
 } from "../world"
 import {spawn} from "../world_api"
-import {AllRuntime, make_all, setup_all, teardown_all} from "./all_runtime"
+import {AllRuntime, makeAll, setupAll, teardownAll} from "./all_runtime"
 
-describe("all_runtime", () => {
-  const c1 = define_component<{val: number}>()
-  const c2 = define_component<{name: string}>()
+describe("allRuntime", () => {
+  const c1 = defineComponent<{val: number}>()
+  const c2 = defineComponent<{name: string}>()
   const schema = [c1, c2]
   const desc: AllDescriptor = {
     all: [{read: c1}, {write: c2}],
   }
 
-  test("make_all returns AllRuntime instance", () => {
-    const all = make_all(desc)
+  test("makeAll returns AllRuntime instance", () => {
+    const all = makeAll(desc)
     expect(all).toBeInstanceOf(AllRuntime)
   })
 
-  test("setup_all adds listener and populates nodes", () => {
-    const world = make_world({domain_id: 0, schema})
-    const all = make_all(desc) as AllRuntime
+  test("setupAll adds listener and populates nodes", () => {
+    const world = makeWorld({domainId: 0, schema})
+    const all = makeAll(desc) as AllRuntime
 
-    setup_all(all, world)
+    setupAll(all, world)
 
     expect(all.nodes.dense.length).toBeGreaterThan(0)
   })
 
   test("iterator yields component values", () => {
-    const world = make_world({domain_id: 0, schema})
-    const all = make_all(desc) as AllRuntime
-    setup_all(all, world)
+    const world = makeWorld({domainId: 0, schema})
+    const all = makeAll(desc) as AllRuntime
+    setupAll(all, world)
 
-    const e1 = make_entity(1, 0)
-    const e2 = make_entity(2, 0)
+    const e1 = makeEntity(1, 0)
+    const e2 = makeEntity(2, 0)
 
-    set_component_value(world, e1, c1, {val: 10})
-    set_component_value(world, e1, c2, {name: "e1"})
-    set_component_value(world, e2, c1, {val: 20})
-    set_component_value(world, e2, c2, {name: "e2"})
+    setComponentValue(world, e1, c1, {val: 10})
+    setComponentValue(world, e1, c2, {name: "e1"})
+    setComponentValue(world, e2, c1, {val: 20})
+    setComponentValue(world, e2, c2, {name: "e2"})
 
     const node = all._anchor_node as EntityGraphNode
-    entity_graph_set_entity_node(
-      world.entity_graph,
+    entityGraphSetEntityNode(
+      world.entityGraph,
       e1,
       node,
-      world_get_or_create_index(world, e1 as unknown as number),
+      worldGetOrCreateIndex(world, e1 as unknown as number),
     )
-    entity_graph_set_entity_node(
-      world.entity_graph,
+    entityGraphSetEntityNode(
+      world.entityGraph,
       e2,
       node,
-      world_get_or_create_index(world, e2 as unknown as number),
+      worldGetOrCreateIndex(world, e2 as unknown as number),
     )
 
     const results = []
@@ -82,19 +82,19 @@ describe("all_runtime", () => {
     const descWithEntity: AllDescriptor = {
       all: [{entity: true}, {read: c1}],
     }
-    const world = make_world({domain_id: 0, schema})
-    const all = make_all(descWithEntity) as AllRuntime
-    setup_all(all, world)
+    const world = makeWorld({domainId: 0, schema})
+    const all = makeAll(descWithEntity) as AllRuntime
+    setupAll(all, world)
 
-    const e1 = make_entity(1, 0)
-    set_component_value(world, e1, c1, {val: 10})
+    const e1 = makeEntity(1, 0)
+    setComponentValue(world, e1, c1, {val: 10})
 
     const node = all._anchor_node as EntityGraphNode
-    entity_graph_set_entity_node(
-      world.entity_graph,
+    entityGraphSetEntityNode(
+      world.entityGraph,
       e1,
       node,
-      world_get_or_create_index(world, e1 as unknown as number),
+      worldGetOrCreateIndex(world, e1 as unknown as number),
     )
 
     const results = []
@@ -109,19 +109,19 @@ describe("all_runtime", () => {
     const descWithEntity: AllDescriptor = {
       all: [Entity, {read: c1}],
     }
-    const world = make_world({domain_id: 0, schema})
-    const all = make_all(descWithEntity) as AllRuntime
-    setup_all(all, world)
+    const world = makeWorld({domainId: 0, schema})
+    const all = makeAll(descWithEntity) as AllRuntime
+    setupAll(all, world)
 
-    const e1 = make_entity(5, 0)
-    set_component_value(world, e1, c1, {val: 50})
+    const e1 = makeEntity(5, 0)
+    setComponentValue(world, e1, c1, {val: 50})
 
     const node = all._anchor_node as EntityGraphNode
-    entity_graph_set_entity_node(
-      world.entity_graph,
+    entityGraphSetEntityNode(
+      world.entityGraph,
       e1,
       node,
-      world_get_or_create_index(world, e1 as unknown as number),
+      worldGetOrCreateIndex(world, e1 as unknown as number),
     )
 
     const results = []
@@ -132,23 +132,23 @@ describe("all_runtime", () => {
   })
 
   test("iterator with tags (ZSTs)", () => {
-    const t1 = define_tag()
+    const t1 = defineTag()
     const descWithTag: AllDescriptor = {
       all: [Entity, {has: t1}, {read: c1}],
     }
-    const world = make_world({domain_id: 0, schema: [c1, t1]})
-    const all = make_all(descWithTag) as AllRuntime
-    setup_all(all, world)
+    const world = makeWorld({domainId: 0, schema: [c1, t1]})
+    const all = makeAll(descWithTag) as AllRuntime
+    setupAll(all, world)
 
-    const e1 = make_entity(7, 0)
-    set_component_value(world, e1, c1, {val: 70})
+    const e1 = makeEntity(7, 0)
+    setComponentValue(world, e1, c1, {val: 70})
 
     const node = all._anchor_node as EntityGraphNode
-    entity_graph_set_entity_node(
-      world.entity_graph,
+    entityGraphSetEntityNode(
+      world.entityGraph,
       e1,
       node,
-      world_get_or_create_index(world, e1 as unknown as number),
+      worldGetOrCreateIndex(world, e1 as unknown as number),
     )
 
     const results = []
@@ -160,14 +160,14 @@ describe("all_runtime", () => {
   })
 
   test("iterator with Not filter", () => {
-    const c3 = define_component<{val: number}>()
+    const c3 = defineComponent<{val: number}>()
     const descWithNot: AllDescriptor = {
       all: [{read: c1}, {not: c3}],
     }
 
-    const world = make_world({domain_id: 0, schema: [c1, c3]})
-    const all = make_all(descWithNot) as AllRuntime
-    setup_all(all, world)
+    const world = makeWorld({domainId: 0, schema: [c1, c3]})
+    const all = makeAll(descWithNot) as AllRuntime
+    setupAll(all, world)
 
     spawn(world, [{component: c1, value: {val: 10}}])
     spawn(world, [
@@ -184,16 +184,16 @@ describe("all_runtime", () => {
   })
 
   test("iterator with Rel and Not filter", () => {
-    const rel = define_relation()
-    const c3 = define_component<{val: number}>()
-    const world = make_world({domain_id: 0, schema: [rel, c3]})
+    const rel = defineRelation()
+    const c3 = defineComponent<{val: number}>()
+    const world = makeWorld({domainId: 0, schema: [rel, c3]})
 
     const descWithRelNot: AllDescriptor = {
       all: [{rel: [rel, {not: c3}]}],
     }
 
-    const all = make_all(descWithRelNot) as AllRuntime
-    setup_all(all, world)
+    const all = makeAll(descWithRelNot) as AllRuntime
+    setupAll(all, world)
 
     const obj1 = spawn(world, [])
     const obj2 = spawn(world, [{component: c3, value: {val: 30}}])
@@ -209,20 +209,20 @@ describe("all_runtime", () => {
     expect(results[0]).toEqual([undefined])
   })
 
-  test("teardown_all removes listener and clears nodes", () => {
-    const world = make_world({domain_id: 0, schema})
-    const all = make_all(desc) as AllRuntime
+  test("teardownAll removes listener and clears nodes", () => {
+    const world = makeWorld({domainId: 0, schema})
+    const all = makeAll(desc) as AllRuntime
 
-    setup_all(all, world)
+    setupAll(all, world)
     expect(all.nodes.dense.length).toBeGreaterThan(0)
 
     const anchorNode = all._anchor_node as EntityGraphNode
     expect(anchorNode).toBeDefined()
 
-    teardown_all(all)
+    teardownAll(all)
     expect(all.nodes.dense.length).toBe(0)
 
-    const node = world.entity_graph.by_hash.get(anchorNode.vec.hash)
+    const node = world.entityGraph.byHash.get(anchorNode.vec.hash)
     expect(node?.listeners).not.toContain(all)
   })
 })

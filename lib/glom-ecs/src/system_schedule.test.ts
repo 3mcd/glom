@@ -1,38 +1,38 @@
 import {describe, expect, test} from "bun:test"
-import {define_component} from "./component"
-import {define_system} from "./system"
-import {add_system, make_system_schedule, run_schedule} from "./system_schedule"
-import {add_resource, make_world, type World} from "./world"
+import {defineComponent} from "./component"
+import {defineSystem} from "./system"
+import {addSystem, makeSystemSchedule, runSchedule} from "./system_schedule"
+import {addResource, makeWorld, type World} from "./world"
 
-describe("system_schedule sorting", () => {
-  const A = define_component<number>()
-  const B = define_component<number>()
+describe("systemSchedule sorting", () => {
+  const A = defineComponent<number>()
+  const B = defineComponent<number>()
   const schema = [A, B]
 
   test("writer before reader", () => {
     const order: string[] = []
 
-    const system_read = () => {
+    const systemRead = () => {
       order.push("read")
     }
-    define_system(system_read, {
+    defineSystem(systemRead, {
       params: [{read: A}],
     })
 
-    const system_write = () => {
+    const systemWrite = () => {
       order.push("write")
     }
-    define_system(system_write, {
+    defineSystem(systemWrite, {
       params: [{write: A}],
     })
 
-    const schedule = make_system_schedule()
-    add_system(schedule, system_read)
-    add_system(schedule, system_write)
+    const schedule = makeSystemSchedule()
+    addSystem(schedule, systemRead)
+    addSystem(schedule, systemWrite)
 
-    const world = make_world({domain_id: 1, schema})
-    add_resource(world, A(0))
-    run_schedule(schedule, world as World)
+    const world = makeWorld({domainId: 1, schema})
+    addResource(world, A(0))
+    runSchedule(schedule, world as World)
 
     expect(order).toEqual(["write", "read"])
   })
@@ -43,24 +43,24 @@ describe("system_schedule sorting", () => {
     const w1 = () => {
       order.push(1)
     }
-    define_system(w1, {
+    defineSystem(w1, {
       params: [{write: A}],
     })
 
     const w2 = () => {
       order.push(2)
     }
-    define_system(w2, {
+    defineSystem(w2, {
       params: [{write: A}],
     })
 
-    const schedule = make_system_schedule()
-    add_system(schedule, w1)
-    add_system(schedule, w2)
+    const schedule = makeSystemSchedule()
+    addSystem(schedule, w1)
+    addSystem(schedule, w2)
 
-    const world = make_world({domain_id: 1, schema})
-    add_resource(world, A(0))
-    run_schedule(schedule, world as World)
+    const world = makeWorld({domainId: 1, schema})
+    addResource(world, A(0))
+    runSchedule(schedule, world as World)
 
     expect(order).toEqual([1, 2])
   })
@@ -70,55 +70,55 @@ describe("system_schedule sorting", () => {
     const s3 = () => {
       order.push("S3")
     }
-    define_system(s3, {
+    defineSystem(s3, {
       params: [{read: B}],
     })
 
     const s2 = () => {
       order.push("S2")
     }
-    define_system(s2, {
+    defineSystem(s2, {
       params: [{read: A}, {write: B}],
     })
 
     const s1 = () => {
       order.push("S1")
     }
-    define_system(s1, {
+    defineSystem(s1, {
       params: [{write: A}],
     })
 
-    const schedule = make_system_schedule()
+    const schedule = makeSystemSchedule()
 
-    add_system(schedule, s3)
-    add_system(schedule, s2)
-    add_system(schedule, s1)
+    addSystem(schedule, s3)
+    addSystem(schedule, s2)
+    addSystem(schedule, s1)
 
-    const world = make_world({domain_id: 1, schema})
-    add_resource(world, A(0))
-    add_resource(world, B(0))
-    run_schedule(schedule, world as World)
+    const world = makeWorld({domainId: 1, schema})
+    addResource(world, A(0))
+    addResource(world, B(0))
+    runSchedule(schedule, world as World)
 
     expect(order).toEqual(["S1", "S2", "S3"])
   })
 
   test("cycle detection", () => {
     const s1 = () => {}
-    define_system(s1, {
+    defineSystem(s1, {
       params: [{write: A}, {read: B}],
     })
 
     const s2 = () => {}
-    define_system(s2, {
+    defineSystem(s2, {
       params: [{write: B}, {read: A}],
     })
 
-    const schedule = make_system_schedule()
-    add_system(schedule, s1)
-    add_system(schedule, s2)
+    const schedule = makeSystemSchedule()
+    addSystem(schedule, s1)
+    addSystem(schedule, s2)
 
-    const world = make_world({domain_id: 1, schema})
-    expect(() => run_schedule(schedule, world as World)).toThrow(
+    const world = makeWorld({domainId: 1, schema})
+    expect(() => runSchedule(schedule, world as World)).toThrow(
       "Cycle detected in system dependencies",
     )
   })
@@ -129,25 +129,25 @@ describe("system_schedule sorting", () => {
     const s1 = () => {
       order.push(1)
     }
-    define_system(s1, {
+    defineSystem(s1, {
       params: [{read: A}],
     })
 
     const s2 = () => {
       order.push(2)
     }
-    define_system(s2, {
+    defineSystem(s2, {
       params: [{read: B}],
     })
 
-    const schedule = make_system_schedule()
-    add_system(schedule, s1)
-    add_system(schedule, s2)
+    const schedule = makeSystemSchedule()
+    addSystem(schedule, s1)
+    addSystem(schedule, s2)
 
-    const world = make_world({domain_id: 1, schema})
-    add_resource(world, A(0))
-    add_resource(world, B(0))
-    run_schedule(schedule, world as World)
+    const world = makeWorld({domainId: 1, schema})
+    addResource(world, A(0))
+    addResource(world, B(0))
+    runSchedule(schedule, world as World)
 
     expect(order).toEqual([1, 2])
   })

@@ -6,28 +6,28 @@ Glom provides built-in support for these links. Relationships provide the means 
 
 ## Defining a Relation
 
-Use the `define_relation` helper to define a kind of link between your entities.
+Use the `defineRelation` helper to define a kind of link between your entities.
 
 ```typescript
-import { define_relation } from "@glom/ecs"
+import { defineRelation } from "@glom/ecs"
 
-const ChildOf = define_relation()
+const ChildOf = defineRelation()
 ```
 
 ## Creating Relationships
 
 A relationship is an instance of a relation component. They can be thought of as a pairing of `(relation, object)`, where `relation` is the link type and `object` is the target of the relationship.
 
-Use `add_component` and invoke the relation with a single target entity to create a relationship.
+Use `addComponent` and invoke the relation with a single target entity to create a relationship.
 
 ```typescript
-import { add_component, spawn } from "@glom/ecs"
+import { addComponent, spawn } from "@glom/ecs"
 
 const parent = spawn(world)
 const child = spawn(world)
 
 // the child now has a relationship pointing to its parent
-add_component(world, child, ChildOf(parent))
+addComponent(world, child, ChildOf(parent))
 ```
 
 ## Querying Relationships
@@ -38,18 +38,18 @@ Use the `Rel` descriptor in your system query to extract components from both th
 import { All, Entity, Read, Rel } from "@glom/ecs"
 
 // find all child entities and fetch their parents
-const follow_parent_system = (
+const followParentSystem = (
   query: All<Read<Position>, Rel<typeof ChildOf, Read<Position>>>
 ) => {
-  for (const [child_pos, parent_pos] of query) {
-    child_pos.x = parent_pos.x
-    child_pos.y = parent_pos.y
+  for (const [childPos, parentPos] of query) {
+    childPos.x = parentPos.x
+    childPos.y = parentPos.y
   }
 }
 ```
 
 ## How they work
 
-Relationships are integrated into the [Entity Graph](./entity_graph). Adding a relationship to an entity moves it to a node in the graph that represents that specific relationship type and target.
+Relationships are integrated into the [Entity Graph](./entityGraph). Adding a relationship to an entity moves it to a node in the graph that represents that specific relationship type and target.
 
 Queries can locate related entities without searching through the entire world because these links are part of the graph structure. This also means [Transition Queries](./reactivity) can track relationship changes just as they track component changes.

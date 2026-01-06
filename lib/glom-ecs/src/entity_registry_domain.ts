@@ -1,60 +1,60 @@
-import {assert_defined} from "./assert"
-import {type Entity, get_local_id, make_entity} from "./entity"
+import {assertDefined} from "./assert"
+import {type Entity, getLocalId, makeEntity} from "./entity"
 
 export type EntityRegistryDomain = {
-  domain_id: number
-  entity_id: number
-  op_seq: number
-  entity_count: number
+  domainId: number
+  entityId: number
+  opSeq: number
+  entityCount: number
   dense: number[]
   sparse: Map<number, number>
 }
 
-export function make_entity_registry_domain(
-  domain_id: number,
+export function makeEntityRegistryDomain(
+  domainId: number,
 ): EntityRegistryDomain {
   return {
-    domain_id,
-    entity_id: 1,
-    op_seq: 0,
-    entity_count: 0,
+    domainId,
+    entityId: 1,
+    opSeq: 0,
+    entityCount: 0,
     dense: [],
     sparse: new Map(),
   }
 }
 
-export function add_domain_entity(
+export function addDomainEntity(
   domain: EntityRegistryDomain,
   entity: Entity,
 ) {
-  const local_id = get_local_id(entity)
-  if (domain.sparse.has(local_id)) {
+  const localId = getLocalId(entity)
+  if (domain.sparse.has(localId)) {
     return
   }
-  domain.dense[domain.entity_count] = entity
-  domain.sparse.set(local_id, domain.entity_count)
-  domain.entity_count++
+  domain.dense[domain.entityCount] = entity
+  domain.sparse.set(localId, domain.entityCount)
+  domain.entityCount++
 }
 
-export function remove_domain_entity(
+export function removeDomainEntity(
   domain: EntityRegistryDomain,
   entity: Entity,
 ) {
-  const local_id = get_local_id(entity)
-  const index = domain.sparse.get(local_id)
+  const localId = getLocalId(entity)
+  const index = domain.sparse.get(localId)
   if (index === undefined) {
     return
   }
-  const last_entity = domain.dense[domain.entity_count - 1]
-  assert_defined(last_entity)
-  domain.dense[index] = last_entity
-  domain.sparse.set(get_local_id(last_entity), index)
-  domain.sparse.delete(local_id)
-  domain.entity_count--
+  const lastEntity = domain.dense[domain.entityCount - 1]
+  assertDefined(lastEntity)
+  domain.dense[index] = lastEntity
+  domain.sparse.set(getLocalId(lastEntity), index)
+  domain.sparse.delete(localId)
+  domain.entityCount--
 }
 
-export function alloc_domain_entity(domain: EntityRegistryDomain): Entity {
-  const entity = make_entity(domain.entity_id++, domain.domain_id)
-  add_domain_entity(domain, entity)
+export function allocDomainEntity(domain: EntityRegistryDomain): Entity {
+  const entity = makeEntity(domain.entityId++, domain.domainId)
+  addDomainEntity(domain, entity)
   return entity
 }

@@ -4,43 +4,43 @@ import * as g from "../index"
 import * as reconciliation from "../reconciliation"
 import * as replication from "../replication"
 
-const Position = g.define_component<{x: number; y: number}>({
-  bytes_per_element: 16,
+const Position = g.defineComponent<{x: number; y: number}>({
+  bytesPerElement: 16,
   encode: (val, writer) => {
-    writer.write_float64(val.x)
-    writer.write_float64(val.y)
+    writer.writeFloat64(val.x)
+    writer.writeFloat64(val.y)
   },
   decode: (reader) => {
-    return {x: reader.read_float64(), y: reader.read_float64()}
+    return {x: reader.readFloat64(), y: reader.readFloat64()}
   },
 })
 
-const MoveCommand = g.define_component<{dx: number; dy: number}>({
-  bytes_per_element: 16,
+const MoveCommand = g.defineComponent<{dx: number; dy: number}>({
+  bytesPerElement: 16,
   encode: (val, writer) => {
-    writer.write_float64(val.dx)
-    writer.write_float64(val.dy)
+    writer.writeFloat64(val.dx)
+    writer.writeFloat64(val.dy)
   },
   decode: (reader) => {
-    return {dx: reader.read_float64(), dy: reader.read_float64()}
+    return {dx: reader.readFloat64(), dy: reader.readFloat64()}
   },
 })
 
-const FireCommand = g.define_tag()
-const Pulse = g.define_component<number>({
-  bytes_per_element: 8,
+const FireCommand = g.defineTag()
+const Pulse = g.defineComponent<number>({
+  bytesPerElement: 8,
   encode: (val, writer) => {
-    writer.write_float64(val)
+    writer.writeFloat64(val)
   },
   decode: (reader) => {
-    return reader.read_float64()
+    return reader.readFloat64()
   },
 })
-const PulseOf = g.define_relation()
+const PulseOf = g.defineRelation()
 
 const SPEED = 2
 
-const movement_system = g.define_system(
+const movementSystem = g.defineSystem(
   (
     query: g.All<
       g.Entity,
@@ -67,11 +67,11 @@ const movement_system = g.define_system(
       } as any,
       {add: Position} as any,
     ],
-    name: "movement_system",
+    name: "movementSystem",
   },
 )
 
-const pulse_spawner_system = g.define_system(
+const pulseSpawnerSystem = g.defineSystem(
   (
     query: g.All<
       g.Entity,
@@ -80,34 +80,34 @@ const pulse_spawner_system = g.define_system(
     >,
     world: g.World,
   ) => {
-    for (const [player_ent, pos] of query) {
-      let intent_tick = world.tick
-      const node = g.sparse_map_get(
-        world.entity_graph.by_entity,
-        player_ent as number,
+    for (const [playerEnt, pos] of query) {
+      let intentTick = world.tick
+      const node = g.sparseMapGet(
+        world.entityGraph.byEntity,
+        playerEnt as number,
       )
       if (node) {
         for (const comp of node.vec.elements) {
-          const comp_id = world.component_registry.get_id(comp)
-          const rel = world.relations.virtual_to_rel.get(comp_id)
+          const compId = world.componentRegistry.getId(comp)
+          const rel = world.relations.virtualToRel.get(compId)
           if (
             rel &&
-            rel.relation_id === world.component_registry.get_id(g.CommandOf)
+            rel.relationId === world.componentRegistry.getId(g.CommandOf)
           ) {
-            const cmd_ent = rel.object as g.Entity
-            const cmd_node = g.sparse_map_get(
-              world.entity_graph.by_entity,
-              cmd_ent as number,
+            const cmdEnt = rel.object as g.Entity
+            const cmdNode = g.sparseMapGet(
+              world.entityGraph.byEntity,
+              cmdEnt as number,
             )
-            const fire_command_id = world.component_registry.get_id(FireCommand)
+            const fireCommandId = world.componentRegistry.getId(FireCommand)
             if (
-              cmd_node?.vec.elements.some(
-                (c) => world.component_registry.get_id(c) === fire_command_id,
+              cmdNode?.vec.elements.some(
+                (c) => world.componentRegistry.getId(c) === fireCommandId,
               )
             ) {
-              const it = g.get_component_value(world, cmd_ent, g.IntentTick)
+              const it = g.getComponentValue(world, cmdEnt, g.IntentTick)
               if (it !== undefined) {
-                intent_tick = it
+                intentTick = it
                 break
               }
             }
@@ -120,11 +120,11 @@ const pulse_spawner_system = g.define_system(
         [
           Position({...pos} as any),
           Pulse(5),
-          PulseOf(player_ent),
+          PulseOf(playerEnt),
           g.Replicated,
         ],
-        world.registry.domain_id,
-        intent_tick,
+        world.registry.domainId,
+        intentTick,
       )
     }
   },
@@ -139,11 +139,11 @@ const pulse_spawner_system = g.define_system(
       } as any,
       {world: true} as any,
     ],
-    name: "pulse_spawner_system",
+    name: "pulseSpawnerSystem",
   },
 )
 
-const attached_pulse_system = g.define_system(
+const attachedPulseSystem = g.defineSystem(
   (
     pulses: g.All<
       g.Entity,
@@ -152,10 +152,10 @@ const attached_pulse_system = g.define_system(
     >,
     update: g.Add<typeof Position>,
   ) => {
-    for (const [pulse_ent, _pos, parent_pos] of pulses) {
-      update(pulse_ent, {
-        x: (parent_pos as any).x,
-        y: (parent_pos as any).y,
+    for (const [pulseEnt, _pos, parentPos] of pulses) {
+      update(pulseEnt, {
+        x: (parentPos as any).x,
+        y: (parentPos as any).y,
       })
     }
   },
@@ -170,164 +170,164 @@ const attached_pulse_system = g.define_system(
       } as any,
       {add: Position} as any,
     ],
-    name: "attached_pulse_system",
+    name: "attachedPulseSystem",
   },
 )
 
 const schema = [Position, MoveCommand, FireCommand, Pulse, PulseOf]
 
 class MockPipe {
-  private messages: {delivery_tick: number; packet: Uint8Array}[] = []
+  private messages: {deliveryTick: number; packet: Uint8Array}[] = []
 
-  send(packet: Uint8Array, current_tick: number, delay_ticks: number) {
+  send(packet: Uint8Array, currentTick: number, delayTicks: number) {
     this.messages.push({
-      delivery_tick: current_tick + delay_ticks,
+      deliveryTick: currentTick + delayTicks,
       packet: new Uint8Array(packet),
     })
   }
 
-  receive(current_tick: number): Uint8Array[] {
-    const ready = this.messages.filter((m) => m.delivery_tick <= current_tick)
-    this.messages = this.messages.filter((m) => m.delivery_tick > current_tick)
+  receive(currentTick: number): Uint8Array[] {
+    const ready = this.messages.filter((m) => m.deliveryTick <= currentTick)
+    this.messages = this.messages.filter((m) => m.deliveryTick > currentTick)
     return ready.map((m) => m.packet)
   }
 }
 
-function setup_server() {
-  const world = g.make_world({domain_id: 0, schema})
-  const schedule = g.make_system_schedule()
+function setupServer() {
+  const world = g.makeWorld({domainId: 0, schema})
+  const schedule = g.makeSystemSchedule()
 
-  g.add_resource(
+  g.addResource(
     world,
     g.ReplicationConfig({
-      history_window: 64,
+      historyWindow: 64,
     }),
   )
-  g.add_resource(world, g.ReplicationStream({transactions: [], snapshots: []}))
-  g.add_resource(world, g.CommandBuffer(new Map()))
-  g.add_resource(world, g.IncomingTransactions(new Map()))
-  g.add_resource(world, g.IncomingSnapshots(new Map()))
+  g.addResource(world, g.ReplicationStream({transactions: [], snapshots: []}))
+  g.addResource(world, g.CommandBuffer(new Map()))
+  g.addResource(world, g.IncomingTransactions(new Map()))
+  g.addResource(world, g.IncomingSnapshots(new Map()))
 
-  g.add_system(schedule, reconciliation.apply_remote_transactions)
-  g.add_system(schedule, commands.spawn_ephemeral_commands)
-  g.add_system(schedule, movement_system)
-  g.add_system(schedule, pulse_spawner_system)
-  g.add_system(schedule, attached_pulse_system)
-  g.add_system(schedule, commands.cleanup_ephemeral_commands)
-  g.add_system(schedule, replication.commit_pending_mutations)
-  g.add_system(schedule, replication.advance_world_tick)
+  g.addSystem(schedule, reconciliation.applyRemoteTransactions)
+  g.addSystem(schedule, commands.spawnEphemeralCommands)
+  g.addSystem(schedule, movementSystem)
+  g.addSystem(schedule, pulseSpawnerSystem)
+  g.addSystem(schedule, attachedPulseSystem)
+  g.addSystem(schedule, commands.cleanupEphemeralCommands)
+  g.addSystem(schedule, replication.commitPendingMutations)
+  g.addSystem(schedule, replication.advanceWorldTick)
 
   return {world, schedule}
 }
 
-function setup_client(domain_id: number) {
-  const world = g.make_world({domain_id, schema})
-  g.add_resource(world, g.HistoryBuffer({snapshots: [], max_size: 120}))
-  g.add_resource(world, g.CommandBuffer(new Map()))
-  g.add_resource(world, g.IncomingTransactions(new Map()))
-  g.add_resource(world, g.IncomingSnapshots(new Map()))
-  g.add_resource(world, g.InputBuffer(new Map()))
+function setupClient(domainId: number) {
+  const world = g.makeWorld({domainId, schema})
+  g.addResource(world, g.HistoryBuffer({snapshots: [], maxSize: 120}))
+  g.addResource(world, g.CommandBuffer(new Map()))
+  g.addResource(world, g.IncomingTransactions(new Map()))
+  g.addResource(world, g.IncomingSnapshots(new Map()))
+  g.addResource(world, g.InputBuffer(new Map()))
 
-  const reconcile_schedule = g.make_system_schedule()
-  g.add_system(reconcile_schedule, commands.spawn_ephemeral_commands)
-  g.add_system(reconcile_schedule, movement_system)
-  g.add_system(reconcile_schedule, pulse_spawner_system)
-  g.add_system(reconcile_schedule, attached_pulse_system)
-  g.add_system(reconcile_schedule, commands.cleanup_ephemeral_commands)
+  const reconcileSchedule = g.makeSystemSchedule()
+  g.addSystem(reconcileSchedule, commands.spawnEphemeralCommands)
+  g.addSystem(reconcileSchedule, movementSystem)
+  g.addSystem(reconcileSchedule, pulseSpawnerSystem)
+  g.addSystem(reconcileSchedule, attachedPulseSystem)
+  g.addSystem(reconcileSchedule, commands.cleanupEphemeralCommands)
 
-  const schedule = g.make_system_schedule()
+  const schedule = g.makeSystemSchedule()
 
-  g.add_resource(
+  g.addResource(
     world,
     g.ReplicationConfig({
-      history_window: 64,
-      ghost_cleanup_window: 20,
-      simulation_schedule: reconcile_schedule,
+      historyWindow: 64,
+      ghostCleanupWindow: 20,
+      simulationSchedule: reconcileSchedule,
     }),
   )
 
-  g.add_system(schedule, reconciliation.perform_rollback)
-  g.add_system(schedule, reconciliation.cleanup_ghosts)
-  g.add_system(schedule, commands.spawn_ephemeral_commands)
-  g.add_system(schedule, movement_system)
-  g.add_system(schedule, pulse_spawner_system)
-  g.add_system(schedule, attached_pulse_system)
-  g.add_system(schedule, reconciliation.apply_remote_transactions)
-  g.add_system(schedule, commands.cleanup_ephemeral_commands)
-  g.add_system(schedule, replication.commit_pending_mutations)
-  g.add_system(schedule, replication.advance_world_tick)
+  g.addSystem(schedule, reconciliation.performRollback)
+  g.addSystem(schedule, reconciliation.cleanupGhosts)
+  g.addSystem(schedule, commands.spawnEphemeralCommands)
+  g.addSystem(schedule, movementSystem)
+  g.addSystem(schedule, pulseSpawnerSystem)
+  g.addSystem(schedule, attachedPulseSystem)
+  g.addSystem(schedule, reconciliation.applyRemoteTransactions)
+  g.addSystem(schedule, commands.cleanupEphemeralCommands)
+  g.addSystem(schedule, replication.commitPendingMutations)
+  g.addSystem(schedule, replication.advanceWorldTick)
 
   return {world, schedule}
 }
 
 test("rigorous straight-line movement isomorphism", () => {
-  const server = setup_server()
-  const client = setup_client(1)
-  const client_to_server = new MockPipe()
-  const server_to_client = new MockPipe()
+  const server = setupServer()
+  const client = setupClient(1)
+  const clientToServer = new MockPipe()
+  const serverToClient = new MockPipe()
   const LATENCY_TICKS = 5
 
   const player = g.spawn(server.world, [Position({x: 0, y: 0}), g.Replicated])
 
-  const handshake_writer = new g.ByteWriter()
-  g.write_handshake_server(handshake_writer, server.world.tick, {
-    domain_id: 0,
+  const handshakeWriter = new g.ByteWriter()
+  g.writeHandshakeServer(handshakeWriter, server.world.tick, {
+    domainId: 0,
     tick: server.world.tick,
   })
-  server_to_client.send(handshake_writer.get_bytes(), 0, LATENCY_TICKS)
+  serverToClient.send(handshakeWriter.getBytes(), 0, LATENCY_TICKS)
 
-  let client_synced = false
-  const server_positions: Map<number, {x: number; y: number}> = new Map()
-  const predicted_positions: Map<number, {x: number; y: number}> = new Map()
+  let clientSynced = false
+  const serverPositions: Map<number, {x: number; y: number}> = new Map()
+  const predictedPositions: Map<number, {x: number; y: number}> = new Map()
 
   for (let tick = 0; tick < 200; tick++) {
-    for (const packet of client_to_server.receive(server.world.tick)) {
+    for (const packet of clientToServer.receive(server.world.tick)) {
       const reader = new g.ByteReader(packet)
-      const header = g.read_message_header(reader)
+      const header = g.readMessageHeader(reader)
       if (header.type === g.MessageType.Command) {
-        const cmd_msg = g.read_commands(reader, header.tick, server.world)
-        const target_tick = Math.max(server.world.tick, cmd_msg.tick)
-        for (const cmd of cmd_msg.commands) {
-          g.record_command(
+        const cmdMsg = g.readCommands(reader, header.tick, server.world)
+        const targetTick = Math.max(server.world.tick, cmdMsg.tick)
+        for (const cmd of cmdMsg.commands) {
+          g.recordCommand(
             server.world,
             cmd.target as g.Entity,
             {
               component: {
-                id: cmd.component_id,
+                id: cmd.componentId,
                 __component_brand: true,
               } as g.Component<unknown>,
               value: cmd.data,
             },
-            target_tick,
-            cmd_msg.tick,
+            targetTick,
+            cmdMsg.tick,
           )
         }
       }
     }
 
-    const s_pos_before = g.get_component_value(server.world, player, Position)
-    if (s_pos_before) {
-      server_positions.set(server.world.tick, {...s_pos_before})
+    const sPosBefore = g.getComponentValue(server.world, player, Position)
+    if (sPosBefore) {
+      serverPositions.set(server.world.tick, {...sPosBefore})
     }
 
-    g.run_schedule(server.schedule, server.world as g.World)
+    g.runSchedule(server.schedule, server.world as g.World)
 
-    const stream = g.get_resource(server.world, g.ReplicationStream)
+    const stream = g.getResource(server.world, g.ReplicationStream)
     if (stream) {
       for (const transaction of stream.transactions) {
         const writer = new g.ByteWriter()
-        g.write_transaction(writer, transaction, server.world)
-        server_to_client.send(
-          writer.get_bytes(),
+        g.writeTransaction(writer, transaction, server.world)
+        serverToClient.send(
+          writer.getBytes(),
           server.world.tick,
           LATENCY_TICKS,
         )
       }
       for (const snap of stream.snapshots) {
         const writer = new g.ByteWriter()
-        g.write_snapshot(writer, snap, server.world)
-        server_to_client.send(
-          writer.get_bytes(),
+        g.writeSnapshot(writer, snap, server.world)
+        serverToClient.send(
+          writer.getBytes(),
           server.world.tick,
           LATENCY_TICKS,
         )
@@ -336,71 +336,71 @@ test("rigorous straight-line movement isomorphism", () => {
       stream.snapshots.length = 0
     }
 
-    for (const packet of server_to_client.receive(tick)) {
+    for (const packet of serverToClient.receive(tick)) {
       const reader = new g.ByteReader(packet)
-      const header = g.read_message_header(reader)
+      const header = g.readMessageHeader(reader)
       if (header.type === g.MessageType.Handshake) {
-        const handshake = g.read_handshake_server(reader)
-        if (!client_synced) {
+        const handshake = g.readHandshakeServer(reader)
+        if (!clientSynced) {
           client.world.tick = handshake.tick + LATENCY_TICKS * 3
 
-          const history = g.get_resource(client.world, g.HistoryBuffer)
+          const history = g.getResource(client.world, g.HistoryBuffer)
           if (history) {
-            g.push_snapshot(client.world, history)
+            g.pushSnapshot(client.world, history)
           }
-          client_synced = true
+          clientSynced = true
         }
       } else if (header.type === g.MessageType.Transaction) {
-        const transaction = g.read_transaction(
+        const transaction = g.readTransaction(
           reader,
           header.tick,
           server.world,
         )
-        g.receive_transaction(client.world, transaction)
+        g.receiveTransaction(client.world, transaction)
       }
     }
 
-    if (client_synced) {
-      g.record_command(client.world, player, MoveCommand({dx: 1, dy: 0}))
+    if (clientSynced) {
+      g.recordCommand(client.world, player, MoveCommand({dx: 1, dy: 0}))
 
-      const command_buffer = g.get_resource(client.world, g.CommandBuffer)
-      const commands = command_buffer?.get(client.world.tick)
+      const commandBuffer = g.getResource(client.world, g.CommandBuffer)
+      const commands = commandBuffer?.get(client.world.tick)
       if (commands) {
         const writer = new g.ByteWriter()
-        g.write_commands(
+        g.writeCommands(
           writer,
           {tick: client.world.tick, commands},
           server.world,
         )
-        client_to_server.send(writer.get_bytes(), tick, LATENCY_TICKS)
+        clientToServer.send(writer.getBytes(), tick, LATENCY_TICKS)
       }
 
-      const c_pos_before = g.get_component_value(client.world, player, Position)
-      if (c_pos_before) {
-        predicted_positions.set(client.world.tick, {...c_pos_before})
+      const cPosBefore = g.getComponentValue(client.world, player, Position)
+      if (cPosBefore) {
+        predictedPositions.set(client.world.tick, {...cPosBefore})
       }
 
-      g.run_schedule(client.schedule, client.world as g.World)
+      g.runSchedule(client.schedule, client.world as g.World)
 
-      const check_tick = tick - LATENCY_TICKS
-      if (check_tick >= 0) {
-        const s_pos = server_positions.get(check_tick)
+      const checkTick = tick - LATENCY_TICKS
+      if (checkTick >= 0) {
+        const sPos = serverPositions.get(checkTick)
 
-        const history = g.get_resource(client.world, g.HistoryBuffer)
-        const snapshot = history?.snapshots.find((s) => s.tick === check_tick)
+        const history = g.getResource(client.world, g.HistoryBuffer)
+        const snapshot = history?.snapshots.find((s) => s.tick === checkTick)
 
-        if (s_pos && snapshot) {
-          const player_idx = snapshot.entity_to_index.get(player)
-          const pos_store = snapshot.component_data.get(
-            client.world.component_registry.get_id(Position),
+        if (sPos && snapshot) {
+          const playerIdx = snapshot.entityToIndex.get(player)
+          const posStore = snapshot.componentData.get(
+            client.world.componentRegistry.getId(Position),
           )
-          if (player_idx !== undefined && pos_store) {
-            const reconciled_pos = pos_store[player_idx] as {
+          if (playerIdx !== undefined && posStore) {
+            const reconciledPos = posStore[playerIdx] as {
               x: number
               y: number
             }
-            expect(reconciled_pos.x).toBeCloseTo(s_pos.x)
-            expect(reconciled_pos.y).toBeCloseTo(s_pos.y)
+            expect(reconciledPos.x).toBeCloseTo(sPos.x)
+            expect(reconciledPos.y).toBeCloseTo(sPos.y)
           }
         }
       }
@@ -409,71 +409,71 @@ test("rigorous straight-line movement isomorphism", () => {
 })
 
 test("stop-and-go movement isomorphism", () => {
-  const server = setup_server()
-  const client = setup_client(1)
-  const client_to_server = new MockPipe()
-  const server_to_client = new MockPipe()
+  const server = setupServer()
+  const client = setupClient(1)
+  const clientToServer = new MockPipe()
+  const serverToClient = new MockPipe()
   const LATENCY_TICKS = 5
 
   const player = g.spawn(server.world, [Position({x: 0, y: 0}), g.Replicated])
 
-  const handshake_writer = new g.ByteWriter()
-  g.write_handshake_server(handshake_writer, server.world.tick, {
-    domain_id: 0,
+  const handshakeWriter = new g.ByteWriter()
+  g.writeHandshakeServer(handshakeWriter, server.world.tick, {
+    domainId: 0,
     tick: server.world.tick,
   })
-  server_to_client.send(handshake_writer.get_bytes(), 0, LATENCY_TICKS)
+  serverToClient.send(handshakeWriter.getBytes(), 0, LATENCY_TICKS)
 
-  let client_synced = false
-  const server_positions: Map<number, {x: number; y: number}> = new Map()
-  const predicted_positions: Map<number, {x: number; y: number}> = new Map()
+  let clientSynced = false
+  const serverPositions: Map<number, {x: number; y: number}> = new Map()
+  const predictedPositions: Map<number, {x: number; y: number}> = new Map()
 
   for (let tick = 0; tick < 200; tick++) {
-    for (const packet of client_to_server.receive(server.world.tick)) {
+    for (const packet of clientToServer.receive(server.world.tick)) {
       const reader = new g.ByteReader(packet)
-      const header = g.read_message_header(reader)
+      const header = g.readMessageHeader(reader)
       if (header.type === g.MessageType.Command) {
-        const cmd_msg = g.read_commands(reader, header.tick, server.world)
-        const target_tick = Math.max(server.world.tick, cmd_msg.tick)
-        for (const cmd of cmd_msg.commands) {
-          g.record_command(
+        const cmdMsg = g.readCommands(reader, header.tick, server.world)
+        const targetTick = Math.max(server.world.tick, cmdMsg.tick)
+        for (const cmd of cmdMsg.commands) {
+          g.recordCommand(
             server.world,
             cmd.target as g.Entity,
             {
               component: {
-                id: cmd.component_id,
+                id: cmd.componentId,
                 __component_brand: true,
               } as g.Component<unknown>,
               value: cmd.data,
             },
-            target_tick,
-            cmd_msg.tick,
+            targetTick,
+            cmdMsg.tick,
           )
         }
       }
     }
-    const s_pos_before = g.get_component_value(server.world, player, Position)
-    if (s_pos_before) {
-      server_positions.set(server.world.tick, {...s_pos_before})
+    const sPosBefore = g.getComponentValue(server.world, player, Position)
+    if (sPosBefore) {
+      serverPositions.set(server.world.tick, {...sPosBefore})
     }
-    g.run_schedule(server.schedule, server.world as g.World)
+    g.runSchedule(server.schedule, server.world as g.World)
 
-    const stream = g.get_resource(server.world, g.ReplicationStream)
+    const stream = g.getResource(server.world, g.ReplicationStream)
     if (stream) {
       for (const transaction of stream.transactions) {
         const writer = new g.ByteWriter()
-        g.write_transaction(writer, transaction, server.world)
-        server_to_client.send(
-          writer.get_bytes(),
+        g.writeTransaction(writer, transaction, server.world)
+        serverToClient.send(
+          writer.getBytes(),
           server.world.tick,
           LATENCY_TICKS,
         )
       }
       for (const snap of stream.snapshots) {
         const writer = new g.ByteWriter()
-        g.write_snapshot(writer, snap, server.world)
-        server_to_client.send(
-          writer.get_bytes(),
+        g.writeSnapshot(writer, snap, server.world)
+        serverToClient.send(
+          writer.getBytes(),
           server.world.tick,
           LATENCY_TICKS,
         )
@@ -482,68 +482,68 @@ test("stop-and-go movement isomorphism", () => {
       stream.snapshots.length = 0
     }
 
-    for (const packet of server_to_client.receive(tick)) {
+    for (const packet of serverToClient.receive(tick)) {
       const reader = new g.ByteReader(packet)
-      const header = g.read_message_header(reader)
+      const header = g.readMessageHeader(reader)
       if (header.type === g.MessageType.Handshake) {
-        const handshake = g.read_handshake_server(reader)
-        if (!client_synced) {
+        const handshake = g.readHandshakeServer(reader)
+        if (!clientSynced) {
           client.world.tick = handshake.tick + LATENCY_TICKS * 3
-          client_synced = true
+          clientSynced = true
         }
       } else if (header.type === g.MessageType.Transaction) {
-        const transaction = g.read_transaction(
+        const transaction = g.readTransaction(
           reader,
           header.tick,
           server.world,
         )
-        g.receive_transaction(client.world, transaction)
+        g.receiveTransaction(client.world, transaction)
       }
     }
 
-    if (client_synced) {
+    if (clientSynced) {
       if (tick >= 50 && tick < 100) {
-        g.record_command(client.world, player, MoveCommand({dx: 1, dy: 0}))
+        g.recordCommand(client.world, player, MoveCommand({dx: 1, dy: 0}))
       }
 
-      const command_buffer = g.get_resource(client.world, g.CommandBuffer)
-      const commands = command_buffer?.get(client.world.tick)
+      const commandBuffer = g.getResource(client.world, g.CommandBuffer)
+      const commands = commandBuffer?.get(client.world.tick)
       if (commands) {
         const writer = new g.ByteWriter()
-        g.write_commands(
+        g.writeCommands(
           writer,
           {tick: client.world.tick, commands},
           server.world,
         )
-        client_to_server.send(writer.get_bytes(), tick, LATENCY_TICKS)
+        clientToServer.send(writer.getBytes(), tick, LATENCY_TICKS)
       }
 
-      const c_pos_before = g.get_component_value(client.world, player, Position)
-      if (c_pos_before) {
-        predicted_positions.set(client.world.tick, {...c_pos_before})
+      const cPosBefore = g.getComponentValue(client.world, player, Position)
+      if (cPosBefore) {
+        predictedPositions.set(client.world.tick, {...cPosBefore})
       }
 
-      g.run_schedule(client.schedule, client.world as g.World)
+      g.runSchedule(client.schedule, client.world as g.World)
 
-      const check_tick = tick - LATENCY_TICKS
-      if (check_tick >= 0) {
-        const s_pos = server_positions.get(check_tick)
+      const checkTick = tick - LATENCY_TICKS
+      if (checkTick >= 0) {
+        const sPos = serverPositions.get(checkTick)
 
-        const history = g.get_resource(client.world, g.HistoryBuffer)
-        const snapshot = history?.snapshots.find((s) => s.tick === check_tick)
+        const history = g.getResource(client.world, g.HistoryBuffer)
+        const snapshot = history?.snapshots.find((s) => s.tick === checkTick)
 
-        if (s_pos && snapshot) {
-          const player_idx = snapshot.entity_to_index.get(player)
-          const pos_store = snapshot.component_data.get(
-            client.world.component_registry.get_id(Position),
+        if (sPos && snapshot) {
+          const playerIdx = snapshot.entityToIndex.get(player)
+          const posStore = snapshot.componentData.get(
+            client.world.componentRegistry.getId(Position),
           )
-          if (player_idx !== undefined && pos_store) {
-            const reconciled_pos = pos_store[player_idx] as {
+          if (playerIdx !== undefined && posStore) {
+            const reconciledPos = posStore[playerIdx] as {
               x: number
               y: number
             }
-            expect(reconciled_pos.x).toBeCloseTo(s_pos.x)
-            expect(reconciled_pos.y).toBeCloseTo(s_pos.y)
+            expect(reconciledPos.x).toBeCloseTo(sPos.x)
+            expect(reconciledPos.y).toBeCloseTo(sPos.y)
           }
         }
       }
@@ -552,70 +552,70 @@ test("stop-and-go movement isomorphism", () => {
 })
 
 test("predictive spawning and rebinding isomorphism", () => {
-  const server = setup_server()
-  const client = setup_client(1)
-  const client_to_server = new MockPipe()
-  const server_to_client = new MockPipe()
+  const server = setupServer()
+  const client = setupClient(1)
+  const clientToServer = new MockPipe()
+  const serverToClient = new MockPipe()
   const LATENCY_TICKS = 5
 
   const player = g.spawn(server.world, [Position({x: 0, y: 0}), g.Replicated])
 
-  const handshake_writer = new g.ByteWriter()
-  g.write_handshake_server(handshake_writer, server.world.tick, {
-    domain_id: 0,
+  const handshakeWriter = new g.ByteWriter()
+  g.writeHandshakeServer(handshakeWriter, server.world.tick, {
+    domainId: 0,
     tick: server.world.tick,
   })
-  server_to_client.send(
-    handshake_writer.get_bytes(),
+  serverToClient.send(
+    handshakeWriter.getBytes(),
     server.world.tick,
     LATENCY_TICKS,
   )
 
-  let client_synced = false
-  let spawn_triggered = false
+  let clientSynced = false
+  let spawnTriggered = false
 
   for (let tick = 0; tick < 100; tick++) {
-    for (const packet of client_to_server.receive(server.world.tick)) {
+    for (const packet of clientToServer.receive(server.world.tick)) {
       const reader = new g.ByteReader(packet)
-      const header = g.read_message_header(reader)
+      const header = g.readMessageHeader(reader)
       if (header.type === g.MessageType.Command) {
-        const cmd_msg = g.read_commands(reader, header.tick, server.world)
-        const target_tick = Math.max(server.world.tick, cmd_msg.tick)
-        for (const cmd of cmd_msg.commands) {
-          g.record_command(
+        const cmdMsg = g.readCommands(reader, header.tick, server.world)
+        const targetTick = Math.max(server.world.tick, cmdMsg.tick)
+        for (const cmd of cmdMsg.commands) {
+          g.recordCommand(
             server.world,
             cmd.target as g.Entity,
             {
               component: {
-                id: cmd.component_id,
+                id: cmd.componentId,
                 __component_brand: true,
               } as g.Component<unknown>,
               value: cmd.data,
             },
-            target_tick,
-            cmd_msg.tick,
+            targetTick,
+            cmdMsg.tick,
           )
         }
       }
     }
-    g.run_schedule(server.schedule, server.world as g.World)
+    g.runSchedule(server.schedule, server.world as g.World)
 
-    const stream = g.get_resource(server.world, g.ReplicationStream)
+    const stream = g.getResource(server.world, g.ReplicationStream)
     if (stream) {
       for (const transaction of stream.transactions) {
         const writer = new g.ByteWriter()
-        g.write_transaction(writer, transaction, server.world)
-        server_to_client.send(
-          writer.get_bytes(),
+        g.writeTransaction(writer, transaction, server.world)
+        serverToClient.send(
+          writer.getBytes(),
           server.world.tick,
           LATENCY_TICKS,
         )
       }
       for (const snap of stream.snapshots) {
         const writer = new g.ByteWriter()
-        g.write_snapshot(writer, snap, server.world)
-        server_to_client.send(
-          writer.get_bytes(),
+        g.writeSnapshot(writer, snap, server.world)
+        serverToClient.send(
+          writer.getBytes(),
           server.world.tick,
           LATENCY_TICKS,
         )
@@ -624,72 +624,72 @@ test("predictive spawning and rebinding isomorphism", () => {
       stream.snapshots.length = 0
     }
 
-    for (const packet of server_to_client.receive(tick)) {
+    for (const packet of serverToClient.receive(tick)) {
       const reader = new g.ByteReader(packet)
-      const header = g.read_message_header(reader)
+      const header = g.readMessageHeader(reader)
       if (header.type === g.MessageType.Handshake) {
-        const handshake = g.read_handshake_server(reader)
-        if (!client_synced) {
+        const handshake = g.readHandshakeServer(reader)
+        if (!clientSynced) {
           client.world.tick = handshake.tick + LATENCY_TICKS + 1
-          client_synced = true
+          clientSynced = true
         }
       } else if (header.type === g.MessageType.Transaction) {
-        const transaction = g.read_transaction(
+        const transaction = g.readTransaction(
           reader,
           header.tick,
           server.world,
         )
-        g.receive_transaction(client.world, transaction)
+        g.receiveTransaction(client.world, transaction)
       }
     }
 
-    if (client_synced) {
-      if (!spawn_triggered && tick > 20) {
-        g.record_command(client.world, player, FireCommand)
-        spawn_triggered = true
+    if (clientSynced) {
+      if (!spawnTriggered && tick > 20) {
+        g.recordCommand(client.world, player, FireCommand)
+        spawnTriggered = true
       }
 
-      const command_buffer = g.get_resource(client.world, g.CommandBuffer)
-      const commands = command_buffer?.get(client.world.tick)
+      const commandBuffer = g.getResource(client.world, g.CommandBuffer)
+      const commands = commandBuffer?.get(client.world.tick)
       if (commands) {
         const writer = new g.ByteWriter()
-        g.write_commands(
+        g.writeCommands(
           writer,
           {tick: client.world.tick, commands},
           server.world,
         )
-        client_to_server.send(
-          writer.get_bytes(),
+        clientToServer.send(
+          writer.getBytes(),
           client.world.tick,
           LATENCY_TICKS,
         )
       }
 
-      g.run_schedule(client.schedule, client.world as g.World)
+      g.runSchedule(client.schedule, client.world as g.World)
 
-      const pulse_entities = client.world.index.entity_to_index.indices.filter(
+      const pulseEntities = client.world.index.entityToIndex.indices.filter(
         (e) => {
           return (
-            g.get_component_value(client.world, e as g.Entity, Pulse) !==
+            g.getComponentValue(client.world, e as g.Entity, Pulse) !==
             undefined
           )
         },
       )
 
-      if (pulse_entities.length > 1) {
+      if (pulseEntities.length > 1) {
         console.log(`Double pulse detected at client tick ${client.world.tick}`)
-        for (const e of pulse_entities) {
-          const node = g.sparse_map_get(
-            client.world.entity_graph.by_entity,
+        for (const e of pulseEntities) {
+          const node = g.sparseMapGet(
+            client.world.entityGraph.byEntity,
             e as number,
           )
           console.log(
-            `  Entity ${e}: domain_id=${g.get_domain_id(e as g.Entity)}, local_id=${g.get_local_id(e as g.Entity)}, replicated=${node?.vec.elements.some((c) => client.world.component_registry.get_id(c) === g.Replicated.id)}`,
+            `  Entity ${e}: domainId=${g.getDomainId(e as g.Entity)}, localId=${g.getLocalId(e as g.Entity)}, replicated=${node?.vec.elements.some((c) => client.world.componentRegistry.getId(c) === g.Replicated.id)}`,
           )
         }
       }
 
-      expect(pulse_entities.length).toBeLessThanOrEqual(1)
+      expect(pulseEntities.length).toBeLessThanOrEqual(1)
     }
   }
 })

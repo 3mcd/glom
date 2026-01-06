@@ -1,53 +1,53 @@
 import {bench, group, run} from "mitata"
 import type {Entity} from "./entity"
-import {define_relation} from "./relation"
+import {defineRelation} from "./relation"
 import {
-  get_or_create_virtual_id,
-  register_incoming_relation,
-  unregister_incoming_relation,
+  getOrCreateVirtualId,
+  registerIncomingRelation,
+  unregisterIncomingRelation,
 } from "./relation_registry"
-import {make_world} from "./world"
+import {makeWorld} from "./world"
 
-const relation_count = 100
-const relations = Array.from({length: relation_count}, (_, i) =>
-  define_relation(i),
+const relationCount = 100
+const relations = Array.from({length: relationCount}, (_, i) =>
+  defineRelation(i),
 )
-const entity_count = 1000
-const entities = Array.from({length: entity_count}, (_, i) => i as Entity)
-const world = make_world({domain_id: 0})
+const entityCount = 1000
+const entities = Array.from({length: entityCount}, (_, i) => i as Entity)
+const world = makeWorld({domainId: 0})
 
 group("relation registry operations", () => {
-  bench("get_or_create_virtual_id (new pairs)", () => {
-    for (let i = 0; i < relation_count; i++) {
+  bench("getOrCreateVirtualId (new pairs)", () => {
+    for (let i = 0; i < relationCount; i++) {
       for (let j = 0; j < 10; j++) {
-        get_or_create_virtual_id(world, relations[i]!, entities[j]!)
+        getOrCreateVirtualId(world, relations[i]!, entities[j]!)
       }
     }
   })
 
-  bench("get_or_create_virtual_id (existing pairs)", () => {
-    for (let i = 0; i < relation_count; i++) {
+  bench("getOrCreateVirtualId (existing pairs)", () => {
+    for (let i = 0; i < relationCount; i++) {
       for (let j = 0; j < 10; j++) {
-        get_or_create_virtual_id(world, relations[i]!, entities[j]!)
+        getOrCreateVirtualId(world, relations[i]!, entities[j]!)
       }
     }
   })
 
-  bench("register_incoming_relation", () => {
+  bench("registerIncomingRelation", () => {
     for (let i = 0; i < 1000; i++) {
-      const subject = entities[i % entity_count]!
-      const object = entities[(i + 1) % entity_count]!
-      const rel = relations[i % relation_count]!
-      register_incoming_relation(world, subject, rel.id as number, object)
+      const subject = entities[i % entityCount]!
+      const object = entities[(i + 1) % entityCount]!
+      const rel = relations[i % relationCount]!
+      registerIncomingRelation(world, subject, rel.id as number, object)
     }
   })
 
-  bench("unregister_incoming_relation", () => {
+  bench("unregisterIncomingRelation", () => {
     for (let i = 0; i < 1000; i++) {
-      const subject = entities[i % entity_count]!
-      const object = entities[(i + 1) % entity_count]!
-      const rel = relations[i % relation_count]!
-      unregister_incoming_relation(world, subject, rel.id as number, object)
+      const subject = entities[i % entityCount]!
+      const object = entities[(i + 1) % entityCount]!
+      const rel = relations[i % relationCount]!
+      unregisterIncomingRelation(world, subject, rel.id as number, object)
     }
   })
 })

@@ -1,81 +1,81 @@
 import {describe, expect, test} from "bun:test"
 import {
-  record_command,
-  prune_commands,
+  recordCommand,
+  pruneCommands,
   CommandOf,
   CommandBuffer,
 } from "./command"
-import {define_component, define_tag, type ComponentResolver} from "./component"
-import {define_system} from "./system"
-import {sparse_map_get} from "./sparse_map"
-import {make_world, get_component_value, get_resource} from "./world"
+import {defineComponent, defineTag, type ComponentResolver} from "./component"
+import {defineSystem} from "./system"
+import {sparseMapGet} from "./sparse_map"
+import {makeWorld, getComponentValue, getResource} from "./world"
 import type {World} from "./world"
 import type {Entity} from "./entity"
 import {spawn} from "./world_api"
 import {ByteReader, ByteWriter} from "./lib/binary"
-import {write_commands, read_commands, read_message_header} from "./protocol"
+import {writeCommands, readCommands, readMessageHeader} from "./protocol"
 import type {ComponentSerde} from "./component"
 import {All} from "./query/all"
 import {Rel, Read, World as WorldTerm} from "./query/term"
-import {cleanup_ephemeral_commands, spawn_ephemeral_commands} from "./command"
-import {run_schedule, make_system_schedule, add_system} from "./system_schedule"
+import {cleanupEphemeralCommands, spawnEphemeralCommands} from "./command"
+import {runSchedule, makeSystemSchedule, addSystem} from "./system_schedule"
 
 describe("command api", () => {
-  const Jump = define_tag()
-  const Move = define_component<{x: number; y: number}>()
+  const Jump = defineTag()
+  const Move = defineComponent<{x: number; y: number}>()
   const schema = [Jump, Move]
 
   test("record and execute relational commands", () => {
-    const world = make_world({domain_id: 1, schema})
+    const world = makeWorld({domainId: 1, schema})
     const player = spawn(world, [])
 
-    record_command(world, player, Jump, 10)
-    record_command(world, player, Move({x: 5, y: 10}), 10)
+    recordCommand(world, player, Jump, 10)
+    recordCommand(world, player, Move({x: 5, y: 10}), 10)
 
-    const command_buffer = get_resource(world, CommandBuffer)
-    expect(command_buffer?.get(10)?.length).toBe(2)
+    const commandBuffer = getResource(world, CommandBuffer)
+    expect(commandBuffer?.get(10)?.length).toBe(2)
 
-    let jump_found = false
-    let move_val: {x: number; y: number} | undefined
+    let jumpFound = false
+    let moveVal: {x: number; y: number} | undefined
 
     world.tick = 10
 
-    const schedule = make_system_schedule()
-    add_system(schedule, spawn_ephemeral_commands)
+    const schedule = makeSystemSchedule()
+    addSystem(schedule, spawnEphemeralCommands)
 
-    const check_system = define_system(
+    const checkSystem = defineSystem(
       (_world: World) => {
-        const node = sparse_map_get(
-          world.entity_graph.by_entity,
+        const node = sparseMapGet(
+          world.entityGraph.byEntity,
           player as number,
         )
         expect(node).toBeDefined()
         if (node) {
           for (const comp of node.vec.elements) {
-            const comp_id = world.component_registry.get_id(comp)
-            const rel = world.relations.virtual_to_rel.get(comp_id)
+            const compId = world.componentRegistry.getId(comp)
+            const rel = world.relations.virtualToRel.get(compId)
             if (
               rel &&
-              rel.relation_id === world.component_registry.get_id(CommandOf)
+              rel.relationId === world.componentRegistry.getId(CommandOf)
             ) {
-              const cmd_ent = rel.object
+              const cmdEnt = rel.object
 
-              const cmd_node = sparse_map_get(
-                world.entity_graph.by_entity,
-                cmd_ent as number,
+              const cmdNode = sparseMapGet(
+                world.entityGraph.byEntity,
+                cmdEnt as number,
               )
-              const jump_id = world.component_registry.get_id(Jump)
+              const jumpId = world.componentRegistry.getId(Jump)
               if (
-                cmd_node &&
-                cmd_node.vec.elements.some(
-                  (c) => world.component_registry.get_id(c) === jump_id,
+                cmdNode &&
+                cmdNode.vec.elements.some(
+                  (c) => world.componentRegistry.getId(c) === jumpId,
                 )
               ) {
-                jump_found = true
+                jumpFound = true
               }
 
-              const move = get_component_value(world, cmd_ent as Entity, Move)
-              if (move !== undefined) move_val = move
+              const move = getComponentValue(world, cmdEnt as Entity, Move)
+              if (move !== undefined) moveVal = move
             }
           }
         }
@@ -83,70 +83,70 @@ describe("command api", () => {
       {params: [WorldTerm()], name: "check"},
     )
 
-    add_system(schedule, check_system)
-    add_system(schedule, cleanup_ephemeral_commands)
+    addSystem(schedule, checkSystem)
+    addSystem(schedule, cleanupEphemeralCommands)
 
-    run_schedule(schedule, world)
+    runSchedule(schedule, world)
 
-    expect(jump_found).toBe(true)
-    expect(move_val).toEqual({x: 5, y: 10})
+    expect(jumpFound).toBe(true)
+    expect(moveVal).toEqual({x: 5, y: 10})
 
     expect(
-      sparse_map_get(world.entity_graph.by_entity, player as number)?.vec
+      sparseMapGet(world.entityGraph.byEntity, player as number)?.vec
         .elements.length,
     ).toBe(0)
   })
 
   test("binary serialization", () => {
     const resolver: ComponentResolver = {
-      get_serde: (id: number): ComponentSerde<any> | undefined => {
+      getSerde: (id: number): ComponentSerde<any> | undefined => {
         if (id === 101) {
           return {
-            bytes_per_element: 8,
+            bytesPerElement: 8,
             encode: (val: {x: number; y: number}, writer: ByteWriter) => {
-              writer.write_float32(val.x)
-              writer.write_float32(val.y)
+              writer.writeFloat32(val.x)
+              writer.writeFloat32(val.y)
             },
             decode: (reader: ByteReader) => {
-              return {x: reader.read_float32(), y: reader.read_float32()}
+              return {x: reader.readFloat32(), y: reader.readFloat32()}
             },
           }
         }
         return undefined
       },
-      is_tag: (id) => id === 100,
+      isTag: (id) => id === 100,
     }
 
     const commands = [
-      {target: 1, component_id: 100, data: undefined},
-      {target: 1, component_id: 101, data: {x: 1.5, y: 2.5}},
+      {target: 1, componentId: 100, data: undefined},
+      {target: 1, componentId: 101, data: {x: 1.5, y: 2.5}},
     ]
 
     const writer = new ByteWriter()
-    write_commands(writer, {tick: 50, commands}, resolver)
+    writeCommands(writer, {tick: 50, commands}, resolver)
 
-    const reader = new ByteReader(writer.get_bytes())
-    const header = read_message_header(reader)
-    const result = read_commands(reader, header.tick, resolver)
+    const reader = new ByteReader(writer.getBytes())
+    const header = readMessageHeader(reader)
+    const result = readCommands(reader, header.tick, resolver)
 
     expect(result.tick).toBe(50)
     expect(result.commands.length).toBe(2)
     expect(result.commands[0].target).toBe(1)
-    expect(result.commands[0].component_id).toBe(100)
-    expect(result.commands[1].component_id).toBe(101)
+    expect(result.commands[0].componentId).toBe(100)
+    expect(result.commands[1].componentId).toBe(101)
     expect((result.commands[1].data as {x: number}).x).toBeCloseTo(1.5, 5)
   })
 
   test("pruning", () => {
-    const world = make_world({domain_id: 1, schema})
+    const world = makeWorld({domainId: 1, schema})
     const player = spawn(world, [])
-    record_command(world, player, Jump, 10)
-    record_command(world, player, Jump, 20)
+    recordCommand(world, player, Jump, 10)
+    recordCommand(world, player, Jump, 20)
 
-    prune_commands(world, 15)
+    pruneCommands(world, 15)
 
-    const command_buffer = get_resource(world, CommandBuffer)
-    expect(command_buffer?.has(10)).toBe(false)
-    expect(command_buffer?.has(20)).toBe(true)
+    const commandBuffer = getResource(world, CommandBuffer)
+    expect(commandBuffer?.has(10)).toBe(false)
+    expect(commandBuffer?.has(20)).toBe(true)
   })
 })

@@ -4,7 +4,7 @@ export type SparseMap<T = unknown> = {
   indices: number[]
 }
 
-export function make_sparse_map<T = unknown>(): SparseMap<T> {
+export function makeSparseMap<T = unknown>(): SparseMap<T> {
   return {
     dense: [],
     sparse: new Map(),
@@ -12,62 +12,62 @@ export function make_sparse_map<T = unknown>(): SparseMap<T> {
   }
 }
 
-export function sparse_map_get<T>(
+export function sparseMapGet<T>(
   map: SparseMap<T>,
   key: number,
 ): T | undefined {
-  const dense_index = map.sparse.get(key)
-  if (dense_index === undefined) {
+  const denseIndex = map.sparse.get(key)
+  if (denseIndex === undefined) {
     return undefined
   }
-  return map.dense[dense_index]
+  return map.dense[denseIndex]
 }
 
-export function sparse_map_set<T>(
+export function sparseMapSet<T>(
   map: SparseMap<T>,
   key: number,
   value: T,
 ): void {
-  const dense_index = map.sparse.get(key)
-  if (dense_index === undefined) {
+  const denseIndex = map.sparse.get(key)
+  if (denseIndex === undefined) {
     map.sparse.set(key, map.dense.length)
     map.dense.push(value)
     map.indices.push(key)
   } else {
-    map.dense[dense_index] = value
+    map.dense[denseIndex] = value
   }
 }
 
-export function sparse_map_has(map: SparseMap, key: number): boolean {
+export function sparseMapHas(map: SparseMap, key: number): boolean {
   return map.sparse.has(key)
 }
 
-export function sparse_map_delete<T>(map: SparseMap<T>, key: number): void {
-  const dense_index = map.sparse.get(key)
-  if (dense_index === undefined) {
+export function sparseMapDelete<T>(map: SparseMap<T>, key: number): void {
+  const denseIndex = map.sparse.get(key)
+  if (denseIndex === undefined) {
     return
   }
-  const last_key = map.indices[map.indices.length - 1] as number
-  const last_val = map.dense[map.dense.length - 1] as T
-  map.dense[dense_index] = last_val
+  const lastKey = map.indices[map.indices.length - 1] as number
+  const lastVal = map.dense[map.dense.length - 1] as T
+  map.dense[denseIndex] = lastVal
   map.dense.pop()
-  map.indices[dense_index] = last_key
+  map.indices[denseIndex] = lastKey
   map.indices.pop()
-  map.sparse.set(last_key, dense_index)
+  map.sparse.set(lastKey, denseIndex)
   map.sparse.delete(key)
 }
 
-export function sparse_map_size(map: SparseMap): number {
+export function sparseMapSize(map: SparseMap): number {
   return map.dense.length
 }
 
-export function sparse_map_clear(map: SparseMap): void {
+export function sparseMapClear(map: SparseMap): void {
   map.dense.length = 0
   map.indices.length = 0
   map.sparse.clear()
 }
 
-export function sparse_map_to_sparse_array<T>(
+export function sparseMapToSparseArray<T>(
   map: SparseMap<T>,
 ): (T | undefined)[] {
   const sparse = new Array(map.sparse.size)
@@ -78,7 +78,7 @@ export function sparse_map_to_sparse_array<T>(
   return sparse
 }
 
-export function sparse_map_for_each<T>(
+export function sparseMapForEach<T>(
   map: SparseMap<T>,
   iteratee: (key: number, value: T) => void,
 ): void {
@@ -87,7 +87,7 @@ export function sparse_map_for_each<T>(
   }
 }
 
-export function sparse_map_for_each_value<T>(
+export function sparseMapForEachValue<T>(
   map: SparseMap<T>,
   iteratee: (value: T) => void,
 ): void {
@@ -96,10 +96,10 @@ export function sparse_map_for_each_value<T>(
   }
 }
 
-export function sparse_map_clone<T>(map: SparseMap<T>): SparseMap<T> {
-  const clone = make_sparse_map<T>()
+export function sparseMapClone<T>(map: SparseMap<T>): SparseMap<T> {
+  const clone = makeSparseMap<T>()
   for (let i = 0; i < map.dense.length; i++) {
-    sparse_map_set(clone, map.indices[i] as number, map.dense[i] as T)
+    sparseMapSet(clone, map.indices[i] as number, map.dense[i] as T)
   }
   return clone
 }

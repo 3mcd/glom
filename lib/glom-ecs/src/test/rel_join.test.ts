@@ -2,26 +2,26 @@ import {describe, expect, test} from "bun:test"
 import * as g from "../index"
 
 describe("relation integration", () => {
-  const Position = g.define_component<{x: number}>()
-  const ChildOf = g.define_relation()
-  const Name = g.define_component<string>()
+  const Position = g.defineComponent<{x: number}>()
+  const ChildOf = g.defineRelation()
+  const Name = g.defineComponent<string>()
   const schema = [Position, ChildOf, Name]
 
   test("simple rel join", () => {
-    const world = g.make_world({domain_id: 0, schema})
+    const world = g.makeWorld({domainId: 0, schema})
     const parent = g.spawn(world, [Position({x: 10})])
     g.spawn(world, [Position({x: 1}), ChildOf(parent)])
 
     const results: [{x: number}, {x: number}][] = []
-    const system = g.define_system(
+    const system = g.defineSystem(
       (
         query: g.All<
           g.Read<typeof Position>,
           g.Rel<typeof ChildOf, typeof Position>
         >,
       ) => {
-        for (const [pos, parent_pos] of query) {
-          results.push([pos, parent_pos])
+        for (const [pos, parentPos] of query) {
+          results.push([pos, parentPos])
         }
       },
       {
@@ -29,9 +29,9 @@ describe("relation integration", () => {
       },
     )
 
-    const schedule = g.make_system_schedule()
-    g.add_system(schedule, system)
-    g.run_schedule(schedule, world)
+    const schedule = g.makeSystemSchedule()
+    g.addSystem(schedule, system)
+    g.runSchedule(schedule, world)
 
     expect(results.length).toBe(1)
     if (results[0]) {
@@ -41,12 +41,12 @@ describe("relation integration", () => {
   })
 
   test("inner join logic (missing component on object)", () => {
-    const world = g.make_world({domain_id: 0, schema})
+    const world = g.makeWorld({domainId: 0, schema})
     const parent = g.spawn(world, [])
     g.spawn(world, [Position({x: 1}), ChildOf(parent)])
 
     const results: unknown[][] = []
-    const system = g.define_system(
+    const system = g.defineSystem(
       (
         query: g.All<
           g.Read<typeof Position>,
@@ -62,29 +62,29 @@ describe("relation integration", () => {
       },
     )
 
-    const schedule = g.make_system_schedule()
-    g.add_system(schedule, system)
-    g.run_schedule(schedule, world)
+    const schedule = g.makeSystemSchedule()
+    g.addSystem(schedule, system)
+    g.runSchedule(schedule, world)
 
     expect(results.length).toBe(0)
   })
 
   test("multiple objects for same relationship", () => {
-    const world = g.make_world({domain_id: 0, schema})
+    const world = g.makeWorld({domainId: 0, schema})
     const p1 = g.spawn(world, [Position({x: 10})])
     const p2 = g.spawn(world, [Position({x: 20})])
     g.spawn(world, [Position({x: 1}), ChildOf(p1), ChildOf(p2)])
 
     const results: [{x: number}, {x: number}][] = []
-    const system = g.define_system(
+    const system = g.defineSystem(
       (
         query: g.All<
           g.Read<typeof Position>,
           g.Rel<typeof ChildOf, typeof Position>
         >,
       ) => {
-        for (const [pos, parent_pos] of query) {
-          results.push([pos, parent_pos])
+        for (const [pos, parentPos] of query) {
+          results.push([pos, parentPos])
         }
       },
       {
@@ -92,9 +92,9 @@ describe("relation integration", () => {
       },
     )
 
-    const schedule = g.make_system_schedule()
-    g.add_system(schedule, system)
-    g.run_schedule(schedule, world)
+    const schedule = g.makeSystemSchedule()
+    g.addSystem(schedule, system)
+    g.runSchedule(schedule, world)
 
     expect(results.length).toBe(2)
     const xValues = results.map((r) => r[1].x)
@@ -103,22 +103,22 @@ describe("relation integration", () => {
   })
 
   test("nested rel join", () => {
-    const world = g.make_world({domain_id: 0, schema})
+    const world = g.makeWorld({domainId: 0, schema})
 
     const grandparent = g.spawn(world, [Name("Grandparent")])
     const parent = g.spawn(world, [Name("Parent"), ChildOf(grandparent)])
     g.spawn(world, [Name("Child"), ChildOf(parent)])
 
     const results: [string, string][] = []
-    const system = g.define_system(
+    const system = g.defineSystem(
       (
         query: g.All<
           g.Read<typeof Name>,
           g.Rel<typeof ChildOf, g.Rel<typeof ChildOf, typeof Name>>
         >,
       ) => {
-        for (const [name, grandparent_name] of query) {
-          results.push([name, grandparent_name])
+        for (const [name, grandparentName] of query) {
+          results.push([name, grandparentName])
         }
       },
       {
@@ -133,9 +133,9 @@ describe("relation integration", () => {
       },
     )
 
-    const schedule = g.make_system_schedule()
-    g.add_system(schedule, system)
-    g.run_schedule(schedule, world)
+    const schedule = g.makeSystemSchedule()
+    g.addSystem(schedule, system)
+    g.runSchedule(schedule, world)
 
     expect(results.length).toBe(1)
     if (results[0]) {

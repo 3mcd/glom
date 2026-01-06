@@ -3,7 +3,7 @@ import {
   type ComponentLike,
   type ComponentResolver,
   type ComponentSerde,
-  define_tag,
+  defineTag,
 } from "./component"
 
 export interface RegistrySchema {
@@ -12,10 +12,10 @@ export interface RegistrySchema {
 }
 
 export class ComponentRegistry implements ComponentResolver {
-  private comp_to_id = new Map<ComponentLike, number>()
-  private id_to_comp = new Map<number, ComponentLike>()
-  private virtual_cache = new Map<number, Component<void>>()
-  private next_virtual_id = 1000000
+  private compToId = new Map<ComponentLike, number>()
+  private idToComp = new Map<number, ComponentLike>()
+  private virtualCache = new Map<number, Component<void>>()
+  private nextVirtualId = 1000000
 
   constructor(schema: RegistrySchema = {}, fixed: ComponentLike[] = []) {
     for (const comp of fixed) {
@@ -39,70 +39,70 @@ export class ComponentRegistry implements ComponentResolver {
   }
 
   private register(comp: ComponentLike, id: number): void {
-    this.comp_to_id.set(comp, id)
-    this.id_to_comp.set(id, comp)
+    this.compToId.set(comp, id)
+    this.idToComp.set(id, comp)
   }
 
-  get_id(comp: ComponentLike | {component: ComponentLike}): number {
+  getId(comp: ComponentLike | {component: ComponentLike}): number {
     const target = "component" in comp ? comp.component : comp
-    const id = this.comp_to_id.get(target)
+    const id = this.compToId.get(target)
     if (id !== undefined) return id
 
-    const target_obj = target as Record<string, unknown>
-    if (typeof target_obj.id === "number") {
-      const id = target_obj.id
+    const targetObj = target as Record<string, unknown>
+    if (typeof targetObj.id === "number") {
+      const id = targetObj.id
       if (id >= 1000000) return id
 
-      if (this.id_to_comp.has(id)) return id
+      if (this.idToComp.has(id)) return id
     }
 
     console.error("Unregistered component:", target)
     console.error(
       "Available components in registry:",
-      Array.from(this.comp_to_id.keys()),
+      Array.from(this.compToId.keys()),
     )
     throw new Error("Component not registered in this world's schema")
   }
 
-  get_serde(id: number): ComponentSerde<unknown> | undefined {
-    const comp = this.id_to_comp.get(id) as Component<unknown> | undefined
+  getSerde(id: number): ComponentSerde<unknown> | undefined {
+    const comp = this.idToComp.get(id) as Component<unknown> | undefined
     return comp?.serde
   }
 
-  is_tag(id: number): boolean {
+  isTag(id: number): boolean {
     if (id >= 1000000) return true
-    const comp = this.id_to_comp.get(id)
-    return !!comp?.is_tag
+    const comp = this.idToComp.get(id)
+    return !!comp?.isTag
   }
 
-  get_component(id: number): ComponentLike | undefined {
-    if (id >= 1000000) return this.get_virtual_component(id)
-    return this.id_to_comp.get(id)
+  getComponent(id: number): ComponentLike | undefined {
+    if (id >= 1000000) return this.getVirtualComponent(id)
+    return this.idToComp.get(id)
   }
 
-  get_virtual_component(id: number): Component<void> {
-    let comp = this.virtual_cache.get(id)
+  getVirtualComponent(id: number): Component<void> {
+    let comp = this.virtualCache.get(id)
     if (!comp) {
-      comp = define_tag(id)
-      this.virtual_cache.set(id, comp)
+      comp = defineTag(id)
+      this.virtualCache.set(id, comp)
     }
     return comp
   }
 
-  alloc_virtual_id(): number {
-    return this.next_virtual_id++
+  allocVirtualId(): number {
+    return this.nextVirtualId++
   }
 
-  get_next_virtual_id(): number {
-    return this.next_virtual_id
+  getNextVirtualId(): number {
+    return this.nextVirtualId
   }
 
-  set_next_virtual_id(id: number): void {
-    this.next_virtual_id = id
+  setNextVirtualId(id: number): void {
+    this.nextVirtualId = id
   }
 }
 
-export function make_component_registry(
+export function makeComponentRegistry(
   schema: RegistrySchema = {},
   fixed: ComponentLike[] = [],
 ): ComponentRegistry {

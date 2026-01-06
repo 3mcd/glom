@@ -36,7 +36,7 @@ describe("transformer", () => {
   test("transforms simple All query", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.define_component<{x: number; y: number}>()
+      const Position = g.defineComponent<{x: number; y: number}>()
       const move = (q: g.All<g.Write<typeof Position>>) => {
         for (const [pos] of q) {
           pos.x += 1
@@ -52,8 +52,8 @@ describe("transformer", () => {
   test("transforms In query", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.define_component<{x: number; y: number}>()
-      const on_added = (added: g.In<g.Read<typeof Position>>) => {
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const onAdded = (added: g.In<g.Read<typeof Position>>) => {
         for (const [pos] of added) {
           console.log(pos)
         }
@@ -61,15 +61,15 @@ describe("transformer", () => {
     `
     const output = transform(input)
     expect(output).toContain("_q0_added = added.joins[0]")
-    expect(output).toContain('Object.defineProperty(on_added, "__system_desc"')
+    expect(output).toContain('Object.defineProperty(onAdded, "__system_desc"')
     expect(output).toContain("params: [{ in: { all: [{ read: Position }] } }]")
   })
 
   test("transforms Out query", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.define_component<{x: number; y: number}>()
-      const on_removed = (removed: g.Out<g.Read<typeof Position>>) => {
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const onRemoved = (removed: g.Out<g.Read<typeof Position>>) => {
         for (const [pos] of removed) {
           console.log(pos)
         }
@@ -78,7 +78,7 @@ describe("transformer", () => {
     const output = transform(input)
     expect(output).toContain("_q0_removed = removed.joins[0]")
     expect(output).toContain(
-      'Object.defineProperty(on_removed, "__system_desc"',
+      'Object.defineProperty(onRemoved, "__system_desc"',
     )
     expect(output).toContain("params: [{ out: { all: [{ read: Position }] } }]")
   })
@@ -110,7 +110,7 @@ describe("transformer", () => {
       }
       const Position = { __component_brand: true };
       type MyIn = g.In<g.Read<typeof Position>>
-      const on_added = (added: MyIn) => {
+      const onAdded = (added: MyIn) => {
         for (const [pos] of added) {
           console.log(pos)
         }
@@ -124,8 +124,8 @@ describe("transformer", () => {
   test("transforms multiple queries in one system", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.define_component<{x: number; y: number}>()
-      const Velocity = g.define_component<{dx: number; dy: number}>()
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const Velocity = g.defineComponent<{dx: number; dy: number}>()
       const move = (q1: g.All<g.Write<typeof Position>>, q2: g.All<g.Read<typeof Velocity>>) => {
         for (const [pos] of q1) {
           for (const [vel] of q2) {
@@ -145,11 +145,11 @@ describe("transformer", () => {
   test("transforms Rel join query", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.define_component<{x: number; y: number}>()
-      const TargetOf = g.define_relation()
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const TargetOf = g.defineRelation()
       const follow = (q: g.All<g.Write<typeof Position>, g.Rel<typeof TargetOf, g.Read<typeof Position>>>) => {
-        for (const [pos, target_pos] of q) {
-          pos.x = target_pos.x
+        for (const [pos, targetPos] of q) {
+          pos.x = targetPos.x
         }
       }
     `

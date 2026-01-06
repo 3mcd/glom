@@ -2,7 +2,7 @@ import type {Entity} from "./entity"
 import type {RelationPair} from "./relation_registry"
 
 export type SnapshotBlock = {
-  component_id: number
+  componentId: number
   entities: number[]
   data: unknown[]
 }
@@ -22,7 +22,7 @@ export type SpawnOp = {
   type: "spawn"
   entity: Entity
   components: SpawnComponent[]
-  causal_key?: number
+  causalKey?: number
 }
 
 export type DespawnOp = {type: "despawn"; entity: Entity}
@@ -30,18 +30,18 @@ export type DespawnOp = {type: "despawn"; entity: Entity}
 export type SetOp = {
   type: "set"
   entity: Entity
-  component_id: number
+  componentId: number
   data: unknown
   version?: number
   rel?: RelationPair
 }
 
-export type RemoveOp = {type: "remove"; entity: Entity; component_id: number}
+export type RemoveOp = {type: "remove"; entity: Entity; componentId: number}
 
 export type ReplicationOp = SpawnOp | DespawnOp | SetOp | RemoveOp
 
 export type Transaction = {
-  domain_id: number
+  domainId: number
   seq: number
   tick: number
   ops: ReplicationOp[]

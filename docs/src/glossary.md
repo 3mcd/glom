@@ -28,7 +28,7 @@
   <dt>Lo Bits</dt>
   <dd>the bottom 20 bits of an entity ID, used for the local ID within a domain</dd>
 
-  <dt>op_seq</dt>
+  <dt>opSeq</dt>
   <dd>a counter used to ensure that changes are received and applied in the correct order</dd>
 
   <dt>Provenance</dt>

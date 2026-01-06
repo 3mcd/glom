@@ -1,12 +1,12 @@
-export {assert, assert_defined} from "./assert"
+export {assert, assertDefined} from "./assert"
 export {
   CommandBuffer,
   CommandEntity,
   CommandOf,
-  cleanup_ephemeral_commands,
+  cleanupEphemeralCommands,
   IntentTick,
-  record_command,
-  spawn_ephemeral_commands,
+  recordCommand,
+  spawnEphemeralCommands,
 } from "./command"
 export {
   type Component,
@@ -14,18 +14,18 @@ export {
   type ComponentLike,
   type ComponentResolver,
   type ComponentSerde,
-  define_component,
-  define_tag,
+  defineComponent,
+  defineTag,
 } from "./component"
-export {Entity, get_domain_id, get_local_id} from "./entity"
-export {get_domain} from "./entity_registry"
+export {Entity, getDomainId, getLocalId} from "./entity"
+export {getDomain} from "./entity_registry"
 export {
-  capture_snapshot,
+  captureSnapshot,
   HistoryBuffer,
-  make_history_buffer,
-  push_snapshot,
-  rollback_to_snapshot,
-  rollback_to_tick,
+  makeHistoryBuffer,
+  pushSnapshot,
+  rollbackToSnapshot,
+  rollbackToTick,
   type Snapshot,
 } from "./history"
 export {
@@ -40,20 +40,20 @@ export {
   type HandshakeServer,
   type MessageHeader,
   MessageType,
-  read_clocksync,
-  read_commands,
-  read_handshake_client,
-  read_handshake_server,
-  read_message_header,
-  read_snapshot,
-  read_transaction,
-  write_clocksync,
-  write_commands,
-  write_handshake_client,
-  write_handshake_server,
-  write_message_header,
-  write_snapshot,
-  write_transaction,
+  readClocksync,
+  readCommands,
+  readHandshakeClient,
+  readHandshakeServer,
+  readMessageHeader,
+  readSnapshot,
+  readTransaction,
+  writeClocksync,
+  writeCommands,
+  writeHandshakeClient,
+  writeHandshakeServer,
+  writeMessageHeader,
+  writeSnapshot,
+  writeTransaction,
 } from "./protocol"
 export {All, In, Out} from "./query/all"
 export {
@@ -69,38 +69,38 @@ export {
   Write,
 } from "./query/term"
 export {
-  apply_remote_snapshots,
-  apply_remote_transactions,
-  cleanup_ghosts,
-  cleanup_transient_entities,
-  perform_batch_reconciliation,
-  perform_rollback,
-  prune_buffers,
-  receive_snapshot,
-  receive_transaction,
-  reconcile_transaction,
-  resimulate_with_transactions,
+  applyRemoteSnapshots,
+  applyRemoteTransactions,
+  cleanupGhosts,
+  cleanupTransientEntities,
+  performBatchReconciliation,
+  performRollback,
+  pruneBuffers,
+  receiveSnapshot,
+  receiveTransaction,
+  reconcileTransaction,
+  resimulateWithTransactions,
 } from "./reconciliation"
 export {
   ComponentRegistry,
-  make_component_registry,
+  makeComponentRegistry,
   type RegistrySchema,
 } from "./registry"
 export {
-  define_relation,
+  defineRelation,
   type Relation,
   type Relationship,
 } from "./relation"
 export {
-  advance_world_tick,
-  apply_transaction,
-  clear_replication_stream,
-  commit_pending_mutations,
-  emit_snapshots,
-  make_causal_key,
-  prune_temporal_buffers,
+  advanceWorldTick,
+  applyTransaction,
+  clearReplicationStream,
+  commitPendingMutations,
+  emitSnapshots,
+  makeCausalKey,
+  pruneTemporalBuffers,
   type ReplicationOp,
-  rebind_entity,
+  rebindEntity,
   type Transaction,
 } from "./replication"
 export {
@@ -112,62 +112,62 @@ export {
   ReplicationStream,
 } from "./replication_config"
 export {
-  apply_snapshot_stream,
-  capture_snapshot_stream,
+  applySnapshotStream,
+  captureSnapshotStream,
 } from "./snapshot_stream"
 export {
-  make_sparse_map,
-  sparse_map_clear,
-  sparse_map_delete,
-  sparse_map_for_each,
-  sparse_map_get,
-  sparse_map_has,
-  sparse_map_set,
-  sparse_map_size,
+  makeSparseMap,
+  sparseMapClear,
+  sparseMapDelete,
+  sparseMapForEach,
+  sparseMapGet,
+  sparseMapHas,
+  sparseMapSet,
+  sparseMapSize,
 } from "./sparse_map"
 export {
-  make_sparse_set,
-  sparse_set_add,
-  sparse_set_clear,
-  sparse_set_delete,
-  sparse_set_for_each,
-  sparse_set_has,
-  sparse_set_size,
-  sparse_set_values,
+  makeSparseSet,
+  sparseSetAdd,
+  sparseSetClear,
+  sparseSetDelete,
+  sparseSetForEach,
+  sparseSetHas,
+  sparseSetSize,
+  sparseSetValues,
 } from "./sparse_set"
 export type {System} from "./system"
-export {define_system} from "./system"
+export {defineSystem} from "./system"
 export {
-  add_system,
-  make_system_schedule,
-  run_schedule,
+  addSystem,
+  makeSystemSchedule,
+  runSchedule,
   type SystemSchedule,
 } from "./system_schedule"
 export {GlomMonitors} from "./systems/monitors"
 export {
-  make_timestep,
+  makeTimestep,
   type Timestep,
-  timestep_set_offset,
-  timestep_update,
+  timestepSetOffset,
+  timestepUpdate,
 } from "./timestep"
 export {
-  add_resource,
-  delete_component_value,
-  get_component_value,
-  get_resource,
-  make_world,
+  addResource,
+  deleteComponentValue,
+  getComponentValue,
+  getResource,
+  makeWorld,
   type SnapshotEmitter,
-  set_component_value,
+  setComponentValue,
   type World,
   type WorldOptions,
 } from "./world"
 export {
-  add_component,
-  advance_tick,
-  commit_transaction,
+  addComponent,
+  advanceTick,
+  commitTransaction,
   despawn,
-  remove_component,
+  removeComponent,
   spawn,
-  world_flush_deletions,
-  world_flush_graph_changes,
+  worldFlushDeletions,
+  worldFlushGraphChanges,
 } from "./world_api"

@@ -2,52 +2,52 @@ export type Timestep = {
   readonly hz: number
   readonly period: number
   accumulated: number
-  last_time: number
+  lastTime: number
   offset: number
-  max_drift: number
-  max_ticks_per_update: number
+  maxDrift: number
+  maxTicksPerUpdate: number
   initialized: boolean
 }
 
-export function make_timestep(
+export function makeTimestep(
   hz: number,
-  max_drift = 1000,
-  max_ticks_per_update = 240,
+  maxDrift = 1000,
+  maxTicksPerUpdate = 240,
 ): Timestep {
   return {
     hz,
     period: 1000 / hz,
     accumulated: 0,
-    last_time: 0,
+    lastTime: 0,
     offset: 0,
-    max_drift,
-    max_ticks_per_update,
+    maxDrift,
+    maxTicksPerUpdate,
     initialized: false,
   }
 }
 
-export function timestep_update(
+export function timestepUpdate(
   timestep: Timestep,
-  now_local: number,
-  on_tick: (dt: number) => void,
+  nowLocal: number,
+  onTick: (dt: number) => void,
 ) {
-  const synchronized_now = now_local + timestep.offset
+  const synchronizedNow = nowLocal + timestep.offset
 
   if (!timestep.initialized) {
-    timestep.last_time = synchronized_now
+    timestep.lastTime = synchronizedNow
     timestep.initialized = true
     return
   }
 
-  let dt = synchronized_now - timestep.last_time
+  let dt = synchronizedNow - timestep.lastTime
 
-  if (Math.abs(dt) > timestep.max_drift) {
+  if (Math.abs(dt) > timestep.maxDrift) {
     timestep.accumulated = 0
     dt = 0
   }
 
   timestep.accumulated += dt
-  timestep.last_time = synchronized_now
+  timestep.lastTime = synchronizedNow
 
   if (timestep.accumulated < 0) {
     timestep.accumulated = 0
@@ -55,17 +55,17 @@ export function timestep_update(
 
   let ticks = 0
   while (timestep.accumulated >= timestep.period) {
-    on_tick(timestep.period)
+    onTick(timestep.period)
     timestep.accumulated -= timestep.period
     ticks++
 
-    if (ticks >= timestep.max_ticks_per_update) {
+    if (ticks >= timestep.maxTicksPerUpdate) {
       timestep.accumulated = 0
       break
     }
   }
 }
 
-export function timestep_set_offset(timestep: Timestep, offset: number) {
+export function timestepSetOffset(timestep: Timestep, offset: number) {
   timestep.offset = offset
 }

@@ -7,10 +7,10 @@ import type {ReplicationOp, SpawnComponent, Transaction} from "./replication"
 
 export type ResolverLike =
   | ComponentResolver
-  | {readonly component_registry: ComponentResolver}
+  | {readonly componentRegistry: ComponentResolver}
 
-function to_resolver(res: ResolverLike): ComponentResolver {
-  return "component_registry" in res ? res.component_registry : res
+function toResolver(res: ResolverLike): ComponentResolver {
+  return "componentRegistry" in res ? res.componentRegistry : res
 }
 
 export enum MessageType {
@@ -26,19 +26,19 @@ export type MessageHeader = {
   tick: number
 }
 
-export function write_message_header(
+export function writeMessageHeader(
   writer: ByteWriter,
   type: MessageType,
   tick: number,
 ) {
-  writer.write_uint8(type)
-  writer.write_uint32(tick)
+  writer.writeUint8(type)
+  writer.writeUint32(tick)
 }
 
-export function read_message_header(reader: ByteReader): MessageHeader {
+export function readMessageHeader(reader: ByteReader): MessageHeader {
   return {
-    type: reader.read_uint8(),
-    tick: reader.read_uint32(),
+    type: reader.readUint8(),
+    tick: reader.readUint32(),
   }
 }
 
@@ -47,39 +47,39 @@ export type HandshakeClient = {
 }
 
 export type HandshakeServer = {
-  domain_id: number
+  domainId: number
   tick: number
 }
 
-export function write_handshake_client(
+export function writeHandshakeClient(
   writer: ByteWriter,
   tick: number,
   data: HandshakeClient,
 ) {
-  write_message_header(writer, MessageType.Handshake, tick)
-  writer.write_uint8(data.version)
+  writeMessageHeader(writer, MessageType.Handshake, tick)
+  writer.writeUint8(data.version)
 }
 
-export function read_handshake_client(reader: ByteReader): HandshakeClient {
+export function readHandshakeClient(reader: ByteReader): HandshakeClient {
   return {
-    version: reader.read_uint8(),
+    version: reader.readUint8(),
   }
 }
 
-export function write_handshake_server(
+export function writeHandshakeServer(
   writer: ByteWriter,
   tick: number,
   data: HandshakeServer,
 ) {
-  write_message_header(writer, MessageType.Handshake, tick)
-  writer.write_uint8(data.domain_id)
-  writer.write_uint32(data.tick)
+  writeMessageHeader(writer, MessageType.Handshake, tick)
+  writer.writeUint8(data.domainId)
+  writer.writeUint32(data.tick)
 }
 
-export function read_handshake_server(reader: ByteReader): HandshakeServer {
+export function readHandshakeServer(reader: ByteReader): HandshakeServer {
   return {
-    domain_id: reader.read_uint8(),
-    tick: reader.read_uint32(),
+    domainId: reader.readUint8(),
+    tick: reader.readUint32(),
   }
 }
 
@@ -89,43 +89,43 @@ export type ClockSync = {
   t2: number
 }
 
-export function write_clocksync(
+export function writeClocksync(
   writer: ByteWriter,
   tick: number,
   data: ClockSync,
 ) {
-  write_message_header(writer, MessageType.ClockSync, tick)
-  writer.write_float64(data.t0)
-  writer.write_float64(data.t1)
-  writer.write_float64(data.t2)
+  writeMessageHeader(writer, MessageType.ClockSync, tick)
+  writer.writeFloat64(data.t0)
+  writer.writeFloat64(data.t1)
+  writer.writeFloat64(data.t2)
 }
 
-export function read_clocksync(reader: ByteReader): ClockSync {
+export function readClocksync(reader: ByteReader): ClockSync {
   return {
-    t0: reader.read_float64(),
-    t1: reader.read_float64(),
-    t2: reader.read_float64(),
+    t0: reader.readFloat64(),
+    t1: reader.readFloat64(),
+    t2: reader.readFloat64(),
   }
 }
 
 export type CommandMessage = {
   tick: number
-  commands: {target: number; component_id: number; data: unknown}[]
+  commands: {target: number; componentId: number; data: unknown}[]
 }
 
-export function write_commands(
+export function writeCommands(
   writer: ByteWriter,
   data: CommandMessage,
-  resolver_like: ResolverLike,
+  resolverLike: ResolverLike,
 ) {
-  const resolver = to_resolver(resolver_like)
-  write_message_header(writer, MessageType.Command, data.tick)
-  writer.write_uint16(data.commands.length)
+  const resolver = toResolver(resolverLike)
+  writeMessageHeader(writer, MessageType.Command, data.tick)
+  writer.writeUint16(data.commands.length)
   for (const cmd of data.commands) {
-    writer.write_varint(cmd.target)
-    writer.write_varint(cmd.component_id)
+    writer.writeVarint(cmd.target)
+    writer.writeVarint(cmd.componentId)
     if (cmd.data !== undefined) {
-      const serde = resolver.get_serde(cmd.component_id)
+      const serde = resolver.getSerde(cmd.componentId)
       if (serde) {
         serde.encode(cmd.data, writer)
       }
@@ -133,25 +133,25 @@ export function write_commands(
   }
 }
 
-export function read_commands(
+export function readCommands(
   reader: ByteReader,
   tick: number,
-  resolver_like: ResolverLike,
+  resolverLike: ResolverLike,
 ): CommandMessage {
-  const resolver = to_resolver(resolver_like)
-  const count = reader.read_uint16()
-  const commands: {target: number; component_id: number; data: unknown}[] = []
+  const resolver = toResolver(resolverLike)
+  const count = reader.readUint16()
+  const commands: {target: number; componentId: number; data: unknown}[] = []
   for (let i = 0; i < count; i++) {
-    const target = reader.read_varint()
-    const id = reader.read_varint()
+    const target = reader.readVarint()
+    const id = reader.readVarint()
     let data: unknown
-    if (!resolver.is_tag(id)) {
-      const serde = resolver.get_serde(id)
+    if (!resolver.isTag(id)) {
+      const serde = resolver.getSerde(id)
       if (serde) {
         data = serde.decode(reader, undefined as unknown)
       }
     }
-    commands.push({target, component_id: id, data})
+    commands.push({target, componentId: id, data})
   }
   return {
     tick,
@@ -159,59 +159,59 @@ export function read_commands(
   }
 }
 
-export function write_snapshot(
+export function writeSnapshot(
   writer: ByteWriter,
   data: SnapshotMessage,
-  resolver_like: ResolverLike,
+  resolverLike: ResolverLike,
 ) {
-  const resolver = to_resolver(resolver_like)
-  write_message_header(writer, MessageType.Snapshot, data.tick)
-  writer.write_uint16(data.blocks.length)
+  const resolver = toResolver(resolverLike)
+  writeMessageHeader(writer, MessageType.Snapshot, data.tick)
+  writer.writeUint16(data.blocks.length)
 
   for (const block of data.blocks) {
-    writer.write_varint(block.component_id)
-    writer.write_uint16(block.entities.length)
+    writer.writeVarint(block.componentId)
+    writer.writeUint16(block.entities.length)
 
-    const serde = resolver.get_serde(block.component_id)
-    const is_tag = resolver.is_tag(block.component_id)
+    const serde = resolver.getSerde(block.componentId)
+    const isTag = resolver.isTag(block.componentId)
 
     for (let i = 0; i < block.entities.length; i++) {
-      writer.write_varint(block.entities[i]!)
-      if (!is_tag && serde && block.data[i] !== undefined) {
+      writer.writeVarint(block.entities[i]!)
+      if (!isTag && serde && block.data[i] !== undefined) {
         serde.encode(block.data[i], writer)
       }
     }
   }
 }
 
-export function read_snapshot(
+export function readSnapshot(
   reader: ByteReader,
   tick: number,
-  resolver_like: ResolverLike,
+  resolverLike: ResolverLike,
 ): SnapshotMessage {
-  const resolver = to_resolver(resolver_like)
-  const block_count = reader.read_uint16()
+  const resolver = toResolver(resolverLike)
+  const blockCount = reader.readUint16()
   const blocks: SnapshotBlock[] = []
 
-  for (let i = 0; i < block_count; i++) {
-    const component_id = reader.read_varint()
-    const entity_count = reader.read_uint16()
+  for (let i = 0; i < blockCount; i++) {
+    const componentId = reader.readVarint()
+    const entityCount = reader.readUint16()
     const entities: number[] = []
     const data: unknown[] = []
 
-    const serde = resolver.get_serde(component_id)
-    const is_tag = resolver.is_tag(component_id)
+    const serde = resolver.getSerde(componentId)
+    const isTag = resolver.isTag(componentId)
 
-    for (let j = 0; j < entity_count; j++) {
-      entities.push(reader.read_varint())
-      if (!is_tag && serde) {
+    for (let j = 0; j < entityCount; j++) {
+      entities.push(reader.readVarint())
+      if (!isTag && serde) {
         data.push(serde.decode(reader, undefined as unknown))
       } else {
         data.push(undefined)
       }
     }
 
-    blocks.push({component_id, entities, data})
+    blocks.push({componentId, entities, data})
   }
 
   return {
@@ -227,162 +227,162 @@ enum OpCode {
   Remove = 4,
 }
 
-export function write_transaction(
+export function writeTransaction(
   writer: ByteWriter,
   transaction: Transaction,
-  resolver_like: ResolverLike,
+  resolverLike: ResolverLike,
 ) {
-  const resolver = to_resolver(resolver_like)
-  write_message_header(writer, MessageType.Transaction, transaction.tick)
-  writer.write_uint8(transaction.domain_id)
-  writer.write_varint(transaction.seq)
-  writer.write_uint16(transaction.ops.length)
+  const resolver = toResolver(resolverLike)
+  writeMessageHeader(writer, MessageType.Transaction, transaction.tick)
+  writer.writeUint8(transaction.domainId)
+  writer.writeVarint(transaction.seq)
+  writer.writeUint16(transaction.ops.length)
 
   for (const op of transaction.ops) {
     switch (op.type) {
       case "spawn":
-        writer.write_uint8(OpCode.Spawn)
-        writer.write_varint(op.entity as number)
-        writer.write_uint16(op.components.length)
+        writer.writeUint8(OpCode.Spawn)
+        writer.writeVarint(op.entity as number)
+        writer.writeUint16(op.components.length)
         for (const c of op.components) {
-          writer.write_varint(c.id)
-          if (!resolver.is_tag(c.id)) {
-            const serde = resolver.get_serde(c.id)
+          writer.writeVarint(c.id)
+          if (!resolver.isTag(c.id)) {
+            const serde = resolver.getSerde(c.id)
             if (serde) {
               serde.encode(c.data, writer)
             }
           }
           if (c.rel) {
-            writer.write_uint8(1)
-            writer.write_varint(c.rel.relation_id)
-            writer.write_varint(c.rel.object)
+            writer.writeUint8(1)
+            writer.writeVarint(c.rel.relationId)
+            writer.writeVarint(c.rel.object)
           } else {
-            writer.write_uint8(0)
+            writer.writeUint8(0)
           }
         }
-        if (op.causal_key !== undefined) {
-          writer.write_uint8(1)
-          writer.write_uint32(op.causal_key)
+        if (op.causalKey !== undefined) {
+          writer.writeUint8(1)
+          writer.writeUint32(op.causalKey)
         } else {
-          writer.write_uint8(0)
+          writer.writeUint8(0)
         }
         break
 
       case "despawn":
-        writer.write_uint8(OpCode.Despawn)
-        writer.write_varint(op.entity as number)
+        writer.writeUint8(OpCode.Despawn)
+        writer.writeVarint(op.entity as number)
         break
 
       case "set":
-        writer.write_uint8(OpCode.Set)
-        writer.write_varint(op.entity as number)
-        writer.write_varint(op.component_id)
-        if (!resolver.is_tag(op.component_id)) {
-          const serde = resolver.get_serde(op.component_id)
+        writer.writeUint8(OpCode.Set)
+        writer.writeVarint(op.entity as number)
+        writer.writeVarint(op.componentId)
+        if (!resolver.isTag(op.componentId)) {
+          const serde = resolver.getSerde(op.componentId)
           if (serde) {
             serde.encode(op.data, writer)
           }
         }
         if (op.version !== undefined) {
-          writer.write_uint8(1)
-          writer.write_varint(op.version)
+          writer.writeUint8(1)
+          writer.writeVarint(op.version)
         } else {
-          writer.write_uint8(0)
+          writer.writeUint8(0)
         }
         if (op.rel) {
-          writer.write_uint8(1)
-          writer.write_varint(op.rel.relation_id)
-          writer.write_varint(op.rel.object)
+          writer.writeUint8(1)
+          writer.writeVarint(op.rel.relationId)
+          writer.writeVarint(op.rel.object)
         } else {
-          writer.write_uint8(0)
+          writer.writeUint8(0)
         }
         break
 
       case "remove":
-        writer.write_uint8(OpCode.Remove)
-        writer.write_varint(op.entity as number)
-        writer.write_varint(op.component_id)
+        writer.writeUint8(OpCode.Remove)
+        writer.writeVarint(op.entity as number)
+        writer.writeVarint(op.componentId)
         break
     }
   }
 }
 
-export function read_transaction(
+export function readTransaction(
   reader: ByteReader,
   tick: number,
-  resolver_like: ResolverLike,
+  resolverLike: ResolverLike,
 ): Transaction {
-  const resolver = to_resolver(resolver_like)
-  const domain_id = reader.read_uint8()
-  const seq = reader.read_varint()
-  const op_count = reader.read_uint16()
+  const resolver = toResolver(resolverLike)
+  const domainId = reader.readUint8()
+  const seq = reader.readVarint()
+  const opCount = reader.readUint16()
   const ops: ReplicationOp[] = []
 
-  for (let i = 0; i < op_count; i++) {
-    const code = reader.read_uint8()
+  for (let i = 0; i < opCount; i++) {
+    const code = reader.readUint8()
     switch (code) {
       case OpCode.Spawn: {
-        const entity = reader.read_varint() as Entity
-        const comp_count = reader.read_uint16()
+        const entity = reader.readVarint() as Entity
+        const compCount = reader.readUint16()
         const components: SpawnComponent[] = []
-        for (let j = 0; j < comp_count; j++) {
-          const id = reader.read_varint()
+        for (let j = 0; j < compCount; j++) {
+          const id = reader.readVarint()
           let data: unknown
-          if (!resolver.is_tag(id)) {
-            const serde = resolver.get_serde(id)
+          if (!resolver.isTag(id)) {
+            const serde = resolver.getSerde(id)
             if (serde) {
               data = serde.decode(reader, undefined as unknown)
             }
           }
           let rel: RelationPair | undefined
-          if (reader.read_uint8() === 1) {
+          if (reader.readUint8() === 1) {
             rel = {
-              relation_id: reader.read_varint(),
-              object: reader.read_varint() as Entity,
+              relationId: reader.readVarint(),
+              object: reader.readVarint() as Entity,
             }
           }
           components.push({id, data, rel})
         }
-        let causal_key: number | undefined
-        if (reader.read_uint8() === 1) {
-          causal_key = reader.read_uint32()
+        let causalKey: number | undefined
+        if (reader.readUint8() === 1) {
+          causalKey = reader.readUint32()
         }
-        ops.push({type: "spawn", entity, components, causal_key})
+        ops.push({type: "spawn", entity, components, causalKey})
         break
       }
       case OpCode.Despawn: {
-        const entity = reader.read_varint() as Entity
+        const entity = reader.readVarint() as Entity
         ops.push({type: "despawn", entity})
         break
       }
       case OpCode.Set: {
-        const entity = reader.read_varint() as Entity
-        const component_id = reader.read_varint()
+        const entity = reader.readVarint() as Entity
+        const componentId = reader.readVarint()
         let data: unknown
-        if (!resolver.is_tag(component_id)) {
-          const serde = resolver.get_serde(component_id)
+        if (!resolver.isTag(componentId)) {
+          const serde = resolver.getSerde(componentId)
           if (serde) {
             data = serde.decode(reader, undefined as unknown)
           }
         }
         let version: number | undefined
-        if (reader.read_uint8() === 1) {
-          version = reader.read_varint()
+        if (reader.readUint8() === 1) {
+          version = reader.readVarint()
         }
         let rel: RelationPair | undefined
-        if (reader.read_uint8() === 1) {
+        if (reader.readUint8() === 1) {
           rel = {
-            relation_id: reader.read_varint(),
-            object: reader.read_varint() as Entity,
+            relationId: reader.readVarint(),
+            object: reader.readVarint() as Entity,
           }
         }
-        ops.push({type: "set", entity, component_id, data, version, rel})
+        ops.push({type: "set", entity, componentId, data, version, rel})
         break
       }
       case OpCode.Remove: {
-        const entity = reader.read_varint() as Entity
-        const component_id = reader.read_varint()
-        ops.push({type: "remove", entity, component_id})
+        const entity = reader.readVarint() as Entity
+        const componentId = reader.readVarint()
+        ops.push({type: "remove", entity, componentId})
         break
       }
     }
@@ -390,7 +390,7 @@ export function read_transaction(
 
   return {
     tick,
-    domain_id,
+    domainId,
     seq,
     ops,
   }

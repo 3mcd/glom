@@ -1,20 +1,20 @@
 import {World as WorldTerm} from "../query/term"
-import {define_system} from "../system"
+import {defineSystem} from "../system"
 import type {World} from "../world"
-import {world_flush_deletions, world_flush_graph_changes} from "../world_api"
+import {worldFlushDeletions, worldFlushGraphChanges} from "../world_api"
 
 export const GlomMonitors = {
-  flush_changes: define_system(
+  flushChanges: defineSystem(
     (world: World) => {
-      world_flush_graph_changes(world)
+      worldFlushGraphChanges(world)
     },
-    {params: [WorldTerm()], name: "flush_changes"},
+    {params: [WorldTerm()], name: "flushChanges"},
   ),
 
-  flush_deletions: define_system(
+  flushDeletions: defineSystem(
     (world: World) => {
-      world_flush_deletions(world)
+      worldFlushDeletions(world)
     },
-    {params: [WorldTerm()], name: "flush_deletions"},
+    {params: [WorldTerm()], name: "flushDeletions"},
   ),
 }

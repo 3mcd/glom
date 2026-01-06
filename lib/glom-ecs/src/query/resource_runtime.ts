@@ -1,4 +1,4 @@
-import {assert_defined} from "../assert"
+import {assertDefined} from "../assert"
 import type {Component, ComponentLike} from "../component"
 import type {
   HasDescriptor,
@@ -6,48 +6,48 @@ import type {
   ReadDescriptor,
   WriteDescriptor,
 } from "../descriptors"
-import {get_resource, has_resource, type World} from "../world"
+import {getResource, hasResource, type World} from "../world"
 import type {Has, Not, Read, Write} from "./term"
 
-export function make_read<T>(
+export function makeRead<T>(
   desc: ReadDescriptor<T>,
   world: World,
 ): Read<ComponentLike> {
-  const value = get_resource(world, desc.read as Component<T>)
-  assert_defined(value)
+  const value = getResource(world, desc.read as Component<T>)
+  assertDefined(value)
   return value as unknown as Read<ComponentLike>
 }
 
-export function make_write<T>(
+export function makeWrite<T>(
   desc: WriteDescriptor<T>,
   world: World,
 ): Write<ComponentLike> {
-  const value = get_resource(world, desc.write as Component<T>)
-  assert_defined(value)
+  const value = getResource(world, desc.write as Component<T>)
+  assertDefined(value)
   return value as unknown as Write<ComponentLike>
 }
 
-export function make_has<T extends ComponentLike>(
+export function makeHas<T extends ComponentLike>(
   desc: HasDescriptor<T>,
   world: World,
 ): Has<T> {
-  const exists = has_resource(world, desc.has)
+  const exists = hasResource(world, desc.has)
   if (!exists) {
     throw new Error(
-      `Resource ${world.component_registry.get_id(desc.has)} not found`,
+      `Resource ${world.componentRegistry.getId(desc.has)} not found`,
     )
   }
   return undefined as unknown as Has<T>
 }
 
-export function make_not<T extends ComponentLike>(
+export function makeNot<T extends ComponentLike>(
   desc: NotDescriptor<T>,
   world: World,
 ): Not<T> {
-  const exists = has_resource(world, desc.not)
+  const exists = hasResource(world, desc.not)
   if (exists) {
     throw new Error(
-      `Resource ${world.component_registry.get_id(desc.not)} should not exist`,
+      `Resource ${world.componentRegistry.getId(desc.not)} should not exist`,
     )
   }
   return undefined as unknown as Not<T>

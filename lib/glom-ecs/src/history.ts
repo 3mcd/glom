@@ -1,304 +1,304 @@
-import {define_component} from "./component"
+import {defineComponent} from "./component"
 import type {Entity} from "./entity"
 import {
   type EntityGraphNode,
-  entity_graph_node_add_relation,
+  entityGraphNodeAddRelation,
 } from "./entity_graph"
 import type {RelationPair, RelationSubject} from "./relation_registry"
 import {
-  sparse_map_clear,
-  sparse_map_for_each,
-  sparse_map_get,
-  sparse_map_set,
+  sparseMapClear,
+  sparseMapForEach,
+  sparseMapGet,
+  sparseMapSet,
 } from "./sparse_map"
-import {sparse_set_add, sparse_set_clear, sparse_set_size} from "./sparse_set"
+import {sparseSetAdd, sparseSetClear, sparseSetSize} from "./sparse_set"
 import type {World} from "./world"
 
-import {add_resource, get_resource} from "./world_api"
+import {addResource, getResource} from "./world_api"
 
 export type RegistryDomainSnapshot = {
-  readonly domain_id: number
-  readonly entity_id: number
-  readonly op_seq: number
-  readonly entity_count: number
+  readonly domainId: number
+  readonly entityId: number
+  readonly opSeq: number
+  readonly entityCount: number
   readonly dense: number[]
   readonly sparse: Map<number, number>
 }
 
 export type Snapshot = {
   readonly tick: number
-  readonly tick_spawn_count: number
-  readonly component_data: Map<number, unknown[]>
-  readonly component_versions: Map<number, Uint32Array>
-  readonly entity_archetypes: Int32Array
-  readonly registry_domains: RegistryDomainSnapshot[]
-  readonly entity_to_index: Map<number, number>
-  readonly index_to_entity: number[]
-  readonly free_indices: number[]
-  readonly next_index: number
+  readonly tickSpawnCount: number
+  readonly componentData: Map<number, unknown[]>
+  readonly componentVersions: Map<number, Uint32Array>
+  readonly entityArchetypes: Int32Array
+  readonly registryDomains: RegistryDomainSnapshot[]
+  readonly entityToIndex: Map<number, number>
+  readonly indexToEntity: number[]
+  readonly freeIndices: number[]
+  readonly nextIndex: number
   readonly relations: {
-    readonly rel_to_virtual: Map<number, Map<number, number>>
-    readonly virtual_to_rel: Map<number, RelationPair>
-    readonly object_to_subjects: Map<number, Set<RelationSubject>>
-    readonly next_virtual_id: number
+    readonly relToVirtual: Map<number, Map<number, number>>
+    readonly virtualToRel: Map<number, RelationPair>
+    readonly objectToSubjects: Map<number, Set<RelationSubject>>
+    readonly nextVirtualId: number
   }
 }
 
-export const HistoryBuffer = define_component<{
+export const HistoryBuffer = defineComponent<{
   snapshots: Snapshot[]
-  max_size: number
+  maxSize: number
 }>(
   {
-    bytes_per_element: 0,
+    bytesPerElement: 0,
     encode: () => {},
-    decode: () => ({snapshots: [], max_size: 64}),
+    decode: () => ({snapshots: [], maxSize: 64}),
   },
   10, // Assign a unique ID
 )
 
 export type HistoryBuffer = {
   snapshots: Snapshot[]
-  max_size: number
+  maxSize: number
 }
 
-export function make_history_buffer(max_size = 64): HistoryBuffer {
+export function makeHistoryBuffer(maxSize = 64): HistoryBuffer {
   return {
     snapshots: [],
-    max_size,
+    maxSize,
   }
 }
 
-export function capture_snapshot(world: World): Snapshot {
-  const component_data = new Map<number, unknown[]>()
-  const next_idx = world.index.next_index
+export function captureSnapshot(world: World): Snapshot {
+  const componentData = new Map<number, unknown[]>()
+  const nextIdx = world.index.nextIndex
 
   for (const [id, store] of world.components.storage) {
     if (store.length === 0) continue
-    component_data.set(id, store.slice(0, next_idx))
+    componentData.set(id, store.slice(0, nextIdx))
   }
 
-  const component_versions = new Map<number, Uint32Array>()
+  const componentVersions = new Map<number, Uint32Array>()
   for (const [id, versions] of world.components.versions) {
     if (versions.length === 0) continue
-    const len = Math.min(versions.length, next_idx)
+    const len = Math.min(versions.length, nextIdx)
     const clone = new Uint32Array(len)
     clone.set(versions.subarray(0, len))
-    component_versions.set(id, clone)
+    componentVersions.set(id, clone)
   }
 
-  const entity_archetypes = new Int32Array(next_idx)
+  const entityArchetypes = new Int32Array(nextIdx)
 
-  sparse_map_for_each(world.entity_graph.by_entity, (entity, node) => {
-    const idx = sparse_map_get(world.index.entity_to_index, entity)
+  sparseMapForEach(world.entityGraph.byEntity, (entity, node) => {
+    const idx = sparseMapGet(world.index.entityToIndex, entity)
     if (idx !== undefined) {
-      entity_archetypes[idx] = node.id
+      entityArchetypes[idx] = node.id
     }
   })
 
-  const registry_domains: RegistryDomainSnapshot[] = []
+  const registryDomains: RegistryDomainSnapshot[] = []
   for (let i = 0; i < world.registry.domains.length; i++) {
     const domain = world.registry.domains[i]
     if (domain) {
-      registry_domains[i] = {
-        domain_id: domain.domain_id,
-        entity_id: domain.entity_id,
-        op_seq: domain.op_seq,
-        entity_count: domain.entity_count,
+      registryDomains[i] = {
+        domainId: domain.domainId,
+        entityId: domain.entityId,
+        opSeq: domain.opSeq,
+        entityCount: domain.entityCount,
         dense: [...domain.dense],
         sparse: new Map(domain.sparse),
       }
     }
   }
 
-  const entity_to_index = new Map<number, number>()
-  sparse_map_for_each(world.index.entity_to_index, (entity, index) => {
-    entity_to_index.set(entity, index)
+  const entityToIndex = new Map<number, number>()
+  sparseMapForEach(world.index.entityToIndex, (entity, index) => {
+    entityToIndex.set(entity, index)
   })
 
-  const rel_to_virtual = new Map<number, Map<number, number>>()
-  for (const [rel_id, obj_map] of world.relations.rel_to_virtual) {
-    rel_to_virtual.set(rel_id, new Map(obj_map))
+  const relToVirtual = new Map<number, Map<number, number>>()
+  for (const [relId, objMap] of world.relations.relToVirtual) {
+    relToVirtual.set(relId, new Map(objMap))
   }
 
-  const virtual_to_rel = new Map<number, RelationPair>()
-  for (const [vid, rel_info] of world.relations.virtual_to_rel) {
-    virtual_to_rel.set(vid, {...rel_info} as RelationPair)
+  const virtualToRel = new Map<number, RelationPair>()
+  for (const [vid, relInfo] of world.relations.virtualToRel) {
+    virtualToRel.set(vid, {...relInfo} as RelationPair)
   }
 
-  const object_to_subjects = new Map<number, Set<RelationSubject>>()
-  for (const [obj, subjects] of world.relations.object_to_subjects) {
-    const cloned_subjects = new Set<RelationSubject>()
+  const objectToSubjects = new Map<number, Set<RelationSubject>>()
+  for (const [obj, subjects] of world.relations.objectToSubjects) {
+    const clonedSubjects = new Set<RelationSubject>()
     for (const item of subjects) {
-      cloned_subjects.add({...item} as RelationSubject)
+      clonedSubjects.add({...item} as RelationSubject)
     }
-    object_to_subjects.set(obj, cloned_subjects)
+    objectToSubjects.set(obj, clonedSubjects)
   }
 
   return {
     tick: world.tick,
-    tick_spawn_count: world.tick_spawn_count,
-    component_data,
-    component_versions,
-    entity_archetypes,
-    registry_domains,
-    entity_to_index,
-    index_to_entity: world.index.index_to_entity.slice(0, next_idx),
-    free_indices: [...world.index.free_indices],
-    next_index: world.index.next_index,
+    tickSpawnCount: world.tickSpawnCount,
+    componentData,
+    componentVersions,
+    entityArchetypes,
+    registryDomains,
+    entityToIndex,
+    indexToEntity: world.index.indexToEntity.slice(0, nextIdx),
+    freeIndices: [...world.index.freeIndices],
+    nextIndex: world.index.nextIndex,
     relations: {
-      rel_to_virtual,
-      virtual_to_rel,
-      object_to_subjects,
-      next_virtual_id: world.component_registry.get_next_virtual_id(),
+      relToVirtual,
+      virtualToRel,
+      objectToSubjects,
+      nextVirtualId: world.componentRegistry.getNextVirtualId(),
     },
   }
 }
 
-export function rollback_to_snapshot(world: World, snapshot: Snapshot) {
+export function rollbackToSnapshot(world: World, snapshot: Snapshot) {
   world.tick = snapshot.tick
-  world.tick_spawn_count = snapshot.tick_spawn_count
+  world.tickSpawnCount = snapshot.tickSpawnCount
 
-  for (let i = 0; i < snapshot.registry_domains.length; i++) {
-    const s_domain = snapshot.registry_domains[i]
-    if (!s_domain) continue
+  for (let i = 0; i < snapshot.registryDomains.length; i++) {
+    const sDomain = snapshot.registryDomains[i]
+    if (!sDomain) continue
 
     let domain = world.registry.domains[i]
     if (!domain) {
       domain = {
-        domain_id: s_domain.domain_id,
-        entity_id: s_domain.entity_id,
-        op_seq: s_domain.op_seq,
-        entity_count: s_domain.entity_count,
-        dense: [...s_domain.dense],
-        sparse: new Map(s_domain.sparse),
+        domainId: sDomain.domainId,
+        entityId: sDomain.entityId,
+        opSeq: sDomain.opSeq,
+        entityCount: sDomain.entityCount,
+        dense: [...sDomain.dense],
+        sparse: new Map(sDomain.sparse),
       }
       world.registry.domains[i] = domain
       continue
     }
 
-    domain.entity_id = s_domain.entity_id
-    domain.op_seq = s_domain.op_seq
-    domain.entity_count = s_domain.entity_count
+    domain.entityId = sDomain.entityId
+    domain.opSeq = sDomain.opSeq
+    domain.entityCount = sDomain.entityCount
     domain.dense.length = 0
-    domain.dense.push(...s_domain.dense)
+    domain.dense.push(...sDomain.dense)
     domain.sparse.clear()
-    for (const [k, v] of s_domain.sparse) {
+    for (const [k, v] of sDomain.sparse) {
       domain.sparse.set(k, v)
     }
   }
 
-  sparse_map_clear(world.index.entity_to_index)
-  for (const [entity, index] of snapshot.entity_to_index) {
-    sparse_map_set(world.index.entity_to_index, entity, index)
+  sparseMapClear(world.index.entityToIndex)
+  for (const [entity, index] of snapshot.entityToIndex) {
+    sparseMapSet(world.index.entityToIndex, entity, index)
   }
-  world.index.index_to_entity.length = 0
-  world.index.index_to_entity.push(...snapshot.index_to_entity)
-  world.index.free_indices.length = 0
-  world.index.free_indices.push(...snapshot.free_indices)
-  world.index.next_index = snapshot.next_index
+  world.index.indexToEntity.length = 0
+  world.index.indexToEntity.push(...snapshot.indexToEntity)
+  world.index.freeIndices.length = 0
+  world.index.freeIndices.push(...snapshot.freeIndices)
+  world.index.nextIndex = snapshot.nextIndex
 
-  for (const [id, current_store] of world.components.storage) {
-    if (!snapshot.component_data.has(id)) {
-      current_store.length = 0
+  for (const [id, currentStore] of world.components.storage) {
+    if (!snapshot.componentData.has(id)) {
+      currentStore.length = 0
     }
   }
 
-  for (const [id, store] of snapshot.component_data) {
-    let current_store = world.components.storage.get(id)
-    if (!current_store) {
-      current_store = []
-      world.components.storage.set(id, current_store)
+  for (const [id, store] of snapshot.componentData) {
+    let currentStore = world.components.storage.get(id)
+    if (!currentStore) {
+      currentStore = []
+      world.components.storage.set(id, currentStore)
     }
-    current_store.length = store.length
+    currentStore.length = store.length
     for (let i = 0; i < store.length; i++) {
-      current_store[i] = store[i]
+      currentStore[i] = store[i]
     }
   }
 
-  for (const [id, current_versions] of world.components.versions) {
-    if (!snapshot.component_versions.has(id)) {
-      current_versions.fill(0)
+  for (const [id, currentVersions] of world.components.versions) {
+    if (!snapshot.componentVersions.has(id)) {
+      currentVersions.fill(0)
     }
   }
 
-  for (const [id, versions] of snapshot.component_versions) {
-    const current_versions = world.components.versions.get(id)
-    if (!current_versions || current_versions.length < versions.length) {
+  for (const [id, versions] of snapshot.componentVersions) {
+    const currentVersions = world.components.versions.get(id)
+    if (!currentVersions || currentVersions.length < versions.length) {
       world.components.versions.set(id, new Uint32Array(versions))
     } else {
-      current_versions.set(versions)
-      if (current_versions.length > versions.length) {
-        current_versions.fill(0, versions.length)
+      currentVersions.set(versions)
+      if (currentVersions.length > versions.length) {
+        currentVersions.fill(0, versions.length)
       }
     }
   }
 
-  world.relations.rel_to_virtual.clear()
-  for (const [rel_id, obj_map] of snapshot.relations.rel_to_virtual) {
-    world.relations.rel_to_virtual.set(rel_id, new Map(obj_map))
+  world.relations.relToVirtual.clear()
+  for (const [relId, objMap] of snapshot.relations.relToVirtual) {
+    world.relations.relToVirtual.set(relId, new Map(objMap))
   }
 
-  world.relations.virtual_to_rel.clear()
-  for (const [vid, rel_info] of snapshot.relations.virtual_to_rel) {
-    world.relations.virtual_to_rel.set(vid, {...rel_info})
+  world.relations.virtualToRel.clear()
+  for (const [vid, relInfo] of snapshot.relations.virtualToRel) {
+    world.relations.virtualToRel.set(vid, {...relInfo})
   }
 
-  world.relations.object_to_subjects.clear()
-  for (const [obj, subjects] of snapshot.relations.object_to_subjects) {
-    const restored_subjects = new Set<RelationSubject>()
+  world.relations.objectToSubjects.clear()
+  for (const [obj, subjects] of snapshot.relations.objectToSubjects) {
+    const restoredSubjects = new Set<RelationSubject>()
     for (const item of subjects) {
-      restored_subjects.add({...item} as RelationSubject)
+      restoredSubjects.add({...item} as RelationSubject)
     }
-    world.relations.object_to_subjects.set(obj, restored_subjects)
+    world.relations.objectToSubjects.set(obj, restoredSubjects)
   }
-  world.component_registry.set_next_virtual_id(
-    snapshot.relations.next_virtual_id,
+  world.componentRegistry.setNextVirtualId(
+    snapshot.relations.nextVirtualId,
   )
 
-  for (const node of world.entity_graph.by_hash.values()) {
-    if (sparse_set_size(node.entities) > 0) {
-      sparse_set_clear(node.entities)
+  for (const node of world.entityGraph.byHash.values()) {
+    if (sparseSetSize(node.entities) > 0) {
+      sparseSetClear(node.entities)
     }
     node.indices.length = 0
-    node.rel_maps.length = 0
+    node.relMaps.length = 0
   }
 
-  sparse_map_clear(world.graph_changes)
-  world.pending_deletions.clear()
-  world.pending_component_removals.clear()
+  sparseMapClear(world.graphChanges)
+  world.pendingDeletions.clear()
+  world.pendingComponentRemovals.clear()
 
-  const nodes_by_id: Map<number, EntityGraphNode> = new Map()
-  for (const node of world.entity_graph.by_hash.values()) {
-    nodes_by_id.set(node.id, node)
+  const nodesById: Map<number, EntityGraphNode> = new Map()
+  for (const node of world.entityGraph.byHash.values()) {
+    nodesById.set(node.id, node)
   }
 
-  sparse_map_clear(world.entity_graph.by_entity)
-  for (let i = 0; i < snapshot.entity_archetypes.length; i++) {
-    const node_id = snapshot.entity_archetypes[i] as number
-    if (node_id === 0) continue
+  sparseMapClear(world.entityGraph.byEntity)
+  for (let i = 0; i < snapshot.entityArchetypes.length; i++) {
+    const nodeId = snapshot.entityArchetypes[i] as number
+    if (nodeId === 0) continue
 
-    const entity = snapshot.index_to_entity[i] as Entity | undefined
+    const entity = snapshot.indexToEntity[i] as Entity | undefined
     if (entity === undefined || (entity as unknown as number) === 0) continue
 
-    const node = nodes_by_id.get(node_id)
+    const node = nodesById.get(nodeId)
     if (node) {
-      sparse_map_set(
-        world.entity_graph.by_entity,
+      sparseMapSet(
+        world.entityGraph.byEntity,
         entity as unknown as number,
         node,
       )
-      sparse_set_add(node.entities, entity)
+      sparseSetAdd(node.entities, entity)
       node.indices.push(i)
     }
   }
 
-  for (const [obj, subjects] of world.relations.object_to_subjects) {
-    const node = sparse_map_get(world.entity_graph.by_entity, obj as number)
+  for (const [obj, subjects] of world.relations.objectToSubjects) {
+    const node = sparseMapGet(world.entityGraph.byEntity, obj as number)
     if (node) {
-      for (const {subject, relation_id} of subjects) {
-        entity_graph_node_add_relation(
+      for (const {subject, relationId} of subjects) {
+        entityGraphNodeAddRelation(
           node,
-          relation_id,
+          relationId,
           subject as Entity,
           obj as Entity,
         )
@@ -307,26 +307,26 @@ export function rollback_to_snapshot(world: World, snapshot: Snapshot) {
   }
 }
 
-export function push_snapshot(world: World, history: HistoryBuffer) {
-  const snapshot = capture_snapshot(world)
+export function pushSnapshot(world: World, history: HistoryBuffer) {
+  const snapshot = captureSnapshot(world)
   history.snapshots.push(snapshot)
-  if (history.snapshots.length > history.max_size) {
+  if (history.snapshots.length > history.maxSize) {
     history.snapshots.shift()
   }
 }
 
-export function rollback_to_tick(
+export function rollbackToTick(
   world: World,
   history: HistoryBuffer | Component<HistoryBuffer>,
   tick: number,
 ): boolean {
   const buffer =
-    "snapshots" in history ? history : get_resource(world, history)
+    "snapshots" in history ? history : getResource(world, history)
   if (!buffer) return false
 
   const snapshot = buffer.snapshots.find((s) => s.tick === tick)
   if (!snapshot) return false
-  rollback_to_snapshot(world, snapshot)
+  rollbackToSnapshot(world, snapshot)
 
   const index = buffer.snapshots.indexOf(snapshot)
   buffer.snapshots.length = index + 1

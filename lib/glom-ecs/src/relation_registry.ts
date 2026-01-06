@@ -1,111 +1,111 @@
 import type {Entity} from "./entity"
 import {
-  entity_graph_get_entity_node,
-  entity_graph_node_add_relation,
-  entity_graph_node_remove_relation,
+  entityGraphGetEntityNode,
+  entityGraphNodeAddRelation,
+  entityGraphNodeRemoveRelation,
 } from "./entity_graph"
 import type {Relation} from "./relation"
 import type {World} from "./world"
 
 export type RelationSubject = {
   subject: Entity
-  relation_id: number
+  relationId: number
 }
 
 export type RelationPair = {
-  relation_id: number
+  relationId: number
   object: Entity
 }
 
 export type RelationRegistry = {
-  readonly rel_to_virtual: Map<number, Map<number, number>>
-  readonly virtual_to_rel: Map<number, RelationPair>
-  readonly object_to_subjects: Map<number, Set<RelationSubject>>
+  readonly relToVirtual: Map<number, Map<number, number>>
+  readonly virtualToRel: Map<number, RelationPair>
+  readonly objectToSubjects: Map<number, Set<RelationSubject>>
 }
 
-export function make_relation_registry(): RelationRegistry {
+export function makeRelationRegistry(): RelationRegistry {
   return {
-    rel_to_virtual: new Map(),
-    virtual_to_rel: new Map(),
-    object_to_subjects: new Map(),
+    relToVirtual: new Map(),
+    virtualToRel: new Map(),
+    objectToSubjects: new Map(),
   }
 }
 
-export function get_or_create_virtual_id(
+export function getOrCreateVirtualId(
   world: World,
   relation: Relation,
   object: Entity,
 ): number {
   const registry = world.relations
-  const relation_id = world.component_registry.get_id(relation)
-  let objects = registry.rel_to_virtual.get(relation_id)
+  const relationId = world.componentRegistry.getId(relation)
+  let objects = registry.relToVirtual.get(relationId)
   if (!objects) {
     objects = new Map()
-    registry.rel_to_virtual.set(relation_id, objects)
+    registry.relToVirtual.set(relationId, objects)
   }
 
-  let virtual_id = objects.get(object)
-  if (virtual_id === undefined) {
-    virtual_id = world.component_registry.alloc_virtual_id()
-    objects.set(object, virtual_id)
-    registry.virtual_to_rel.set(virtual_id, {
-      relation_id,
+  let virtualId = objects.get(object)
+  if (virtualId === undefined) {
+    virtualId = world.componentRegistry.allocVirtualId()
+    objects.set(object, virtualId)
+    registry.virtualToRel.set(virtualId, {
+      relationId,
       object,
     })
   }
 
-  return virtual_id
+  return virtualId
 }
 
-export function register_incoming_relation(
+export function registerIncomingRelation(
   world: World,
   subject: Entity,
-  relation_id: number,
+  relationId: number,
   object: Entity,
 ): void {
-  let incoming = world.relations.object_to_subjects.get(object)
+  let incoming = world.relations.objectToSubjects.get(object)
   if (!incoming) {
     incoming = new Set<RelationSubject>()
-    world.relations.object_to_subjects.set(object, incoming)
+    world.relations.objectToSubjects.set(object, incoming)
   }
-  incoming.add({subject, relation_id})
+  incoming.add({subject, relationId})
 
-  const node = entity_graph_get_entity_node(world.entity_graph, object)
+  const node = entityGraphGetEntityNode(world.entityGraph, object)
   if (node) {
-    entity_graph_node_add_relation(node, relation_id, subject, object)
+    entityGraphNodeAddRelation(node, relationId, subject, object)
   }
 }
 
-export function unregister_incoming_relation(
+export function unregisterIncomingRelation(
   world: World,
   subject: Entity,
-  relation_id: number,
+  relationId: number,
   object: Entity,
 ): void {
   const registry = world.relations
-  const incoming = registry.object_to_subjects.get(object)
+  const incoming = registry.objectToSubjects.get(object)
   if (incoming) {
     for (const item of incoming) {
-      if (item.subject === subject && item.relation_id === relation_id) {
+      if (item.subject === subject && item.relationId === relationId) {
         incoming.delete(item)
         break
       }
     }
     if (incoming.size === 0) {
-      registry.object_to_subjects.delete(object)
+      registry.objectToSubjects.delete(object)
     }
   }
 
-  const node = entity_graph_get_entity_node(world.entity_graph, object)
+  const node = entityGraphGetEntityNode(world.entityGraph, object)
   if (node) {
-    entity_graph_node_remove_relation(node, relation_id, subject, object)
+    entityGraphNodeRemoveRelation(node, relationId, subject, object)
   }
 }
 
-export function get_virtual_id(
+export function getVirtualId(
   registry: RelationRegistry,
-  relation_id: number,
+  relationId: number,
   object: number,
 ): number | undefined {
-  return registry.rel_to_virtual.get(relation_id)?.get(object)
+  return registry.relToVirtual.get(relationId)?.get(object)
 }

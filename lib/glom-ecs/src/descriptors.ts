@@ -46,7 +46,7 @@ export type AllDescriptor<
   all: unknown[]
 }
 
-export function is_read_descriptor(desc: unknown): desc is ReadDescriptor {
+export function isReadDescriptor(desc: unknown): desc is ReadDescriptor {
   return (
     typeof desc === "object" &&
     desc !== null &&
@@ -54,7 +54,7 @@ export function is_read_descriptor(desc: unknown): desc is ReadDescriptor {
   )
 }
 
-export function is_write_descriptor(desc: unknown): desc is WriteDescriptor {
+export function isWriteDescriptor(desc: unknown): desc is WriteDescriptor {
   return (
     typeof desc === "object" &&
     desc !== null &&
@@ -62,7 +62,7 @@ export function is_write_descriptor(desc: unknown): desc is WriteDescriptor {
   )
 }
 
-export function is_has_descriptor(desc: unknown): desc is HasDescriptor {
+export function isHasDescriptor(desc: unknown): desc is HasDescriptor {
   return (
     typeof desc === "object" &&
     desc !== null &&
@@ -70,7 +70,7 @@ export function is_has_descriptor(desc: unknown): desc is HasDescriptor {
   )
 }
 
-export function is_not_descriptor(desc: unknown): desc is NotDescriptor {
+export function isNotDescriptor(desc: unknown): desc is NotDescriptor {
   return (
     typeof desc === "object" &&
     desc !== null &&
@@ -78,7 +78,7 @@ export function is_not_descriptor(desc: unknown): desc is NotDescriptor {
   )
 }
 
-export function is_rel_descriptor(desc: unknown): desc is RelDescriptor {
+export function isRelDescriptor(desc: unknown): desc is RelDescriptor {
   return (
     typeof desc === "object" &&
     desc !== null &&
@@ -86,7 +86,7 @@ export function is_rel_descriptor(desc: unknown): desc is RelDescriptor {
   )
 }
 
-export function is_entity_descriptor(desc: unknown): desc is EntityDescriptor {
+export function isEntityDescriptor(desc: unknown): desc is EntityDescriptor {
   return (
     typeof desc === "object" &&
     desc !== null &&
@@ -94,7 +94,7 @@ export function is_entity_descriptor(desc: unknown): desc is EntityDescriptor {
   )
 }
 
-export function is_world_descriptor(desc: unknown): desc is WorldDescriptor {
+export function isWorldDescriptor(desc: unknown): desc is WorldDescriptor {
   return (
     typeof desc === "object" &&
     desc !== null &&
@@ -102,7 +102,7 @@ export function is_world_descriptor(desc: unknown): desc is WorldDescriptor {
   )
 }
 
-export function is_spawn_descriptor(desc: unknown): desc is SpawnDescriptor {
+export function isSpawnDescriptor(desc: unknown): desc is SpawnDescriptor {
   return (
     typeof desc === "object" &&
     desc !== null &&
@@ -110,7 +110,7 @@ export function is_spawn_descriptor(desc: unknown): desc is SpawnDescriptor {
   )
 }
 
-export function is_despawn_descriptor(
+export function isDespawnDescriptor(
   desc: unknown,
 ): desc is DespawnDescriptor {
   return (
@@ -120,7 +120,7 @@ export function is_despawn_descriptor(
   )
 }
 
-export function is_add_descriptor(desc: unknown): desc is AddDescriptor {
+export function isAddDescriptor(desc: unknown): desc is AddDescriptor {
   return (
     typeof desc === "object" &&
     desc !== null &&
@@ -128,7 +128,7 @@ export function is_add_descriptor(desc: unknown): desc is AddDescriptor {
   )
 }
 
-export function is_remove_descriptor(desc: unknown): desc is RemoveDescriptor {
+export function isRemoveDescriptor(desc: unknown): desc is RemoveDescriptor {
   return (
     typeof desc === "object" &&
     desc !== null &&
@@ -136,7 +136,7 @@ export function is_remove_descriptor(desc: unknown): desc is RemoveDescriptor {
   )
 }
 
-export function is_all_descriptor(
+export function isAllDescriptor(
   desc: unknown,
 ): desc is AllDescriptor<unknown> {
   return (
@@ -146,7 +146,7 @@ export function is_all_descriptor(
   )
 }
 
-export function is_in_descriptor(desc: unknown): desc is InDescriptor {
+export function isInDescriptor(desc: unknown): desc is InDescriptor {
   return (
     typeof desc === "object" &&
     desc !== null &&
@@ -154,7 +154,7 @@ export function is_in_descriptor(desc: unknown): desc is InDescriptor {
   )
 }
 
-export function is_out_descriptor(desc: unknown): desc is OutDescriptor {
+export function isOutDescriptor(desc: unknown): desc is OutDescriptor {
   return (
     typeof desc === "object" &&
     desc !== null &&
