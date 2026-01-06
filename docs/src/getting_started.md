@@ -58,17 +58,14 @@ default defineConfig({
 
 This section briefly describes the building blocks of an Entity-Component System.
 
-Entities are simple integer IDs that serve as labels to group data together. They don't contain any logic or data themselves; instead, they act as a pointer to a set of component instances. A component instance is a plain value that represents a specific aspect of an entity, such as its position, health, or a player tag.
+Entities are simple integer IDs. They don't encapsulate any logic or data themselves; instead, they act as a pointer to a set of component instances. A component instance is a plain value that represents a specific aspect of an entity, such as its position, health, or a player tag.
 
 The logic of your application is contained within systems, which are functions that operate on entities matching specific component criteria. A movement system might update the position of every entity that has both a position and a velocity component, for example. All of these entities and components are managed by the world, the central container that your systems run logic against.
 
-When a system runs, its queries resolve which nodes in the [Entity Graph](./entityGraph.md) match the required components:
 
-<img src="query-graph.png" style="max-width: 444px;">
-
-The query then identifies the entities stored at those nodes and yields their component data to the system.
-
-<img src="query-storage.png" style="max-width: 218px;">
+<aside>
+  <p>Each world uses an [Entity Graph](./entity_graph) to organize entities based on their component signatures, allowing systems to efficiently find their matches without scanning the entire world.</p>
+</aside>
 
 ## 3. Defining Components
 
@@ -77,7 +74,7 @@ Components define the shape of game state. When you add a component to an entity
 Each entity can have only one instance of a specific component type at a time. An entity can't have two `Position` components, for example.
 
 <aside>
-You can achieve something close to entities with multiple components with [relationships](./relationships).
+  <p>You can achieve something close to entities with multiple components with [relationships](./relationships).</p>
 </aside>
 
 `defineComponent` creates a component that holds data, which you'll use to access and modify state in your systems.

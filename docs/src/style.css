@@ -167,7 +167,7 @@ h1 {
   padding-bottom: 0.5rem;
   margin-top: 2.5rem;
   font-size: 1rem;
-  border-bottom: 2px solid var(--border);
+  border-bottom: 2px dashed var(--border);
   color: var(--section-color);
 }
 
@@ -176,7 +176,7 @@ h2 {
   padding-bottom: 0.5rem;
   margin-top: 2.5rem;
   font-size: 1rem;
-  border-bottom: 2px solid var(--border);
+  border-bottom: 2px dashed var(--border);
   width: fit-content;
 }
 
@@ -185,6 +185,10 @@ h4 {
   font-family: var(--font-mono);
   margin-top: 2rem;
   font-size: 1rem;
+}
+
+h4 code {
+  font-weight: normal;
 }
 
 p {
@@ -386,20 +390,36 @@ dd {
 /* Asides */
 
 aside {
-  margin: 1.5rem 0;
   padding: 1rem;
-  border-left: 4px solid var(--section-color);
-  background: var(--aside-bg);
   font-style: italic;
+  color: var(--border);
+  border: 2px dashed var(--aside-bg);
+}
+
+aside a {
+  color: inherit;
+}
+
+aside a:hover {
+  color: var(--color-blue);
+}
+
+aside p {
+  margin: 0;
 }
 
 /* Code & Media Elements */
 
 pre {
-  overflow-x: auto;
   background: var(--pre-bg);
+  font-family: var(--font-serif);
   margin: 2rem calc(2rem + 2px);
   line-height: 1.4rem;
+}
+
+pre.box {
+  line-height: 1rem;
+  font-family: var(--font-serif);
 }
 
 code {
