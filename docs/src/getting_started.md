@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide walks you through building a complete, reactive application in Glom. We will build a small logic loop where players move around and collect items, triggering sound effects reactively.
+This guide walks through building a basic application. We'll build a "game" where players move around and collect items, triggering sound effects reactively.
 
 ## Installation
 
@@ -10,7 +10,7 @@ Install the core ECS package:
 bun add @glom/ecs
 ```
 
-We recommend using the build-time transformer to enable idiomatic TypeScript signatures:
+Use the build-time transformer to enable idiomatic TypeScript signatures:
 
 ```bash
 # if using Bun
@@ -22,7 +22,7 @@ bun add -d @glom/transformer-rollup
 
 ## 1. Setting up the Transformer
 
-Glom uses a build-time transformer to inline query loops and infer system dependencies.
+The build-time transformer inlines query loops and infers system dependencies.
 
 ### For Bun
 
@@ -49,23 +49,25 @@ export default defineConfig({
 
 ## 2. Defining Components
 
-Components are plain data structures. Use `defineComponent` for data and `defineTag` for markers.
+Components represent data that can be added to an entity. Each component type acts like a "slot" on an entity; an entity can have only one instance of a specific component at a time. 
+
+Use `defineComponent` for data and `defineTag` for markers (data-less components).
 
 ```typescript
 import { defineComponent, defineTag, defineRelation, Entity } from "@glom/ecs"
 
-// Data components
+// data components
 const Pos = defineComponent<{ x: number; y: number }>()
 const Vel = defineComponent<{ dx: number; dy: number }>()
 const Sfx = defineComponent<{ clip: string }>()
 
-// Tags (markers)
+// tags (labels, or dataless components)
 const Player = defineTag()
 const Item = defineTag()
 const Collected = defineTag()
 const SfxManager = defineTag()
 
-// Relationships
+// relationships
 const PlaysOn = defineRelation()
 ```
 
@@ -73,8 +75,9 @@ const PlaysOn = defineRelation()
 
 Systems are functions that implement your logic. They use iterable **queries** to find entities.
 
-### The Movement System (Standard Query)
-Uses `All` to iterate over every entity that has both `Pos` and `Vel`.
+### Moving Players
+
+Let's write our first system:
 
 ```typescript
 import { All, Write } from "@glom/ecs"
@@ -89,8 +92,13 @@ const movePlayers = (
 }
 ```
 
-### The Collection System (Cross-Query)
-Identifies when a player is close enough to an item to "collect" it.
+The `movePlayers` system uses the `All` query to find entities that have both a `Pos` and a `Vel`. By wrapping `Pos` in `Write`, we inform the scheduler that this system intended to modify position data, which helps determine the correct execution order relative to other systems.
+
+
+
+### Collecting Items
+
+Our next system demonstrates a "cross-query" pattern. It iterates through all players and all items to check their proximity. When a player is close enough, we use the `Add` descriptor to tag the item as `Collected`. Adding this tag will move the item to a different node in the entity graph, which our reactive systems can then pick up.
 
 ```typescript
 import { Add, Entity, All } from "@glom/ecs"
@@ -112,10 +120,13 @@ const collectItems = (
 ```
 
 ### Reactive Systems (In/Out Monitors)
-Glom provides `In` and `Out` monitors to react to state changes.
+
+Use `In` and `Out` monitors to react to entities entering or leaving a specific component signature. 
+
+This `despawnCollected` system reacts to entities that just received the `Collected` tag, immediately removing them from the world. 
 
 ```typescript
-import { In, Out, Spawn, Despawn, Add, Unique } from "@glom/ecs"
+import { In, Despawn } from "@glom/ecs"
 
 // despawn items as soon as they are collected
 const despawnCollected = (
@@ -126,6 +137,12 @@ const despawnCollected = (
     despawn(entity)
   }
 }
+```
+
+We'll add a `playPickupSfx` system to react to entities that just lost their `Item` tag (because they were despawned). It uses the `Unique` query to find the global `SfxManager` and links a new, temporary sound entity to it using the `PlaysOn` relationship.
+
+```typescript
+import { Out, Spawn, Add, Unique } from "@glom/ecs"
 
 // play a sound when an item is removed from the world
 const playPickupSfx = (
@@ -144,9 +161,31 @@ const playPickupSfx = (
 }
 ```
 
+### Relationships and Related Queries
+
+To process the sound effects we just spawned, we can use the `Rel` query term. This allows us to find entities based on their relationships to other entities. Here, we find all `Sfx` entities that are linked to the `SfxManager` via the `PlaysOn` relation. After processing the sound, we despawn the ephemeral sound entity.
+
+```typescript
+import { Rel } from "@glom/ecs"
+
+const processSfx = (
+  // finds entities with Sfx that play on the SfxManager
+  query: All<Entity, typeof Sfx, Rel<typeof PlaysOn, typeof SfxManager>>,
+  despawn: Despawn
+) => {
+  for (const [entity, sfx] of query) {
+    // trigger sound playback here
+    console.log("playing sound", sfx.clip)
+
+    // cleanup the ephemeral sound entity after processing
+    despawn(entity)
+  }
+}
+```
+
 ## 4. Scheduling and Running
 
-Systems are organized into a `SystemSchedule`. Glom automatically sorts them based on their data requirements.
+Systems are organized into a `SystemSchedule`. The scheduler analyzes the `Read` and `Write` dependencies of each system to automatically determine an execution order that avoids data races. In the setup below, we initialize the world with our global manager, a player, and an item.
 
 ```typescript
 import { makeWorld, makeSystemSchedule, addSystem, runSchedule } from "@glom/ecs"
@@ -158,6 +197,7 @@ addSystem(schedule, movePlayers)
 addSystem(schedule, collectItems)
 addSystem(schedule, despawnCollected)
 addSystem(schedule, playPickupSfx)
+addSystem(schedule, processSfx)
 
 // initialize our world
 import { spawn, addComponent, addResource, flushGraphChanges } from "@glom/ecs"
@@ -182,12 +222,12 @@ flushGraphChanges(world)
 
 ## 5. The Main Loop (Fixed Timestep)
 
-For predictable logic, use a fixed timestep loop.
+A fixed loop ensures that physics and logic remain consistent regardless of the rendering framerate. `advanceTimestep` will run the provided callback (containing our schedule execution) as many times as necessary to catch up with the current time.
 
 ```typescript
 import { makeTimestep, advanceTimestep } from "@glom/ecs"
 
-const timestep = makeTimestep(60) // 60fps logic
+const timestep = makeTimestep(60) // run at ~60hz
 
 function loop() {
   const now = performance.now()
