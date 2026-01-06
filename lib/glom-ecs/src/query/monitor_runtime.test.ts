@@ -8,8 +8,8 @@ import {
   despawn,
   removeComponent,
   spawn,
-  worldFlushDeletions,
-  worldFlushGraphChanges,
+  flushDeletions,
+  flushGraphChanges,
 } from "../world_api"
 import {setupAll} from "./all_runtime"
 import {makeIn, makeOut} from "./monitor_runtime"
@@ -29,14 +29,14 @@ describe("monitorRuntime", () => {
 
     expect(Array.from(monitor)).toHaveLength(0)
 
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
 
     const results = Array.from(monitor)
     expect(results).toHaveLength(1)
     expect(results[0]).toEqual([e, {x: 10, y: 20}])
 
     monitor.clear()
-    worldFlushDeletions(world)
+    flushDeletions(world)
     expect(Array.from(monitor)).toHaveLength(0)
   })
 
@@ -47,15 +47,15 @@ describe("monitorRuntime", () => {
     setupAll(monitor, world)
 
     const e = spawn(world, [Position({x: 10, y: 20})])
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
     monitor.clear()
-    worldFlushDeletions(world)
+    flushDeletions(world)
 
     removeComponent(world, e, Position)
 
     expect(Array.from(monitor)).toHaveLength(0)
 
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
 
     const results = Array.from(monitor)
     expect(results).toHaveLength(1)
@@ -72,12 +72,12 @@ describe("monitorRuntime", () => {
     setupAll(monitor, world)
 
     const e = spawn(world, [Position({x: 10, y: 20})])
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
     monitor.clear()
-    worldFlushDeletions(world)
+    flushDeletions(world)
 
     despawn(world, e)
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
 
     const results = Array.from(monitor)
     expect(results).toHaveLength(1)
@@ -94,7 +94,7 @@ describe("monitorRuntime", () => {
     const e = spawn(world, [])
     despawn(world, e)
 
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
 
     expect(Array.from(inMonitor)).toHaveLength(0)
     expect(Array.from(outMonitor)).toHaveLength(0)
@@ -109,15 +109,15 @@ describe("monitorRuntime", () => {
     setupAll(outMonitor, world)
 
     const e = spawn(world, [])
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
     inMonitor.clear()
     outMonitor.clear()
-    worldFlushDeletions(world)
+    flushDeletions(world)
 
     addComponent(world, e, Tag)
     removeComponent(world, e, Tag)
 
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
 
     expect(Array.from(inMonitor)).toHaveLength(0)
     expect(Array.from(outMonitor)).toHaveLength(0)
@@ -133,16 +133,16 @@ describe("monitorRuntime", () => {
     setupAll(monitor_B, world)
 
     const e = spawn(world, [A])
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
     monitor_B.clear()
-    worldFlushDeletions(world)
+    flushDeletions(world)
 
     removeComponent(world, e, A)
     addComponent(world, e, B)
     removeComponent(world, e, B)
     addComponent(world, e, C)
 
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
 
     expect(Array.from(monitor_B)).toHaveLength(0)
   })
@@ -153,18 +153,18 @@ describe("monitorRuntime", () => {
     setupAll(monitor, world)
 
     const e = spawn(world, [Position({x: 1, y: 1})])
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
     monitor.clear()
-    worldFlushDeletions(world)
+    flushDeletions(world)
 
     despawn(world, e)
 
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
     const results = Array.from(monitor)
     expect(results).toHaveLength(1)
     expect(results[0]).toEqual([{x: 1, y: 1}])
 
-    worldFlushDeletions(world)
+    flushDeletions(world)
     expect(world.index.entityToIndex.dense).toHaveLength(0)
   })
 
@@ -191,14 +191,14 @@ describe("monitorRuntime", () => {
     setupAll(monitor, world)
 
     // Initial state: beam matches, so it shouldn't be in Out monitor yet
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
     expect(Array.from(monitor)).toHaveLength(0)
 
     // 4. Remove Attacking from player
     removeComponent(world, player, Attacking)
 
     // 5. Flush changes
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
 
     // 6. Verify that the beam is now in the Out monitor
     const results = Array.from(monitor)
@@ -206,7 +206,7 @@ describe("monitorRuntime", () => {
     expect(results[0]).toEqual([beam, undefined])
 
     monitor.clear()
-    worldFlushDeletions(world)
+    flushDeletions(world)
     expect(Array.from(monitor)).toHaveLength(0)
   })
 
@@ -217,11 +217,11 @@ describe("monitorRuntime", () => {
     setupAll(monitor, world)
 
     const e = spawn(world, [Tag])
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
     monitor.clear()
 
     removeComponent(world, e, Tag)
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
 
     const results = Array.from(monitor)
     expect(results).toHaveLength(1)

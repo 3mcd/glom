@@ -10,7 +10,7 @@ import {defineRelation} from "../relation"
 import {
   makeWorld,
   setComponentValue,
-  worldGetOrCreateIndex,
+  getOrCreateIndex,
 } from "../world"
 import {spawn} from "../world_api"
 import {AllRuntime, makeAll, setupAll, teardownAll} from "./all_runtime"
@@ -55,13 +55,13 @@ describe("allRuntime", () => {
       world.entityGraph,
       e1,
       node,
-      worldGetOrCreateIndex(world, e1 as unknown as number),
+      getOrCreateIndex(world, e1 as unknown as number),
     )
     entityGraphSetEntityNode(
       world.entityGraph,
       e2,
       node,
-      worldGetOrCreateIndex(world, e2 as unknown as number),
+      getOrCreateIndex(world, e2 as unknown as number),
     )
 
     const results = []
@@ -94,7 +94,7 @@ describe("allRuntime", () => {
       world.entityGraph,
       e1,
       node,
-      worldGetOrCreateIndex(world, e1 as unknown as number),
+      getOrCreateIndex(world, e1 as unknown as number),
     )
 
     const results = []
@@ -121,7 +121,7 @@ describe("allRuntime", () => {
       world.entityGraph,
       e1,
       node,
-      worldGetOrCreateIndex(world, e1 as unknown as number),
+      getOrCreateIndex(world, e1 as unknown as number),
     )
 
     const results = []
@@ -148,7 +148,7 @@ describe("allRuntime", () => {
       world.entityGraph,
       e1,
       node,
-      worldGetOrCreateIndex(world, e1 as unknown as number),
+      getOrCreateIndex(world, e1 as unknown as number),
     )
 
     const results = []

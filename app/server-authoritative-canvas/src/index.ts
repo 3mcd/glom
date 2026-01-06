@@ -336,7 +336,7 @@ function loop() {
       const targetTick = handshake.tick + LAG_COMPENSATION_TICKS + latencyTicks
 
       if (!client.isSynced) {
-        client.world.tick = targetTick
+        g.setTick(client.world, targetTick)
         client.isSynced = true
         client.timestep.lastTime = now
         client.timestep.accumulated = 0
@@ -344,7 +344,7 @@ function loop() {
         if (history) g.pushSnapshot(client.world, history)
       } else {
         const drift = client.world.tick - targetTick
-        if (Math.abs(drift) > 2) client.world.tick = targetTick
+        if (Math.abs(drift) > 2) g.setTick(client.world, targetTick)
         else if (drift > 0) client.timestep.accumulated -= 1
         else if (drift < 0) client.timestep.accumulated += 1
       }

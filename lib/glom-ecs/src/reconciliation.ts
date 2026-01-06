@@ -23,7 +23,7 @@ import {
   advanceTick,
   commitTransaction,
   despawn,
-  worldFlushGraphChanges,
+  flushGraphChanges,
 } from "./world_api"
 
 export function receiveTransaction(world: World, transaction: Transaction) {
@@ -63,7 +63,7 @@ export function resimulateWithTransactions(
       for (const transaction of transactions) {
         applyTransaction(world, transaction)
       }
-      worldFlushGraphChanges(world)
+      flushGraphChanges(world)
     }
 
     const input = inputs?.get(t + 1)
@@ -93,7 +93,7 @@ export function reconcileTransaction(
     resimulateWithTransactions(world, originalTick, tickFn)
   } else {
     applyTransaction(world, transaction)
-    worldFlushGraphChanges(world)
+    flushGraphChanges(world)
     const incomingTransactions = getResource(world, IncomingTransactions)
     incomingTransactions?.delete(transaction.tick)
   }
@@ -174,7 +174,7 @@ export function performBatchReconciliation(
         for (const transaction of transactions) {
           applyTransaction(world, transaction)
         }
-        worldFlushGraphChanges(world)
+        flushGraphChanges(world)
         incomingTransactions.delete(world.tick)
       }
 
@@ -205,7 +205,7 @@ export function performBatchReconciliation(
           for (const transaction of transactions) {
             applyTransaction(world, transaction)
           }
-          worldFlushGraphChanges(world)
+          flushGraphChanges(world)
           incomingTransactions.delete(tick)
         }
       } else {

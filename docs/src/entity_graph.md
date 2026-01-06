@@ -12,31 +12,6 @@ An archetype is a unique combination of component types. It's represented as a `
 
 The entity graph is directed and acyclic. Nodes are linked based on component inclusion. The entity moves towards a more specialized node with more components when a component is added to it. Conversely, removing a component moves the entity toward a more generalized node with fewer components.
 
-```mermaid
-graph TD
-    Root["[ ]"]
-    Pos["[Position]"]
-    Vel["[Velocity]"]
-    Sprite["[Sprite]"]
-    
-    PosVel["[Position, Velocity]"]
-    PosSprite["[Position, Sprite]"]
-    
-    All["[Position, Velocity, Sprite]"]
-
-    Root --> Pos
-    Root --> Vel
-    Root --> Sprite
-
-    Pos --> PosVel
-    Pos --> PosSprite
-    Vel --> PosVel
-    Sprite --> PosSprite
-    
-    PosVel --> All
-    PosSprite --> All
-```
-
 ## Entity Storage
 
 Each node stores a set of entities. The entity is migrated from its current node to the new node when a component is added or removed.

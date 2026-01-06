@@ -153,7 +153,7 @@ export function makeWorld(options: WorldOptions = {}): World {
   return world
 }
 
-export function worldGetOrCreateIndex(
+export function getOrCreateIndex(
   world: World<any>,
   entity: number,
 ): number {
@@ -199,7 +199,7 @@ export function setComponentValue<T>(
     }
     return
   }
-  const index = worldGetOrCreateIndex(world, entity)
+  const index = getOrCreateIndex(world, entity)
 
   let versions = world.components.versions.get(componentId)
   if (!versions) {

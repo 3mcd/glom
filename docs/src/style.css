@@ -139,6 +139,7 @@
 
 html {
   font-size: 16px;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -154,7 +155,7 @@ body {
 }
 
 .content {
-  padding: 1rem calc(1rem + 2px);
+  padding: 0 calc(1rem - 2px) 1rem;
   max-width: 48rem;
   margin: 0 auto;
   flex-grow: 1;
@@ -221,7 +222,6 @@ hr {
 
 .toc-header {
   padding: 0.5rem 1rem;
-  border-bottom: 2px solid var(--border);
   font-family: var(--font-mono);
 }
 
@@ -241,7 +241,7 @@ hr {
 
 .toc-section ul {
   list-style: none;
-  padding: 1rem;
+  padding: 0 1rem 1rem 1rem;
   margin: 0;
 }
 
@@ -263,6 +263,28 @@ hr {
 }
 .toc-section:nth-child(4) li:hover a {
   color: var(--color-red);
+}
+
+/* Active page highlighting in nav */
+.page-index .toc a[href="index.html"],
+.page-glossary .toc a[href="glossary.html"],
+.page-getting_started .toc a[href="getting_started.html"],
+.page-reactivity .toc a[href="reactivity.html"],
+.page-relationships .toc a[href="relationships.html"],
+.page-ordering_logic .toc a[href="ordering_logic.html"],
+.page-server_authoritative .toc a[href="server_authoritative.html"],
+.page-component_storage .toc a[href="component_storage.html"],
+.page-entity_graph .toc a[href="entity_graph.html"],
+.page-entity_provenance .toc a[href="entity_provenance.html"],
+.page-entity_registry .toc a[href="entity_registry.html"],
+.page-netcode .toc a[href="netcode.html"],
+.page-example_p2p .toc a[href="example_p2p.html"],
+.page-example_server_authoritative
+  .toc
+  a[href="example_server_authoritative.html"] {
+  color: var(--section-color);
+  font-weight: bold;
+  text-decoration: underline;
 }
 
 .toc-section a:hover {
@@ -288,14 +310,55 @@ hr {
 
 .info-header {
   font-family: var(--font-mono);
-  border: 2px solid var(--border);
   background: var(--bg);
+  position: sticky;
+  top: 0;
+  border-bottom: 2px solid var(--border);
 }
 
 .info-header .row {
   display: flex;
   justify-content: space-between;
+  padding: 0;
+}
+
+.info-header .row > span {
   padding: 0.5rem 1rem;
+}
+
+.scroll-top {
+  flex-grow: 1;
+  max-width: 5rem;
+  /* align-self: stretch; */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-decoration: none;
+  margin: 0.2rem 1rem;
+  transition: background 0.1s ease;
+  color: var(--text);
+}
+
+.scroll-top:hover {
+  background: var(--header-bg);
+}
+
+.scroll-top::after {
+  content: "▴";
+  font-family: var(--font-mono);
+  font-size: 1.2rem;
+  opacity: 0.2;
+  transition: opacity 0.1s ease;
+}
+
+.scroll-top:hover::after {
+  opacity: 1;
+}
+
+@media (prefers-color-scheme: light) {
+  .scroll-top:hover {
+    background: var(--code-bg);
+  }
 }
 
 footer {
@@ -332,9 +395,7 @@ aside {
 
 /* Code & Media Elements */
 
-pre,
-.mermaid,
-.mermaid-static {
+pre {
   overflow-x: auto;
   background: var(--pre-bg);
   margin: 2rem calc(2rem + 2px);
@@ -352,56 +413,6 @@ pre code {
 }
 
 /* Remove underlines from links inside code blocks (Pandoc line anchors) */
-pre a {
-  text-decoration: none;
-}
-
-.mermaid,
-.mermaid-static {
-  display: flex;
-  justify-content: center;
-}
-
-.mermaid-static svg {
-  max-width: 100%;
-  height: auto;
-}
-
-/* Custom styling for static Mermaid SVGs to match theme */
-.mermaid-static svg .node rect,
-.mermaid-static svg .node polygon,
-.mermaid-static svg .node circle,
-.mermaid-static svg .node ellipse,
-.mermaid-static svg .node path {
-  fill: var(--header-bg) !important;
-  stroke: var(--border) !important;
-}
-
-.mermaid-static svg .node .label,
-.mermaid-static svg .node .nodeLabel,
-.mermaid-static svg .node .label p,
-.mermaid-static svg .node foreignObject div {
-  color: var(--text) !important;
-  fill: var(--text) !important;
-}
-
-.mermaid-static svg .edgePath .path {
-  stroke: var(--text) !important;
-}
-
-.mermaid-static svg .marker {
-  fill: var(--text) !important;
-  stroke: var(--text) !important;
-}
-
-@media (prefers-color-scheme: light) {
-  .mermaid-static svg {
-    /* Remove the old filter since we're styling manually now */
-    filter: none;
-  }
-}
-
-img {
   width: 100%;
   height: auto;
   display: block;
@@ -410,62 +421,44 @@ img {
 }
 
 /* Subtle Scrollbars */
-pre::-webkit-scrollbar,
-.mermaid::-webkit-scrollbar,
-.mermaid-static::-webkit-scrollbar {
+pre::-webkit-scrollbar {
   height: 0.5rem;
 }
 
-pre::-webkit-scrollbar-track,
-.mermaid::-webkit-scrollbar-track,
-.mermaid-static::-webkit-scrollbar-track {
+pre::-webkit-scrollbar-track {
   background: #222;
 }
 
-pre::-webkit-scrollbar-thumb,
-.mermaid::-webkit-scrollbar-thumb,
-.mermaid-static::-webkit-scrollbar-thumb {
+pre::-webkit-scrollbar-thumb {
   background: #444;
 }
 
-pre::-webkit-scrollbar-thumb:hover,
-.mermaid::-webkit-scrollbar-thumb:hover,
-.mermaid-static::-webkit-scrollbar-thumb:hover {
+pre::-webkit-scrollbar-thumb:hover {
   background: #666;
 }
 
 @media (prefers-color-scheme: light) {
-  pre::-webkit-scrollbar-track,
-  .mermaid::-webkit-scrollbar-track,
-  .mermaid-static::-webkit-scrollbar-track {
+  pre::-webkit-scrollbar-track {
     background: #f0f0f0;
   }
 
-  pre::-webkit-scrollbar-thumb,
-  .mermaid::-webkit-scrollbar-thumb,
-  .mermaid-static::-webkit-scrollbar-thumb {
+  pre::-webkit-scrollbar-thumb {
     background: #ccc;
   }
 
-  pre::-webkit-scrollbar-thumb:hover,
-  .mermaid::-webkit-scrollbar-thumb:hover,
-  .mermaid-static::-webkit-scrollbar-thumb:hover {
+  pre::-webkit-scrollbar-thumb:hover {
     background: #bbb;
   }
 }
 
 /* Firefox Support */
-pre,
-.mermaid,
-.mermaid-static {
+pre {
   scrollbar-width: thin;
   scrollbar-color: #444 #222;
 }
 
 @media (prefers-color-scheme: light) {
-  pre,
-  .mermaid,
-  .mermaid-static {
+  pre {
     scrollbar-color: #ccc #f0f0f0;
   }
 }

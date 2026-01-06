@@ -20,7 +20,7 @@ import {
   setupSystemExecutor,
 } from "./system_executor"
 import type {World} from "./world"
-import {worldFlushDeletions, worldFlushGraphChanges} from "./world_api"
+import {flushDeletions, flushGraphChanges} from "./world_api"
 
 enum SystemSchedulePhase {
   Setup,
@@ -276,8 +276,8 @@ export function runSchedule<T extends ComponentLike, U extends ComponentLike>(
   for (const exec of schedule.execs) {
     runSystemExecutor(exec)
   }
-  worldFlushGraphChanges(world as World)
-  worldFlushDeletions(world as World)
+  flushGraphChanges(world as World)
+  flushDeletions(world as World)
   for (const exec of schedule.execs) {
     clearSystemExecutorMonitors(exec)
   }

@@ -142,10 +142,10 @@ runSchedule(schedule, world)
 
 ## 7. Spawning Entities
 
-Entities are unique integer IDs that associate components. When you spawn an entity or change its components, call `worldFlushGraphChanges` to update the internal entity graph and make those changes visible to queries.
+Entities are unique integer IDs that associate components. When you spawn an entity or change its components, call `flushGraphChanges` to update the internal entity graph and make those changes visible to queries.
 
 ```typescript
-import { addComponent, spawn, worldFlushGraphChanges } from "@glom/ecs"
+import { addComponent, spawn, flushGraphChanges } from "@glom/ecs"
 
 const player = spawn(world)
 addComponent(world, player, Position, { x: 0, y: 0 })
@@ -153,7 +153,7 @@ addComponent(world, player, Velocity, { dx: 1, dy: 1 })
 addComponent(world, player, IsPlayer)
 
 // flush changes so they're available to queries
-worldFlushGraphChanges(world)
+flushGraphChanges(world)
 ```
 
 Within a system, you use the `Spawn` and `Add` descriptors to perform these operations:

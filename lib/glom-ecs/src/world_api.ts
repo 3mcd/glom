@@ -1,3 +1,8 @@
+import {
+  addClocksyncSample,
+  getAverageRtt,
+  getConsensusOffset,
+} from "./clocksync"
 import type {Component, ComponentInstance, ComponentLike} from "./component"
 import {type Entity, getDomainId} from "./entity"
 import {
@@ -55,10 +60,10 @@ import {
   addResource,
   deleteComponentValue,
   getComponentValue,
+  getOrCreateIndex,
   getResource,
   setComponentValue,
   type World,
-  worldGetOrCreateIndex,
 } from "./world"
 
 export {
@@ -68,7 +73,7 @@ export {
   getResource,
   setComponentValue,
   type World,
-  worldGetOrCreateIndex,
+  getOrCreateIndex,
 }
 
 function recordGraphMove(
@@ -89,12 +94,12 @@ function recordGraphMove(
   }
 }
 
-export function worldSetEntityNode(
+export function setEntityNode(
   world: World,
   entity: Entity,
   nextNode: EntityGraphNode,
 ): EntityGraphNode | undefined {
-  const index = worldGetOrCreateIndex(world, entity as number)
+  const index = getOrCreateIndex(world, entity as number)
   const prevNode = entityGraphSetEntityNode(
     world.entityGraph,
     entity,
@@ -145,9 +150,7 @@ export function spawn(
         break
       }
     } else if (c && !isRelationship(c)) {
-      if (
-        world.componentRegistry.getId(c as ComponentLike) === Replicated.id
-      ) {
+      if (world.componentRegistry.getId(c as ComponentLike) === Replicated.id) {
         isReplicated = true
         break
       }
@@ -240,7 +243,7 @@ export function spawn(
 
   const vec = makeVec(resolvedComponents, world.componentRegistry)
   const node = entityGraphFindOrCreateNode(world.entityGraph, vec)
-  const prevNode = worldSetEntityNode(world, entity, node)
+  const prevNode = setEntityNode(world, entity, node)
 
   recordGraphMove(world, entity, prevNode, node)
 
@@ -302,10 +305,7 @@ export function despawn(world: World, entity: Entity): void {
 
   world.pendingDeletions.add(entity)
 
-  const prevNode = sparseMapGet(
-    world.entityGraph.byEntity,
-    entity as number,
-  )
+  const prevNode = sparseMapGet(world.entityGraph.byEntity, entity as number)
   if (prevNode) {
     const incoming = world.relations.objectToSubjects.get(entity)
     if (incoming) {
@@ -367,11 +367,8 @@ function removeRelation(
     }
   }
 
-  const nextNode = entityGraphFindOrCreateNode(
-    world.entityGraph,
-    nextVec,
-  )
-  const prevNode = worldSetEntityNode(world, entity, nextNode)
+  const nextNode = entityGraphFindOrCreateNode(world.entityGraph, nextVec)
+  const prevNode = setEntityNode(world, entity, nextNode)
   recordGraphMove(world, entity, prevNode, nextNode)
 }
 
@@ -469,11 +466,8 @@ export function addComponent(
       makeVec(toAdd, world.componentRegistry),
       world.componentRegistry,
     )
-    const nextNode = entityGraphFindOrCreateNode(
-      world.entityGraph,
-      nextVec,
-    )
-    const prevNode = worldSetEntityNode(world, entity, nextNode)
+    const nextNode = entityGraphFindOrCreateNode(world.entityGraph, nextVec)
+    const prevNode = setEntityNode(world, entity, nextNode)
     recordGraphMove(world, entity, prevNode, nextNode)
   }
 }
@@ -494,8 +488,7 @@ export function removeComponent(
       item.object,
     )
     if (virtualId !== undefined) {
-      const vidComp =
-        world.componentRegistry.getVirtualComponent(virtualId)
+      const vidComp = world.componentRegistry.getVirtualComponent(virtualId)
       toRemove.push(vidComp)
       unregisterIncomingRelation(
         world,
@@ -574,11 +567,8 @@ export function removeComponent(
       makeVec(toRemove, world.componentRegistry),
       world.componentRegistry,
     )
-    const nextNode = entityGraphFindOrCreateNode(
-      world.entityGraph,
-      nextVec,
-    )
-    const prevNode = worldSetEntityNode(world, entity, nextNode)
+    const nextNode = entityGraphFindOrCreateNode(world.entityGraph, nextVec)
+    const prevNode = setEntityNode(world, entity, nextNode)
     recordGraphMove(world, entity, prevNode, nextNode)
   }
 }
@@ -734,7 +724,7 @@ export function advanceTick(world: World, skipSnapshot = false): void {
   world.tickSpawnCount = 0
 }
 
-export function worldFlushGraphChanges(world: World) {
+export function flushGraphChanges(world: World) {
   const batches = world._batch_map as Map<number, EntityGraphBatch>
   batches.clear()
 
@@ -774,7 +764,7 @@ export function worldFlushGraphChanges(world: World) {
   world.pendingNodePruning.clear()
 }
 
-export function worldFlushDeletions(world: World) {
+export function flushDeletions(world: World) {
   world.pendingDeletions.forEach((entity) => {
     world.relations.objectToSubjects.delete(entity)
 
@@ -795,4 +785,30 @@ export function worldFlushDeletions(world: World) {
 
   world.pendingDeletions.clear()
   world.pendingComponentRemovals.clear()
+}
+
+export function setDomainId(world: World, domainId: number): void {
+  world.registry.domainId = domainId
+}
+
+export function setTick(world: World, tick: number): void {
+  world.tick = tick
+}
+
+export function addClockSample(
+  world: World,
+  t0: number,
+  t1: number,
+  t2: number,
+  agentId = 0,
+): void {
+  addClocksyncSample(world.clocksync, agentId, t0, t1, t2)
+}
+
+export function getClockOffset(world: World): number {
+  return getConsensusOffset(world.clocksync)
+}
+
+export function getClockRtt(world: World): number {
+  return getAverageRtt(world.clocksync)
 }

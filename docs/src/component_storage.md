@@ -6,8 +6,6 @@
 
 The `World` does not use raw entity IDs to index arrays to support networking and multiple agents. Instead, it uses a local mapping.
 
-### How it works
-
 Entity IDs are 31-bit integers that are unique across the network. The `World` assigns a local index when it sees an entity. A `SparseMap` called `entityToIndex` stores this mapping. This prevents collisions when different agents create entities.
 
 ```text

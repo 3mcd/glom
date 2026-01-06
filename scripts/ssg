@@ -135,7 +135,7 @@ render_md_files_lowdown() {
 
 render_md_files_pandoc() {
 	while read -r f; do
-		pandoc -f markdown -t html --lua-filter=scripts/mermaid.lua --highlight-style=pygments <"$1/$f" | \
+		pandoc -f markdown -t html --highlight-style=pygments <"$1/$f" | \
 			render_html_file "$3" "$f" >"$2/${f%\.md}.html"
 	done
 }
@@ -162,8 +162,12 @@ render_html_file() {
 		# Strip leading ./ from filename
 		sub(/^\.\//, "", filename)
 
-		# Determine section class
+		# Determine section and page classes
 		section = ""
+		page_name = filename
+		sub(/\.(md|html)$/, "", page_name)
+		page_class = "page-" page_name
+
 		if (filename ~ /^(index)\.(md|html)$/) section = "section-general introduction-page"
 		else if (filename ~ /^(glossary)\.(md|html)$/) section = "section-general"
 		else if (filename ~ /^(getting_started|reactivity|relationships|ordering_logic|server_authoritative)\.(md|html)$/) section = "section-guides"
@@ -177,11 +181,12 @@ render_html_file() {
 				head = substr(line, 1, RSTART - 1)
 				tail = substr(line, RSTART + RLENGTH)
 				print head "<title>" title "</title>" tail
-			} else if (section != "" && match(tolower(line), "<body(>|[[:space:]][^>]*>)")) {
+			} else if (match(tolower(line), "<body(>|[[:space:]][^>]*>)")) {
+				full_classes = (section != "" ? section " " : "") page_class
 				if (match(line, /class="/)) {
-					sub(/class="/, "class=\"" section " ", line)
+					sub(/class="/, "class=\"" full_classes " ", line)
 				} else {
-					sub(/<body/, "<body class=\"" section "\"", line)
+					sub(/<body/, "<body class=\"" full_classes "\"", line)
 				}
 				print line
 			} else print line

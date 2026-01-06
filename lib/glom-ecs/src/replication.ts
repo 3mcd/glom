@@ -41,7 +41,7 @@ import {
   advanceTick,
   commitTransaction,
   removeComponent,
-  worldSetEntityNode,
+  setEntityNode,
 } from "./world_api"
 
 export const TRANSIENT_DOMAIN = 2046
@@ -235,7 +235,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
           makeVec(resolved, world.componentRegistry),
         )
 
-        worldSetEntityNode(world, entity, node)
+        setEntityNode(world, entity, node)
         break
       }
       case "despawn": {
@@ -263,7 +263,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
           deleteComponentValue(world, op.entity, comp)
         }
 
-        const prevNode = worldSetEntityNode(
+        const prevNode = setEntityNode(
           world,
           op.entity,
           world.entityGraph.root,
@@ -330,7 +330,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
               world.componentRegistry,
             ),
           )
-          const prevNode = worldSetEntityNode(world, entity, nextNode)
+          const prevNode = setEntityNode(world, entity, nextNode)
           if (prevNode) {
             world.pendingNodePruning.add(prevNode)
           }
@@ -365,7 +365,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
             world.componentRegistry,
           ),
         )
-        const prevNode = worldSetEntityNode(world, entity, nextNode)
+        const prevNode = setEntityNode(world, entity, nextNode)
         if (prevNode) {
           world.pendingNodePruning.add(prevNode)
         }

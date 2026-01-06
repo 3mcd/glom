@@ -95,7 +95,7 @@ despawn(world, beam)
 
 The `Out` query yields entities that no longer emit from attacking entities in `onAttackStopped`, which means they can be cleaned up.
 
-## How it works
+### How it works
 
 Transition queries subscribe to changes in the [Entity Graph](./entityGraph). The graph notifies the queries when an entity moves between nodes.
 

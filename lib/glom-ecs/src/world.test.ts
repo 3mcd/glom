@@ -9,7 +9,7 @@ import {
   getResource,
   makeWorld,
   setComponentValue,
-  worldGetOrCreateIndex,
+  getOrCreateIndex,
 } from "./world"
 
 describe("worldStorage", () => {
@@ -24,7 +24,7 @@ describe("worldStorage", () => {
     setComponentValue(world, entity, Position, {x: 1, y: 2})
     expect(getComponentValue(world, entity, Position)).toEqual({x: 1, y: 2})
 
-    const index = worldGetOrCreateIndex(world, entity)
+    const index = getOrCreateIndex(world, entity)
     const store = getComponentStore(world, Position)
     expect(store![index]).toEqual({x: 1, y: 2})
   })
@@ -40,8 +40,8 @@ describe("worldStorage", () => {
     expect(getComponentValue(world, e1, Position)).toEqual({x: 1, y: 1})
     expect(getComponentValue(world, e2, Position)).toEqual({x: 2, y: 2})
 
-    const idx1 = worldGetOrCreateIndex(world, e1)
-    const idx2 = worldGetOrCreateIndex(world, e2)
+    const idx1 = getOrCreateIndex(world, e1)
+    const idx2 = getOrCreateIndex(world, e2)
     expect(idx1).not.toBe(idx2)
   })
 

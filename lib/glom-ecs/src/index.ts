@@ -17,12 +17,12 @@ export {
   defineComponent,
   defineTag,
 } from "./component"
+export {Entity, getDomainId, getLocalId} from "./entity"
 export {
   type EntityGraph,
   type EntityGraphNode,
   entityGraphGetEntityNode,
 } from "./entity_graph"
-export {Entity, getDomainId, getLocalId} from "./entity"
 export {getDomain} from "./entity_registry"
 export {
   captureSnapshot,
@@ -167,12 +167,17 @@ export {
   type WorldOptions,
 } from "./world"
 export {
+  addClockSample,
   addComponent,
   advanceTick,
   commitTransaction,
   despawn,
+  flushDeletions,
+  flushGraphChanges,
+  getClockOffset,
+  getClockRtt,
   removeComponent,
+  setDomainId,
+  setTick,
   spawn,
-  worldFlushDeletions,
-  worldFlushGraphChanges,
 } from "./world_api"
