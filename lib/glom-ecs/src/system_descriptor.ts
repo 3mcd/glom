@@ -1,4 +1,3 @@
-import type {Component, ComponentLike} from "./component"
 import type {
   AddDescriptor,
   DespawnDescriptor,
@@ -8,6 +7,7 @@ import type {
   NotDescriptor,
   OutDescriptor,
   AllDescriptor as RawAllDescriptor,
+  JoinDescriptor as RawJoinDescriptor,
   ReadDescriptor,
   RemoveDescriptor,
   SpawnDescriptor,
@@ -26,19 +26,15 @@ import type {
 import type {World as WorldType} from "./world"
 
 export * from "./descriptors"
-import {
-  type AllDescriptor as RawAllDescriptor,
-  type JoinDescriptor as RawJoinDescriptor,
-} from "./descriptors"
 
 type TermDescriptor<T> = [T] extends [never]
   ? never
   : T extends WorldType
     ? WorldDescriptor
     : T extends {readonly __read: infer U}
-      ? ReadDescriptor<U extends Component<infer V> ? V : unknown>
+      ? ReadDescriptor
       : T extends {readonly __write: infer U}
-        ? WriteDescriptor<U extends Component<infer V> ? V : unknown>
+        ? WriteDescriptor
         : T extends {readonly __has: infer U}
           ? HasDescriptor<U extends ComponentLike ? U : never>
         : T extends {readonly __not: infer U}
@@ -60,12 +56,8 @@ type TermDescriptor<T> = [T] extends [never]
                         : T extends {readonly __component_brand: true}
                           ?
                               | ComponentLike
-                              | WriteDescriptor<
-                                  T extends Component<infer V> ? V : unknown
-                                >
-                              | ReadDescriptor<
-                                  T extends Component<infer V> ? V : unknown
-                                >
+                              | WriteDescriptor
+                              | ReadDescriptor
                           : unknown
 
 type MapTerms<T> = T extends [infer Head, ...infer Tail]
@@ -174,11 +166,9 @@ type SystemParameterDescriptor<T> = T extends In<
                 : T extends Remove<infer U>
                   ? RemoveDescriptor<U extends ComponentLike ? U : never>
                   : T extends Read<infer U>
-                    ? ReadDescriptor<U extends Component<infer V> ? V : unknown>
+                    ? ReadDescriptor
                     : T extends Write<infer U>
-                      ? WriteDescriptor<
-                          U extends Component<infer V> ? V : unknown
-                        >
+                      ? WriteDescriptor
                       : T extends Has<infer U>
                         ? HasDescriptor<U extends ComponentLike ? U : never>
                         : T extends Not<infer U>
