@@ -4,7 +4,7 @@
 
 ## 1. Topologies
 
-Glom is designed for both server-authoritative and P2P setups. The server sends authoritative changes to the client in a server-authoritative topology, while clients send high-level commands to the server for validation. Each agent sends their local changes to all other peers in a distributed P2P topology, and conflicts are resolved using strategies like Last-Write-Wins.
+Glom is designed for both server-authoritative and P2P setups. In a server-authoritative topology, the server sends authoritative changes to the client, while clients send high-level commands to the server for validation. In a distributed P2P topology, each agent sends their local changes to all other peers, and conflicts are resolved using Last-Write-Wins.
 
 ## 2. Domains
 
