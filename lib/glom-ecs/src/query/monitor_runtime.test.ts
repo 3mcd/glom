@@ -19,7 +19,7 @@ describe("monitor_runtime", () => {
   const schema = [Position, Tag]
 
   test("In<Q> catches new matching entities after flush", () => {
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const query = {all: [Entity, {read: Position}]}
     const monitor = make_in({in: query})
     setup_all(monitor, world)
@@ -40,7 +40,7 @@ describe("monitor_runtime", () => {
   })
 
   test("Out<Q> catches entities that no longer match", () => {
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const query = {all: [Entity, {read: Position}]}
     const monitor = make_out({out: query})
     setup_all(monitor, world)
@@ -65,7 +65,7 @@ describe("monitor_runtime", () => {
   })
 
   test("Out<Q> catches despawned entities", () => {
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const query = {all: [Entity, {read: Position}]}
     const monitor = make_out({out: query})
     setup_all(monitor, world)
@@ -84,7 +84,7 @@ describe("monitor_runtime", () => {
   })
 
   test("Transaction Reduction: Spawn then Despawn in same tick is a no-op", () => {
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const in_monitor = make_in({in: {all: [Entity]}})
     const out_monitor = make_out({out: {all: [Entity]}})
     setup_all(in_monitor, world)
@@ -100,7 +100,7 @@ describe("monitor_runtime", () => {
   })
 
   test("Transaction Reduction: Add then Remove in same tick is a no-op", () => {
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const query = {all: [Entity, {has: Tag}]}
     const in_monitor = make_in({in: query})
     const out_monitor = make_out({out: query})
@@ -126,7 +126,7 @@ describe("monitor_runtime", () => {
     const A = define_tag()
     const B = define_tag()
     const C = define_tag()
-    const world = make_world(0, [A, B, C])
+    const world = make_world({domain_id: 0, schema: [A, B, C]})
 
     const monitor_B = make_in({in: {all: [Entity, {has: B}]}})
     setup_all(monitor_B, world)
@@ -147,7 +147,7 @@ describe("monitor_runtime", () => {
   })
 
   test("Out<Q> yields data before deferred deletion clears it", () => {
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const monitor = make_out({out: {all: [{read: Position}]}})
     setup_all(monitor, world)
 

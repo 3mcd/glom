@@ -1,4 +1,4 @@
-import type {ComponentResolver, ComponentSerde} from "./component"
+import type {ComponentResolver} from "./component"
 import type {Entity} from "./entity"
 import type {ByteReader, ByteWriter} from "./lib/binary"
 import type {SnapshotBlock, SnapshotMessage} from "./net_types"
@@ -17,8 +17,8 @@ export enum MessageType {
   Handshake = 0x01,
   ClockSync = 0x02,
   Transaction = 0x03,
-  Input = 0x04,
-  FullStateSync = 0x05,
+  Command = 0x04,
+  Snapshot = 0x05,
 }
 
 export type MessageHeader = {
@@ -119,7 +119,7 @@ export function write_commands(
   resolver_like: ResolverLike,
 ) {
   const resolver = to_resolver(resolver_like)
-  write_message_header(writer, MessageType.Input, data.tick)
+  write_message_header(writer, MessageType.Command, data.tick)
   writer.write_uint16(data.commands.length)
   for (const cmd of data.commands) {
     writer.write_varint(cmd.target)
@@ -165,7 +165,7 @@ export function write_snapshot(
   resolver_like: ResolverLike,
 ) {
   const resolver = to_resolver(resolver_like)
-  write_message_header(writer, MessageType.FullStateSync, data.tick)
+  write_message_header(writer, MessageType.Snapshot, data.tick)
   writer.write_uint16(data.blocks.length)
 
   for (const block of data.blocks) {

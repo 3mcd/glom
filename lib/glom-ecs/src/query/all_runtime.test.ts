@@ -29,7 +29,7 @@ describe("all_runtime", () => {
   })
 
   test("setup_all adds listener and populates nodes", () => {
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const all = make_all(desc) as AllRuntime
 
     setup_all(all, world)
@@ -38,7 +38,7 @@ describe("all_runtime", () => {
   })
 
   test("iterator yields component values", () => {
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const all = make_all(desc) as AllRuntime
     setup_all(all, world)
 
@@ -82,7 +82,7 @@ describe("all_runtime", () => {
     const descWithEntity: AllDescriptor = {
       all: [{entity: true}, {read: c1}],
     }
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const all = make_all(descWithEntity) as AllRuntime
     setup_all(all, world)
 
@@ -109,7 +109,7 @@ describe("all_runtime", () => {
     const descWithEntity: AllDescriptor = {
       all: [Entity, {read: c1}],
     }
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const all = make_all(descWithEntity) as AllRuntime
     setup_all(all, world)
 
@@ -136,7 +136,7 @@ describe("all_runtime", () => {
     const descWithTag: AllDescriptor = {
       all: [Entity, {has: t1}, {read: c1}],
     }
-    const world = make_world(0, [c1, t1])
+    const world = make_world({domain_id: 0, schema: [c1, t1]})
     const all = make_all(descWithTag) as AllRuntime
     setup_all(all, world)
 
@@ -165,7 +165,7 @@ describe("all_runtime", () => {
       all: [{read: c1}, {not: c3}],
     }
 
-    const world = make_world(0, [c1, c3])
+    const world = make_world({domain_id: 0, schema: [c1, c3]})
     const all = make_all(descWithNot) as AllRuntime
     setup_all(all, world)
 
@@ -186,7 +186,7 @@ describe("all_runtime", () => {
   test("iterator with Rel and Not filter", () => {
     const rel = define_relation()
     const c3 = define_component<{val: number}>()
-    const world = make_world(0, [rel, c3])
+    const world = make_world({domain_id: 0, schema: [rel, c3]})
 
     const descWithRelNot: AllDescriptor = {
       all: [{rel: [rel, {not: c3}]}],
@@ -210,7 +210,7 @@ describe("all_runtime", () => {
   })
 
   test("teardown_all removes listener and clears nodes", () => {
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const all = make_all(desc) as AllRuntime
 
     setup_all(all, world)

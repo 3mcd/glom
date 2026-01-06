@@ -6,10 +6,26 @@ import {Has, World as WorldTerm} from "./query/term"
 import {define_relation} from "./relation"
 import {define_system} from "./system"
 import type {World} from "./world"
-import {add_component, despawn, remove_component, spawn} from "./world_api"
+import {
+  add_component,
+  add_resource,
+  despawn,
+  get_resource,
+  remove_component,
+  spawn,
+} from "./world_api"
 
 export const CommandOf = define_relation(2)
 export const CommandEntity = define_tag(3)
+
+export const CommandBuffer = define_component<Map<number, CommandInstance[]>>(
+  {
+    bytes_per_element: 0,
+    encode: () => {},
+    decode: () => new Map(),
+  },
+  11,
+)
 
 export const IntentTick = define_component<number>(
   {
@@ -38,10 +54,16 @@ export function record_command<T>(
   tick = world.tick,
   intent_tick = tick,
 ) {
-  let command_list = world.command_buffer.get(tick)
+  let command_buffer = get_resource(world, CommandBuffer)
+  if (!command_buffer) {
+    command_buffer = new Map()
+    add_resource(world, CommandBuffer(command_buffer))
+  }
+
+  let command_list = command_buffer.get(tick)
   if (!command_list) {
     command_list = []
-    world.command_buffer.set(tick, command_list)
+    command_buffer.set(tick, command_list)
   }
 
   if (command && typeof command === "object" && "component" in command) {
@@ -66,16 +88,22 @@ export function record_command<T>(
 export const COMMAND_DOMAIN = 2047
 
 export function prune_commands(world: World, min_tick: number) {
-  for (const tick of world.command_buffer.keys()) {
+  const command_buffer = get_resource(world, CommandBuffer)
+  if (!command_buffer) return
+
+  for (const tick of command_buffer.keys()) {
     if (tick < min_tick) {
-      world.command_buffer.delete(tick)
+      command_buffer.delete(tick)
     }
   }
 }
 
 export const spawn_ephemeral_commands = define_system(
   (world: World) => {
-    const commands = world.command_buffer.get(world.tick)
+    const command_buffer = get_resource(world, CommandBuffer)
+    if (!command_buffer) return
+
+    const commands = command_buffer.get(world.tick)
     if (!commands) return
 
     for (const cmd of commands) {

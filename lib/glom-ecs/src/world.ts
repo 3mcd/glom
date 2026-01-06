@@ -1,5 +1,5 @@
 import {type ClockSyncManager, make_clocksync_manager} from "./clocksync"
-import {CommandEntity, CommandOf, IntentTick} from "./command"
+import {CommandBuffer, CommandEntity, CommandOf, IntentTick} from "./command"
 import type {Component, ComponentInstance, ComponentLike} from "./component"
 import {type Entity, RESOURCE_ENTITY} from "./entity"
 import {
@@ -8,8 +8,8 @@ import {
   make_entity_graph,
 } from "./entity_graph"
 import {type EntityRegistry, make_entity_registry} from "./entity_registry"
-import type {HistoryBuffer} from "./history"
-import type {SnapshotMessage} from "./net_types"
+import {HistoryBuffer} from "./history"
+import type {SnapshotMessage, Transaction} from "./net_types"
 import {
   type ComponentRegistry,
   make_component_registry,
@@ -19,14 +19,15 @@ import {
   make_relation_registry,
   type RelationRegistry,
 } from "./relation_registry"
-import type {
-  ReplicationOp,
-  ReplicationRecorder,
-  Transaction,
-} from "./replication"
-import {Replicated, ReplicationConfig} from "./replication_config"
-
-export type SnapshotEmitter = (message: SnapshotMessage) => void
+import type {ReplicationOp} from "./replication"
+import {
+  IncomingSnapshots,
+  IncomingTransactions,
+  InputBuffer,
+  Replicated,
+  ReplicationConfig,
+  ReplicationStream,
+} from "./replication_config"
 
 import {
   make_sparse_map,
@@ -90,18 +91,11 @@ export type World<R extends ComponentLike = any> = {
   readonly components: ComponentStore
   readonly index: EntityIndex
   readonly relations: RelationRegistry
-  recorder?: ReplicationRecorder
-  snapshot_emitter?: SnapshotEmitter
   tick: number
   tick_spawn_count: number
   readonly transient_registry: Map<number, {entity: Entity; tick: number}>
   readonly pending_ops: ReplicationOp[]
-  history?: HistoryBuffer
-  readonly input_buffer: Map<number, unknown>
-  readonly remote_transactions: Map<number, Transaction[]>
-  readonly remote_snapshots: Map<number, SnapshotMessage[]>
   readonly clocksync: ClockSyncManager
-  readonly command_buffer: Map<number, Command[]>
 
   readonly _reduction_entity_to_ops: Map<Entity, ReplicationOp[]>
   readonly _reduction_component_changes: Map<number, ReplicationOp>
@@ -109,11 +103,13 @@ export type World<R extends ComponentLike = any> = {
   readonly _batch_map: Map<number, unknown>
 }
 
-export function make_world(
-  domain_id: number,
-  schema: RegistrySchema | ComponentLike[] = {},
-  recorder?: ReplicationRecorder,
-): World {
+export type WorldOptions = {
+  domain_id: number
+  schema?: RegistrySchema | ComponentLike[]
+}
+
+export function make_world(options: WorldOptions): World {
+  const {domain_id, schema = {}} = options
   const normalized_schema: RegistrySchema = Array.isArray(schema)
     ? {network: schema}
     : schema
@@ -124,6 +120,12 @@ export function make_world(
     CommandOf,
     CommandEntity,
     ReplicationConfig,
+    ReplicationStream,
+    HistoryBuffer,
+    CommandBuffer,
+    InputBuffer,
+    IncomingTransactions,
+    IncomingSnapshots,
   ])
 
   const world = {
@@ -137,16 +139,11 @@ export function make_world(
     components: make_component_store(),
     index: make_entity_index(),
     relations: make_relation_registry(),
-    recorder,
     tick: 0,
     tick_spawn_count: 0,
     transient_registry: new Map(),
     pending_ops: [],
-    input_buffer: new Map(),
-    remote_transactions: new Map(),
-    remote_snapshots: new Map(),
     clocksync: make_clocksync_manager(),
-    command_buffer: new Map(),
     _reduction_entity_to_ops: new Map(),
     _reduction_component_changes: new Map(),
     _reduction_component_removals: new Set(),

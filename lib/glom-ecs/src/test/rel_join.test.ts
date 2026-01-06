@@ -8,7 +8,7 @@ describe("relation integration", () => {
   const schema = [Position, ChildOf, Name]
 
   test("simple rel join", () => {
-    const world = g.make_world(0, schema)
+    const world = g.make_world({domain_id: 0, schema})
     const parent = g.spawn(world, [Position({x: 10})])
     g.spawn(world, [Position({x: 1}), ChildOf(parent)])
 
@@ -41,7 +41,7 @@ describe("relation integration", () => {
   })
 
   test("inner join logic (missing component on object)", () => {
-    const world = g.make_world(0, schema)
+    const world = g.make_world({domain_id: 0, schema})
     const parent = g.spawn(world, [])
     g.spawn(world, [Position({x: 1}), ChildOf(parent)])
 
@@ -70,7 +70,7 @@ describe("relation integration", () => {
   })
 
   test("multiple objects for same relationship", () => {
-    const world = g.make_world(0, schema)
+    const world = g.make_world({domain_id: 0, schema})
     const p1 = g.spawn(world, [Position({x: 10})])
     const p2 = g.spawn(world, [Position({x: 20})])
     g.spawn(world, [Position({x: 1}), ChildOf(p1), ChildOf(p2)])
@@ -103,7 +103,7 @@ describe("relation integration", () => {
   })
 
   test("nested rel join", () => {
-    const world = g.make_world(0, schema)
+    const world = g.make_world({domain_id: 0, schema})
 
     const grandparent = g.spawn(world, [Name("Grandparent")])
     const parent = g.spawn(world, [Name("Parent"), ChildOf(grandparent)])

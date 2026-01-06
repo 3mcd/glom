@@ -66,7 +66,7 @@ When a system runs, its queries resolve which nodes in the [Entity Graph](./enti
 
 <img src="query-graph.png" style="max-width: 444px;">
 
-The query then identifies the entities stored at those nodes and fetches their component data for processing.
+The query then identifies the entities stored at those nodes and yields their component data to the system.
 
 <img src="query-storage.png" style="max-width: 218px;">
 
@@ -111,7 +111,7 @@ Create a world by calling `make_world` with a unique ID and an array of componen
 import { make_world } from "@glom/ecs"
 
 const schema = [Position, Velocity, IsPlayer]
-const world = make_world(0, schema) // 0 is the domain ID
+const world = make_world({ domain_id: 0, schema }) // 0 is the domain ID
 ```
 
 ## 5. Writing Systems (with Transformer)

@@ -18,7 +18,7 @@ describe("world_storage", () => {
   const schema = [Position, Velocity]
 
   test("set and get component values", () => {
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const entity = make_entity(10, 0)
 
     set_component_value(world, entity, Position, {x: 1, y: 2})
@@ -30,7 +30,7 @@ describe("world_storage", () => {
   })
 
   test("handle ID collisions across domains via dense mapping", () => {
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const e1 = make_entity(100, 1)
     const e2 = make_entity(100, 2)
 
@@ -46,13 +46,13 @@ describe("world_storage", () => {
   })
 
   test("get undefined for missing component", () => {
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const entity = make_entity(10, 0)
     expect(get_component_value(world, entity, Position)).toBeUndefined()
   })
 
   test("remove component value", () => {
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const entity = make_entity(10, 0)
 
     set_component_value(world, entity, Position, {x: 1, y: 2})
@@ -62,7 +62,7 @@ describe("world_storage", () => {
   })
 
   test("multiple components for same entity", () => {
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const entity = make_entity(10, 0)
 
     set_component_value(world, entity, Position, {x: 1, y: 2})
@@ -74,7 +74,7 @@ describe("world_storage", () => {
 
   test("tag components as resources", () => {
     const IsRunning = define_tag()
-    const world = make_world(0, [IsRunning])
+    const world = make_world({domain_id: 0, schema: [IsRunning]})
 
     add_resource(world, IsRunning())
     expect(get_resource(world, IsRunning)).toBeUndefined()
@@ -87,7 +87,7 @@ describe("world_storage", () => {
 
   test("regular components as resources", () => {
     const Config = define_component<{api: string}>()
-    const world = make_world(0, [Config])
+    const world = make_world({domain_id: 0, schema: [Config]})
 
     add_resource(world, Config({api: "localhost"}))
     expect(get_resource(world, Config)).toEqual({api: "localhost"})

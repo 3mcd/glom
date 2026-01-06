@@ -21,7 +21,7 @@ describe("relation", () => {
 
   test("all relation features", () => {
     const schema = [Name, ChildOf]
-    const world = make_world(0, schema)
+    const world = make_world({domain_id: 0, schema})
     const parent = spawn(world, [Name("Parent")])
 
     let child_name = ""

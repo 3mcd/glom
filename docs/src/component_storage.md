@@ -2,8 +2,6 @@
 
 **Problem:** Storing state within heterogeneous entity objects prevents JavaScript engines from specializing functions and causes frequent "hidden class" transitions during simulation.
 
-Glom uses a universal storage model. All values for a component type are stored in one array in the `World`, indexed by entity ID, instead of storing data within entity objects.
-
 ## Entity Indexing
 
 The `World` does not use raw entity IDs to index arrays to support networking and multiple agents. Instead, it uses a local mapping.

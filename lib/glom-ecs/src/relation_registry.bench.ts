@@ -14,7 +14,7 @@ const relations = Array.from({length: relation_count}, (_, i) =>
 )
 const entity_count = 1000
 const entities = Array.from({length: entity_count}, (_, i) => i as Entity)
-const world = make_world(0)
+const world = make_world({domain_id: 0})
 
 group("relation registry operations", () => {
   bench("get_or_create_virtual_id (new pairs)", () => {

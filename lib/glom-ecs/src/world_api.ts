@@ -26,7 +26,8 @@ import {
   remove_entity,
 } from "./entity_registry"
 import {add_domain_entity} from "./entity_registry_domain"
-import {push_snapshot} from "./history"
+import {HistoryBuffer, push_snapshot} from "./history"
+import type {ReplicationOp, SetOp} from "./net_types"
 import {is_relationship} from "./relation"
 import {
   get_or_create_virtual_id,
@@ -38,11 +39,9 @@ import {
   make_causal_key,
   pool_get_op,
   pool_return_op,
-  Replicated,
-  type ReplicationOp,
-  type SetOp,
   TRANSIENT_DOMAIN,
 } from "./replication"
+import {Replicated, ReplicationStream} from "./replication_config"
 import {
   sparse_map_clear,
   sparse_map_delete,
@@ -53,12 +52,24 @@ import {
 import {sparse_set_size} from "./sparse_set"
 import {make_vec, vec_difference, vec_sum} from "./vec"
 import {
+  add_resource,
   delete_component_value,
   get_component_value,
+  get_resource,
   set_component_value,
   type World,
   world_get_or_create_index,
 } from "./world"
+
+export {
+  add_resource,
+  delete_component_value,
+  get_component_value,
+  get_resource,
+  set_component_value,
+  type World,
+  world_get_or_create_index,
+}
 
 function record_graph_move(
   world: World,
@@ -153,7 +164,7 @@ export function spawn(
     entity = existing.entity
     add_domain_entity(get_domain(world.registry, get_domain_id(entity)), entity)
   } else {
-    const is_prediction = !!world.history
+    const is_prediction = !!get_resource(world, HistoryBuffer)
     const actual_domain_id = is_prediction ? TRANSIENT_DOMAIN : domain_id
     entity = alloc_entity(world.registry, actual_domain_id)
   }
@@ -197,7 +208,7 @@ export function spawn(
     })
   }
 
-  if (world.recorder && domain_id === world.registry.domain_id) {
+  if (domain_id === world.registry.domain_id) {
     let replicated_check = false
     for (let i = 0; i < resolved_components.length; i++) {
       if (
@@ -243,7 +254,7 @@ export function despawn(world: World, entity: Entity): void {
   }
 
   const domain_id = world.registry.domain_id
-  if (world.recorder && get_domain_id(entity) === domain_id) {
+  if (get_domain_id(entity) === domain_id) {
     let is_replicated = false
     const elements = node.vec.elements
     for (let i = 0; i < elements.length; i++) {
@@ -399,7 +410,7 @@ export function add_component(
   }
 
   if (to_add.length > 0) {
-    if (world.recorder && get_domain_id(entity) === world.registry.domain_id) {
+    if (get_domain_id(entity) === world.registry.domain_id) {
       let already_replicated = false
       const elements = node.vec.elements
       for (let i = 0; i < elements.length; i++) {
@@ -523,7 +534,7 @@ export function remove_component(
   }
 
   if (to_remove.length > 0) {
-    if (world.recorder && get_domain_id(entity) === world.registry.domain_id) {
+    if (get_domain_id(entity) === world.registry.domain_id) {
       let is_replicated = false
       const elements = node.vec.elements
       for (let i = 0; i < elements.length; i++) {
@@ -573,7 +584,8 @@ export function remove_component(
 }
 
 export function commit_transaction(world: World): void {
-  if (!world.recorder || world.pending_ops.length === 0) {
+  const stream = get_resource(world, ReplicationStream)
+  if (!stream || world.pending_ops.length === 0) {
     for (let i = 0; i < world.pending_ops.length; i++) {
       pool_return_op(world.pending_ops[i] as ReplicationOp)
     }
@@ -699,7 +711,7 @@ export function commit_transaction(world: World): void {
   })
 
   if (reduced_ops.length > 0) {
-    world.recorder({
+    stream.transactions.push({
       domain_id,
       seq: next_op_seq(world.registry, domain_id),
       tick: world.tick,
@@ -715,8 +727,9 @@ export function commit_transaction(world: World): void {
 
 export function advance_tick(world: World, skip_snapshot = false): void {
   world.tick++
-  if (!skip_snapshot && world.history) {
-    push_snapshot(world, world.history)
+  const history = get_resource(world, HistoryBuffer)
+  if (!skip_snapshot && history) {
+    push_snapshot(world, history)
   }
   world.tick_spawn_count = 0
 }

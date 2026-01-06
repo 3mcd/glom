@@ -20,8 +20,8 @@ describe("snapshot streaming", () => {
   })
 
   test("capture and apply snapshot stream", () => {
-    const world_a = make_world(1, [Position])
-    const world_b = make_world(2, [Position])
+    const world_a = make_world({domain_id: 1, schema: [Position]})
+    const world_b = make_world({domain_id: 2, schema: [Position]})
 
     const e1 = spawn(world_a, [Position({x: 10, y: 20}), Replicated])
     const e2 = spawn(world_a, [Position({x: 100, y: 200}), Replicated])
@@ -52,7 +52,7 @@ describe("snapshot streaming", () => {
   })
 
   test("LWW versioning in snapshots", () => {
-    const world = make_world(1, [Position])
+    const world = make_world({domain_id: 1, schema: [Position]})
     world.tick = 50
     const entity = spawn(world, [Position({x: 50, y: 50}), Replicated])
     const pos_id = world.component_registry.get_id(Position)

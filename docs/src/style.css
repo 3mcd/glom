@@ -147,15 +147,15 @@ body {
   font-family: var(--font-serif);
   background: var(--bg);
   color: var(--text);
-  line-height: 1.5rem;
+  line-height: 1.4rem;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
 }
 
 .content {
-  padding: 1rem 1rem;
-  max-width: 900px;
+  padding: 1rem calc(1rem + 2px);
+  max-width: 48rem;
   margin: 0 auto;
   flex-grow: 1;
   width: 100%;
@@ -270,7 +270,7 @@ hr {
   text-decoration: none;
 }
 
-@media (max-width: 768px) {
+@media (max-width: calc(56rem + 2px)) {
   .toc-grid {
     grid-template-columns: 1fr;
   }
@@ -338,7 +338,7 @@ pre,
 .mermaid-static {
   overflow-x: auto;
   background: var(--pre-bg);
-  margin: 2rem;
+  margin: 2rem calc(2rem + 2px);
   line-height: 1.4rem;
 }
 

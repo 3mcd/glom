@@ -165,12 +165,11 @@ const render_system = (
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height)
 
   for (const [pos, color_id] of query) {
-    // Blue and Yellow from syntax highlighting for colorblind accessibility
     ctx.fillStyle = (color_id as number) === 0 ? "#aed7f5" : "#d6d4a6"
     ctx.fillRect(pos.x - 10, pos.y - 10, 20, 20)
   }
 
-  ctx.strokeStyle = "#fda293" // Examples (Salmon)
+  ctx.strokeStyle = "#fda293"
   ctx.lineWidth = 2
   for (const [pos, size] of pulses) {
     ctx.beginPath()
@@ -182,13 +181,18 @@ const render_system = (
 function create_server() {
   const canvas = document.getElementById("canvasServer") as HTMLCanvasElement
   const ctx = canvas.getContext("2d") as CanvasRenderingContext2D
-  const world = g.make_world(0, schema) as g.World
+  const world = g.make_world({domain_id: 0, schema}) as g.World
   const schedule = g.make_system_schedule()
   const timestep = g.make_timestep(HZ)
 
   g.add_resource(world, CanvasContext(ctx))
   g.add_resource(world, g.ReplicationConfig({history_window: 64}))
+  g.add_resource(world, g.ReplicationStream({transactions: [], snapshots: []}))
+  g.add_resource(world, g.CommandBuffer(new Map()))
+  g.add_resource(world, g.IncomingTransactions(new Map()))
+  g.add_resource(world, g.IncomingSnapshots(new Map()))
 
+  g.add_system(schedule, g.clear_replication_stream)
   g.add_system(schedule, reconciliation.apply_remote_transactions)
   g.add_system(schedule, commands.spawn_ephemeral_commands)
   add_simulation_systems(schedule)
@@ -207,10 +211,15 @@ function create_client(
 ) {
   const canvas = document.getElementById("canvasClient") as HTMLCanvasElement
   const ctx = canvas.getContext("2d") as CanvasRenderingContext2D
-  const world = g.make_world(domain_id, schema) as g.World
+  const world = g.make_world({domain_id, schema}) as g.World
   const timestep = g.make_timestep(HZ)
 
-  world.history = g.make_history_buffer(120)
+  g.add_resource(world, g.HistoryBuffer({snapshots: [], max_size: 120}))
+  g.add_resource(world, g.CommandBuffer(new Map()))
+  g.add_resource(world, g.InputBuffer(new Map()))
+  g.add_resource(world, g.IncomingTransactions(new Map()))
+  g.add_resource(world, g.IncomingSnapshots(new Map()))
+
   const schedule = g.make_system_schedule()
 
   g.add_resource(world, CanvasContext(ctx))
@@ -262,15 +271,6 @@ const client = create_client(1, reconcile_schedule)
 const client_to_server = [] as {time: number; packet: Uint8Array}[]
 const server_to_client = [] as {time: number; packet: Uint8Array}[]
 
-server.world.recorder = (transaction) => {
-  const writer = new g.ByteWriter()
-  g.write_transaction(writer, transaction, server.world)
-  server_to_client.push({
-    time: performance.now() + LATENCY_MS,
-    packet: writer.get_bytes(),
-  })
-}
-
 const player = g.spawn(server.world, [
   Position({x: 125, y: 125}),
   Color(0),
@@ -305,7 +305,7 @@ function loop() {
     const {packet} = shift
     const reader = new g.ByteReader(packet)
     const header = g.read_message_header(reader)
-    if (header.type === g.MessageType.Input) {
+    if (header.type === g.MessageType.Command) {
       const cmd_msg = g.read_commands(reader, header.tick, server.world)
       const target_tick = Math.max(server.world.tick, cmd_msg.tick)
       for (const cmd of cmd_msg.commands) {
@@ -344,8 +344,8 @@ function loop() {
         client.is_synced = true
         client.timestep.last_time = now
         client.timestep.accumulated = 0
-        if (client.world.history)
-          g.push_snapshot(client.world, client.world.history)
+        const history = g.get_resource(client.world, g.HistoryBuffer)
+        if (history) g.push_snapshot(client.world, history)
       } else {
         const drift = client.world.tick - target_tick
         if (Math.abs(drift) > 2) client.world.tick = target_tick
@@ -375,7 +375,8 @@ function loop() {
       }
       client.just_pressed.clear()
 
-      const commands = client.world.command_buffer.get(client.world.tick)
+      const command_buffer = g.get_resource(client.world, g.CommandBuffer)
+      const commands = command_buffer?.get(client.world.tick)
       if (commands && commands.length > 0) {
         const writer = new g.ByteWriter()
         g.write_commands(
@@ -394,6 +395,26 @@ function loop() {
 
   g.timestep_update(server.timestep, now, () => {
     g.run_schedule(server.schedule, server.world)
+
+    const stream = g.get_resource(server.world, g.ReplicationStream)
+    if (stream) {
+      for (const transaction of stream.transactions) {
+        const writer = new g.ByteWriter()
+        g.write_transaction(writer, transaction, server.world)
+        server_to_client.push({
+          time: performance.now() + LATENCY_MS,
+          packet: writer.get_bytes(),
+        })
+      }
+      for (const snap of stream.snapshots) {
+        const writer = new g.ByteWriter()
+        g.write_snapshot(writer, snap, server.world)
+        server_to_client.push({
+          time: performance.now() + LATENCY_MS,
+          packet: writer.get_bytes(),
+        })
+      }
+    }
   })
 
   const c_pos = g.get_component_value(client.world, player, Position)

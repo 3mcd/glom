@@ -30,7 +30,7 @@ describe("system_schedule sorting", () => {
     add_system(schedule, system_read)
     add_system(schedule, system_write)
 
-    const world = make_world(1, schema)
+    const world = make_world({domain_id: 1, schema})
     add_resource(world, A(0))
     run_schedule(schedule, world as World)
 
@@ -58,7 +58,7 @@ describe("system_schedule sorting", () => {
     add_system(schedule, w1)
     add_system(schedule, w2)
 
-    const world = make_world(1, schema)
+    const world = make_world({domain_id: 1, schema})
     add_resource(world, A(0))
     run_schedule(schedule, world as World)
 
@@ -94,7 +94,7 @@ describe("system_schedule sorting", () => {
     add_system(schedule, s2)
     add_system(schedule, s1)
 
-    const world = make_world(1, schema)
+    const world = make_world({domain_id: 1, schema})
     add_resource(world, A(0))
     add_resource(world, B(0))
     run_schedule(schedule, world as World)
@@ -117,7 +117,7 @@ describe("system_schedule sorting", () => {
     add_system(schedule, s1)
     add_system(schedule, s2)
 
-    const world = make_world(1, schema)
+    const world = make_world({domain_id: 1, schema})
     expect(() => run_schedule(schedule, world as World)).toThrow(
       "Cycle detected in system dependencies",
     )
@@ -144,7 +144,7 @@ describe("system_schedule sorting", () => {
     add_system(schedule, s1)
     add_system(schedule, s2)
 
-    const world = make_world(1, schema)
+    const world = make_world({domain_id: 1, schema})
     add_resource(world, A(0))
     add_resource(world, B(0))
     run_schedule(schedule, world as World)

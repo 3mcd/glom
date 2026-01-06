@@ -1,3 +1,4 @@
+import {define_component} from "./component"
 import type {Entity} from "./entity"
 import {
   type EntityGraphNode,
@@ -12,6 +13,8 @@ import {
 } from "./sparse_map"
 import {sparse_set_add, sparse_set_clear, sparse_set_size} from "./sparse_set"
 import type {World} from "./world"
+
+import {add_resource, get_resource} from "./world_api"
 
 export type RegistryDomainSnapshot = {
   readonly domain_id: number
@@ -41,8 +44,20 @@ export type Snapshot = {
   }
 }
 
+export const HistoryBuffer = define_component<{
+  snapshots: Snapshot[]
+  max_size: number
+}>(
+  {
+    bytes_per_element: 0,
+    encode: () => {},
+    decode: () => ({snapshots: [], max_size: 64}),
+  },
+  10, // Assign a unique ID
+)
+
 export type HistoryBuffer = {
-  readonly snapshots: Snapshot[]
+  snapshots: Snapshot[]
   max_size: number
 }
 
@@ -302,14 +317,18 @@ export function push_snapshot(world: World, history: HistoryBuffer) {
 
 export function rollback_to_tick(
   world: World,
-  history: HistoryBuffer,
+  history: HistoryBuffer | Component<HistoryBuffer>,
   tick: number,
 ): boolean {
-  const snapshot = history.snapshots.find((s) => s.tick === tick)
+  const buffer =
+    "snapshots" in history ? history : get_resource(world, history)
+  if (!buffer) return false
+
+  const snapshot = buffer.snapshots.find((s) => s.tick === tick)
   if (!snapshot) return false
   rollback_to_snapshot(world, snapshot)
 
-  const index = history.snapshots.indexOf(snapshot)
-  history.snapshots.length = index + 1
+  const index = buffer.snapshots.indexOf(snapshot)
+  buffer.snapshots.length = index + 1
   return true
 }

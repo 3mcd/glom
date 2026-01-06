@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {define_component} from "../component"
-import {make_history_buffer, push_snapshot} from "../history"
+import {HistoryBuffer, make_history_buffer, push_snapshot} from "../history"
 import {
   cleanup_transient_entities,
   prune_buffers,
@@ -11,9 +11,15 @@ import {
   TRANSIENT_DOMAIN,
   type Transaction,
 } from "../replication"
+import {
+  IncomingSnapshots,
+  IncomingTransactions,
+  InputBuffer,
+} from "../replication_config"
 import {get_component_value, make_world} from "../world"
 import {
   add_component,
+  add_resource,
   advance_tick,
   commit_transaction,
   spawn,
@@ -23,21 +29,25 @@ describe("reconciliation", () => {
   const Position = define_component<{x: number; y: number}>()
 
   test("reconcile late arriving transaction", () => {
-    const world = make_world(1, [Position])
-    world.history = make_history_buffer(10)
+    const world = make_world({domain_id: 1, schema: [Position]})
+    const history = {snapshots: [], max_size: 10}
+    add_resource(world, HistoryBuffer(history))
+    const input_buffer = new Map<number, unknown>()
+    add_resource(world, InputBuffer(input_buffer))
+    add_resource(world, IncomingTransactions(new Map()))
 
-    push_snapshot(world, world.history)
+    push_snapshot(world, history)
 
     const entity = spawn(world, [Position({x: 0, y: 0})])
     commit_transaction(world)
     advance_tick(world)
 
-    world.input_buffer.set(1, {dx: 1})
+    input_buffer.set(1, {dx: 1})
     add_component(world, entity, Position({x: 1, y: 0}))
     commit_transaction(world)
     advance_tick(world)
 
-    world.input_buffer.set(2, {dx: 1})
+    input_buffer.set(2, {dx: 1})
     add_component(world, entity, Position({x: 2, y: 0}))
     commit_transaction(world)
     advance_tick(world)
@@ -81,37 +91,40 @@ describe("reconciliation", () => {
   })
 
   test("prune buffers", () => {
-    const world = make_world(1, [Position])
-    world.history = make_history_buffer(10)
+    const world = make_world({domain_id: 1, schema: [Position]})
+    const history = {snapshots: [], max_size: 10}
+    add_resource(world, HistoryBuffer(history))
+    const input_buffer = new Map<number, unknown>()
+    add_resource(world, InputBuffer(input_buffer))
+    const incoming_transactions = new Map<number, Transaction[]>()
+    add_resource(world, IncomingTransactions(incoming_transactions))
+    add_resource(world, IncomingSnapshots(new Map()))
 
     for (let i = 0; i < 5; i++) {
-      world.input_buffer.set(i, {dx: i})
-      world.remote_transactions.set(i, [
-        {domain_id: 0, seq: i, tick: i, ops: []},
-      ])
+      input_buffer.set(i, {dx: i})
+      incoming_transactions.set(i, [{domain_id: 0, seq: i, tick: i, ops: []}])
       advance_tick(world)
     }
 
-    expect(world.input_buffer.size).toBe(5)
-    expect(world.remote_transactions.size).toBe(5)
-    expect(world.history?.snapshots.length).toBe(5)
+    expect(input_buffer.size).toBe(5)
+    expect(incoming_transactions.size).toBe(5)
+    expect(history.snapshots.length).toBe(5)
 
     prune_buffers(world, 3)
 
-    expect(world.input_buffer.size).toBe(2)
-    expect(world.input_buffer.has(3)).toBe(true)
-    expect(world.input_buffer.has(4)).toBe(true)
+    expect(input_buffer.size).toBe(2)
+    expect(input_buffer.has(3)).toBe(true)
+    expect(input_buffer.has(4)).toBe(true)
 
-    expect(world.remote_transactions.size).toBe(2)
-    const snapshots = world.history?.snapshots
-    expect(snapshots?.length).toBe(3)
-    if (snapshots && snapshots.length > 0 && snapshots[0]) {
-      expect(snapshots[0].tick).toBe(3)
+    expect(incoming_transactions.size).toBe(2)
+    expect(history.snapshots.length).toBe(3)
+    if (history.snapshots.length > 0 && history.snapshots[0]) {
+      expect(history.snapshots[0].tick).toBe(3)
     }
   })
 
   test("cleanup rejected transient entities (ghosts)", () => {
-    const world = make_world(1, [Position])
+    const world = make_world({domain_id: 1, schema: [Position]})
 
     world.tick = 10
     const entity = spawn(world, [Position({x: 0, y: 0})], TRANSIENT_DOMAIN)

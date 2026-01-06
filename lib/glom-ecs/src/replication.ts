@@ -1,7 +1,8 @@
 import type {Component, ComponentLike} from "./component"
-import {Replicated, ReplicationConfig} from "./replication_config"
-export {Replicated, ReplicationConfig}
+import {Replicated, ReplicationConfig, ReplicationStream} from "./replication_config"
+export {Replicated, ReplicationConfig, ReplicationStream}
 
+import {CommandBuffer, type CommandInstance} from "./command"
 import type {Entity} from "./entity"
 import {
   entity_graph_find_or_create_node,
@@ -12,7 +13,7 @@ import {
 import {get_domain, remove_entity} from "./entity_registry"
 import {add_domain_entity, remove_domain_entity} from "./entity_registry_domain"
 import {hash_word} from "./lib/hash"
-import {Read, World as WorldTerm} from "./query/term"
+import {Read, Write, World as WorldTerm} from "./query/term"
 import {prune_buffers} from "./reconciliation"
 import type {Relation} from "./relation"
 import {
@@ -26,13 +27,14 @@ import {sparse_map_delete, sparse_map_get, sparse_map_set} from "./sparse_map"
 import {define_system} from "./system"
 import {make_vec, vec_difference, vec_sum} from "./vec"
 import {
-  type Command,
   delete_component_value,
+  get_resource,
   set_component_value,
   type World,
 } from "./world"
 import {
   add_component,
+  add_resource,
   advance_tick,
   commit_transaction,
   remove_component,
@@ -148,13 +150,16 @@ export function rebind_entity(
     world.relations.object_to_subjects.delete(transient)
   }
 
-  const cmd_buffers = Array.from(world.command_buffer.values())
-  for (let i = 0; i < cmd_buffers.length; i++) {
-    const commands = cmd_buffers[i] as Command[]
-    for (let j = 0; j < commands.length; j++) {
-      const cmd = commands[j] as Command
-      if (cmd.target === transient) {
-        cmd.target = authoritative
+  const command_buffer = get_resource(world, CommandBuffer)
+  if (command_buffer) {
+    const cmd_buffers = Array.from(command_buffer.values())
+    for (let i = 0; i < cmd_buffers.length; i++) {
+      const commands = cmd_buffers[i] as CommandInstance[]
+      for (let j = 0; j < commands.length; j++) {
+        const cmd = commands[j] as CommandInstance
+        if (cmd.target === transient) {
+          cmd.target = authoritative
+        }
       }
     }
   }
@@ -379,18 +384,22 @@ export const commit_pending_mutations = define_system(
 )
 
 export const emit_snapshots = define_system(
-  (config: Read<typeof ReplicationConfig>, world: World) => {
-    if (!world.snapshot_emitter || !config.snapshot_components) return
+  (
+    config: Read<typeof ReplicationConfig>,
+    stream: Write<typeof ReplicationStream>,
+    world: World,
+  ) => {
+    if (!config.snapshot_components) return
     const blocks = capture_snapshot_stream(world, config.snapshot_components)
     if (blocks.length > 0) {
-      world.snapshot_emitter({
+      stream.snapshots.push({
         tick: world.tick,
         blocks,
       })
     }
   },
   {
-    params: [Read(ReplicationConfig), WorldTerm()],
+    params: [Read(ReplicationConfig), Write(ReplicationStream), WorldTerm()],
     name: "emit_snapshots",
   },
 )
@@ -414,4 +423,15 @@ export const advance_world_tick = define_system(
     advance_tick(world)
   },
   {params: [WorldTerm()], name: "advance_world_tick"},
+)
+
+export const clear_replication_stream = define_system(
+  (stream: Write<typeof ReplicationStream>) => {
+    stream.transactions.length = 0
+    stream.snapshots.length = 0
+  },
+  {
+    params: [Write(ReplicationStream)],
+    name: "clear_replication_stream",
+  },
 )

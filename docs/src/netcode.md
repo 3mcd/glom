@@ -2,8 +2,6 @@
 
 **Problem:** Real-time networked applications must maintain a consistent state across multiple participants despite varying latency and out-of-order data arrival.
 
-This guide covers how Glom handles networking and replication.
-
 ## 1. Topologies
 
 Glom is designed for both server-authoritative and P2P setups. The server sends authoritative changes to the client in a server-authoritative topology, while clients send high-level commands to the server for validation. Each agent sends their local changes to all other peers in a distributed P2P topology, and conflicts are resolved using strategies like Last-Write-Wins.

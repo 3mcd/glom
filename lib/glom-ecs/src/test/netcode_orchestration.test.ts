@@ -22,7 +22,7 @@ describe("netcode orchestration", () => {
   const schema = [Position, Jump]
 
   test("networked schedule lifecycle", () => {
-    const world = make_world(1, schema)
+    const world = make_world({domain_id: 1, schema})
     const player = spawn(world, [Position({x: 0, y: 0}), Replicated])
 
     const schedule = make_system_schedule()

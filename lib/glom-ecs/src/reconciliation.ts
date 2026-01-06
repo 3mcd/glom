@@ -1,17 +1,24 @@
 import {prune_commands} from "./command"
 import {get_domain_id} from "./entity"
-import {rollback_to_tick, type Snapshot} from "./history"
+import {HistoryBuffer, rollback_to_tick, type Snapshot} from "./history"
+import type {SnapshotMessage} from "./net_types"
 import {Read, World as WorldTerm} from "./query/term"
 import {
   apply_transaction,
   TRANSIENT_DOMAIN,
   type Transaction,
 } from "./replication"
-import {ReplicationConfig} from "./replication_config"
+import {
+  IncomingSnapshots,
+  IncomingTransactions,
+  InputBuffer,
+  ReplicationConfig,
+} from "./replication_config"
 import {apply_snapshot_stream} from "./snapshot_stream"
 import {define_system} from "./system"
 import {run_schedule, type SystemSchedule} from "./system_schedule"
 import type {World} from "./world"
+import {add_resource, get_resource} from "./world"
 import {
   advance_tick,
   commit_transaction,
@@ -20,12 +27,25 @@ import {
 } from "./world_api"
 
 export function receive_transaction(world: World, transaction: Transaction) {
-  let list = world.remote_transactions.get(transaction.tick)
+  const incoming = get_resource(world, IncomingTransactions)
+  if (!incoming) return
+  let list = incoming.get(transaction.tick)
   if (!list) {
     list = []
-    world.remote_transactions.set(transaction.tick, list)
+    incoming.set(transaction.tick, list)
   }
   list.push(transaction)
+}
+
+export function receive_snapshot(world: World, snapshot: SnapshotMessage) {
+  const incoming = get_resource(world, IncomingSnapshots)
+  if (!incoming) return
+  let list = incoming.get(snapshot.tick)
+  if (!list) {
+    list = []
+    incoming.set(snapshot.tick, list)
+  }
+  list.push(snapshot)
 }
 
 export function resimulate_with_transactions(
@@ -34,8 +54,11 @@ export function resimulate_with_transactions(
   tick_fn: (world: World, input: unknown) => void,
 ) {
   const from_tick = world.tick
+  const incoming_transactions = get_resource(world, IncomingTransactions)
+  const inputs = get_resource(world, InputBuffer)
+
   for (let t = from_tick; t < to_tick; t++) {
-    const transactions = world.remote_transactions.get(t)
+    const transactions = incoming_transactions?.get(t)
     if (transactions) {
       for (const transaction of transactions) {
         apply_transaction(world, transaction)
@@ -43,7 +66,7 @@ export function resimulate_with_transactions(
       world_flush_graph_changes(world)
     }
 
-    const input = world.input_buffer.get(t + 1)
+    const input = inputs?.get(t + 1)
     tick_fn(world, input)
 
     commit_transaction(world)
@@ -62,39 +85,51 @@ export function reconcile_transaction(
     return
   }
 
-  if (!world.history) return
+  const history = get_resource(world, HistoryBuffer)
+  if (!history) return
 
   const original_tick = world.tick
-  if (rollback_to_tick(world, world.history, transaction.tick)) {
+  if (rollback_to_tick(world, history, transaction.tick)) {
     resimulate_with_transactions(world, original_tick, tick_fn)
   } else {
     apply_transaction(world, transaction)
     world_flush_graph_changes(world)
-    world.remote_transactions.delete(transaction.tick)
+    const incoming_transactions = get_resource(world, IncomingTransactions)
+    incoming_transactions?.delete(transaction.tick)
   }
 }
 
 export function prune_buffers(world: World, min_tick: number) {
-  for (const tick of world.remote_transactions.keys()) {
-    if (tick < min_tick) {
-      world.remote_transactions.delete(tick)
+  const incoming_transactions = get_resource(world, IncomingTransactions)
+  if (incoming_transactions) {
+    for (const tick of incoming_transactions.keys()) {
+      if (tick < min_tick) {
+        incoming_transactions.delete(tick)
+      }
     }
   }
 
-  for (const tick of world.remote_snapshots.keys()) {
-    if (tick < min_tick) {
-      world.remote_snapshots.delete(tick)
+  const incoming_snapshots = get_resource(world, IncomingSnapshots)
+  if (incoming_snapshots) {
+    for (const tick of incoming_snapshots.keys()) {
+      if (tick < min_tick) {
+        incoming_snapshots.delete(tick)
+      }
     }
   }
 
-  for (const tick of world.input_buffer.keys()) {
-    if (tick < min_tick) {
-      world.input_buffer.delete(tick)
+  const inputs = get_resource(world, InputBuffer)
+  if (inputs) {
+    for (const tick of inputs.keys()) {
+      if (tick < min_tick) {
+        inputs.delete(tick)
+      }
     }
   }
 
-  if (world.history) {
-    const snapshots = world.history.snapshots
+  const history = get_resource(world, HistoryBuffer)
+  if (history) {
+    const snapshots = history.snapshots
     while (snapshots.length > 0) {
       const first = snapshots[0]
       if (first && first.tick < min_tick) {
@@ -112,10 +147,14 @@ export function perform_batch_reconciliation(
   world: World,
   schedule: SystemSchedule,
 ) {
-  if (!world.history) return
+  const history = get_resource(world, HistoryBuffer)
+  if (!history) return
+
+  const incoming_transactions = get_resource(world, IncomingTransactions)
+  if (!incoming_transactions) return
 
   let min_tick = Infinity
-  for (const tick of world.remote_transactions.keys()) {
+  for (const tick of incoming_transactions.keys()) {
     if (tick < world.tick) {
       min_tick = Math.min(min_tick, tick)
     }
@@ -125,23 +164,23 @@ export function perform_batch_reconciliation(
 
   const original_tick = world.tick
 
-  if (rollback_to_tick(world, world.history, min_tick)) {
+  if (rollback_to_tick(world, history, min_tick)) {
     while (world.tick < original_tick) {
       run_schedule(schedule, world as World)
       commit_transaction(world)
 
-      const transactions = world.remote_transactions.get(world.tick)
+      const transactions = incoming_transactions.get(world.tick)
       if (transactions) {
         for (const transaction of transactions) {
           apply_transaction(world, transaction)
         }
         world_flush_graph_changes(world)
-        world.remote_transactions.delete(world.tick)
+        incoming_transactions.delete(world.tick)
       }
 
       if (world.tick < original_tick) {
         const next_tick = world.tick + 1
-        const next_transactions = world.remote_transactions.get(next_tick)
+        const next_transactions = incoming_transactions.get(next_tick)
         const has_next_transaction =
           next_transactions && next_transactions.length > 0
         const is_checkpoint = next_tick % 5 === 0
@@ -152,22 +191,22 @@ export function perform_batch_reconciliation(
     }
   } else {
     const oldest_history_tick =
-      world.history.snapshots.length > 0
-        ? (world.history.snapshots[0] as Snapshot).tick
+      history.snapshots.length > 0
+        ? (history.snapshots[0] as Snapshot).tick
         : world.tick
 
-    const sorted_ticks = Array.from(world.remote_transactions.keys()).sort(
+    const sorted_ticks = Array.from(incoming_transactions.keys()).sort(
       (a, b) => a - b,
     )
     for (const tick of sorted_ticks) {
       if (tick < oldest_history_tick) {
-        const transactions = world.remote_transactions.get(tick)
+        const transactions = incoming_transactions.get(tick)
         if (transactions) {
           for (const transaction of transactions) {
             apply_transaction(world, transaction)
           }
           world_flush_graph_changes(world)
-          world.remote_transactions.delete(tick)
+          incoming_transactions.delete(tick)
         }
       } else {
         break
@@ -193,12 +232,14 @@ export function cleanup_transient_entities(
 
 export const apply_remote_transactions = define_system(
   (world: World) => {
-    const transactions = world.remote_transactions.get(world.tick)
+    const incoming = get_resource(world, IncomingTransactions)
+    if (!incoming) return
+    const transactions = incoming.get(world.tick)
     if (transactions) {
       for (const transaction of transactions) {
         apply_transaction(world, transaction)
       }
-      world.remote_transactions.delete(world.tick)
+      incoming.delete(world.tick)
     }
   },
   {params: [WorldTerm()], name: "apply_remote_transactions"},
@@ -206,12 +247,14 @@ export const apply_remote_transactions = define_system(
 
 export const apply_remote_snapshots = define_system(
   (world: World) => {
-    const snapshots = world.remote_snapshots.get(world.tick)
+    const incoming = get_resource(world, IncomingSnapshots)
+    if (!incoming) return
+    const snapshots = incoming.get(world.tick)
     if (snapshots) {
       for (const snap of snapshots) {
         apply_snapshot_stream(world, snap)
       }
-      world.remote_snapshots.delete(world.tick)
+      incoming.delete(world.tick)
     }
   },
   {params: [WorldTerm()], name: "apply_remote_snapshots"},

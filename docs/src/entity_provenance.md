@@ -2,11 +2,9 @@
 
 **Problem:** Entities need to be uniquely identifiable across a network without the overhead of central coordination or large, heap-allocated identifiers.
 
-An `Entity` is a single 31-bit integer in Glom. It is composed of two parts: the local ID (lo bits) and the domain ID (hi bits).
-
 ## Bit Distribution
 
-The 31 bits are split into two regions. Bits 0-19 are for the local entity ID, providing a high capacity for entities within a single domain. Bits 20-30 are for the domain ID, which identifies the entity's origin.
+An `Entity` is a single 31-bit integer in Glom. The 31 bits are split into two regions. Bits 0-19 are for the local entity ID, providing a high capacity for entities within a single domain. Bits 20-30 are for the domain ID, which identifies the entity's origin.
 
 ```text
  30          20 19           0

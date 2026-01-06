@@ -1,9 +1,14 @@
 import {describe, expect, test} from "bun:test"
-import {record_command, prune_commands, CommandOf} from "./command"
+import {
+  record_command,
+  prune_commands,
+  CommandOf,
+  CommandBuffer,
+} from "./command"
 import {define_component, define_tag, type ComponentResolver} from "./component"
 import {define_system} from "./system"
 import {sparse_map_get} from "./sparse_map"
-import {make_world, get_component_value} from "./world"
+import {make_world, get_component_value, get_resource} from "./world"
 import type {World} from "./world"
 import type {Entity} from "./entity"
 import {spawn} from "./world_api"
@@ -21,13 +26,14 @@ describe("command api", () => {
   const schema = [Jump, Move]
 
   test("record and execute relational commands", () => {
-    const world = make_world(1, schema)
+    const world = make_world({domain_id: 1, schema})
     const player = spawn(world, [])
 
     record_command(world, player, Jump, 10)
     record_command(world, player, Move({x: 5, y: 10}), 10)
 
-    expect(world.command_buffer.get(10)?.length).toBe(2)
+    const command_buffer = get_resource(world, CommandBuffer)
+    expect(command_buffer?.get(10)?.length).toBe(2)
 
     let jump_found = false
     let move_val: {x: number; y: number} | undefined
@@ -132,14 +138,15 @@ describe("command api", () => {
   })
 
   test("pruning", () => {
-    const world = make_world(1, schema)
+    const world = make_world({domain_id: 1, schema})
     const player = spawn(world, [])
     record_command(world, player, Jump, 10)
     record_command(world, player, Jump, 20)
 
     prune_commands(world, 15)
 
-    expect(world.command_buffer.has(10)).toBe(false)
-    expect(world.command_buffer.has(20)).toBe(true)
+    const command_buffer = get_resource(world, CommandBuffer)
+    expect(command_buffer?.has(10)).toBe(false)
+    expect(command_buffer?.has(20)).toBe(true)
   })
 })

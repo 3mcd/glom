@@ -68,7 +68,6 @@ const render_system = (
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height)
 
   for (const [pos, color_id] of query) {
-    // Blue and Yellow from syntax highlighting for colorblind accessibility
     ctx.fillStyle = color_id === 1 ? "#aed7f5" : "#d6d4a6"
     ctx.fillRect(pos.x - 10, pos.y - 10, 20, 20)
   }
@@ -81,7 +80,7 @@ function create_peer(
 ) {
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement
   const ctx = canvas.getContext("2d") as CanvasRenderingContext2D
-  const world = g.make_world(domain_id, schema)
+  const world = g.make_world({domain_id, schema})
   const schedule = g.make_system_schedule()
 
   g.add_resource(world, CanvasContext(ctx))
@@ -93,7 +92,12 @@ function create_peer(
       snapshot_components: [world.component_registry.get_id(Position)],
     }),
   )
+  g.add_resource(world, g.ReplicationStream({transactions: [], snapshots: []}))
+  g.add_resource(world, g.CommandBuffer(new Map()))
+  g.add_resource(world, g.IncomingTransactions(new Map()))
+  g.add_resource(world, g.IncomingSnapshots(new Map()))
 
+  g.add_system(schedule, g.clear_replication_stream)
   g.add_system(schedule, reconciliation.apply_remote_transactions)
   g.add_system(schedule, reconciliation.apply_remote_snapshots)
   g.add_system(schedule, reconciliation.cleanup_ghosts)
@@ -150,41 +154,55 @@ const peer_b = create_peer(2, "canvasB", {
   right: "ArrowRight",
 })
 
-const link = (from: g.World, to: g.World) => {
-  from.recorder = (transaction) => {
-    const writer = new g.ByteWriter()
-    g.write_transaction(writer, transaction, from)
-    const reader = new g.ByteReader(writer.get_bytes())
-    const header = g.read_message_header(reader)
-    const decoded = g.read_transaction(reader, header.tick, to)
-    g.apply_transaction(to, decoded)
-  }
-
-  from.snapshot_emitter = (snap) => {
-    const writer = new g.ByteWriter()
-    g.write_snapshot(writer, snap, from)
-    const reader = new g.ByteReader(writer.get_bytes())
-    const header = g.read_message_header(reader)
-    const decoded = g.read_snapshot(reader, header.tick, to)
-
-    let list = to.remote_snapshots.get(decoded.tick)
-    if (!list) {
-      list = []
-      to.remote_snapshots.set(decoded.tick, list)
-    }
-    list.push(decoded)
-  }
-}
-
-link(peer_a.world, peer_b.world)
-link(peer_b.world, peer_a.world)
-
 const entity_a = peer_a.spawn_player()
 const entity_b = peer_b.spawn_player()
 
 function loop() {
   peer_a.update(entity_a)
   peer_b.update(entity_b)
+
+  // Peer A -> Peer B
+  const stream_a = g.get_resource(peer_a.world, g.ReplicationStream)
+  if (stream_a) {
+    for (const tx of stream_a.transactions) {
+      const writer = new g.ByteWriter()
+      g.write_transaction(writer, tx, peer_a.world)
+      const reader = new g.ByteReader(writer.get_bytes())
+      const header = g.read_message_header(reader)
+      const decoded = g.read_transaction(reader, header.tick, peer_b.world)
+      g.receive_transaction(peer_b.world, decoded)
+    }
+    for (const snap of stream_a.snapshots) {
+      const writer = new g.ByteWriter()
+      g.write_snapshot(writer, snap, peer_a.world)
+      const reader = new g.ByteReader(writer.get_bytes())
+      const header = g.read_message_header(reader)
+      const decoded = g.read_snapshot(reader, header.tick, peer_b.world)
+      g.receive_snapshot(peer_b.world, decoded)
+    }
+  }
+
+  // Peer B -> Peer A
+  const stream_b = g.get_resource(peer_b.world, g.ReplicationStream)
+  if (stream_b) {
+    for (const tx of stream_b.transactions) {
+      const writer = new g.ByteWriter()
+      g.write_transaction(writer, tx, peer_b.world)
+      const reader = new g.ByteReader(writer.get_bytes())
+      const header = g.read_message_header(reader)
+      const decoded = g.read_transaction(reader, header.tick, peer_a.world)
+      g.receive_transaction(peer_a.world, decoded)
+    }
+    for (const snap of stream_b.snapshots) {
+      const writer = new g.ByteWriter()
+      g.write_snapshot(writer, snap, peer_b.world)
+      const reader = new g.ByteReader(writer.get_bytes())
+      const header = g.read_message_header(reader)
+      const decoded = g.read_snapshot(reader, header.tick, peer_a.world)
+      g.receive_snapshot(peer_a.world, decoded)
+    }
+  }
+
   requestAnimationFrame(loop)
 }
 

@@ -194,7 +194,7 @@ class MockPipe {
 }
 
 function setup_server() {
-  const world = g.make_world(0, schema)
+  const world = g.make_world({domain_id: 0, schema})
   const schedule = g.make_system_schedule()
 
   g.add_resource(
@@ -203,6 +203,10 @@ function setup_server() {
       history_window: 64,
     }),
   )
+  g.add_resource(world, g.ReplicationStream({transactions: [], snapshots: []}))
+  g.add_resource(world, g.CommandBuffer(new Map()))
+  g.add_resource(world, g.IncomingTransactions(new Map()))
+  g.add_resource(world, g.IncomingSnapshots(new Map()))
 
   g.add_system(schedule, reconciliation.apply_remote_transactions)
   g.add_system(schedule, commands.spawn_ephemeral_commands)
@@ -217,8 +221,12 @@ function setup_server() {
 }
 
 function setup_client(domain_id: number) {
-  const world = g.make_world(domain_id, schema)
-  world.history = {snapshots: [], max_size: 120}
+  const world = g.make_world({domain_id, schema})
+  g.add_resource(world, g.HistoryBuffer({snapshots: [], max_size: 120}))
+  g.add_resource(world, g.CommandBuffer(new Map()))
+  g.add_resource(world, g.IncomingTransactions(new Map()))
+  g.add_resource(world, g.IncomingSnapshots(new Map()))
+  g.add_resource(world, g.InputBuffer(new Map()))
 
   const reconcile_schedule = g.make_system_schedule()
   g.add_system(reconcile_schedule, commands.spawn_ephemeral_commands)
@@ -259,12 +267,6 @@ test("rigorous straight-line movement isomorphism", () => {
   const server_to_client = new MockPipe()
   const LATENCY_TICKS = 5
 
-  server.world.recorder = (transaction) => {
-    const writer = new g.ByteWriter()
-    g.write_transaction(writer, transaction, server.world)
-    server_to_client.send(writer.get_bytes(), server.world.tick, LATENCY_TICKS)
-  }
-
   const player = g.spawn(server.world, [Position({x: 0, y: 0}), g.Replicated])
 
   const handshake_writer = new g.ByteWriter()
@@ -282,7 +284,7 @@ test("rigorous straight-line movement isomorphism", () => {
     for (const packet of client_to_server.receive(server.world.tick)) {
       const reader = new g.ByteReader(packet)
       const header = g.read_message_header(reader)
-      if (header.type === g.MessageType.Input) {
+      if (header.type === g.MessageType.Command) {
         const cmd_msg = g.read_commands(reader, header.tick, server.world)
         const target_tick = Math.max(server.world.tick, cmd_msg.tick)
         for (const cmd of cmd_msg.commands) {
@@ -310,6 +312,30 @@ test("rigorous straight-line movement isomorphism", () => {
 
     g.run_schedule(server.schedule, server.world as g.World)
 
+    const stream = g.get_resource(server.world, g.ReplicationStream)
+    if (stream) {
+      for (const transaction of stream.transactions) {
+        const writer = new g.ByteWriter()
+        g.write_transaction(writer, transaction, server.world)
+        server_to_client.send(
+          writer.get_bytes(),
+          server.world.tick,
+          LATENCY_TICKS,
+        )
+      }
+      for (const snap of stream.snapshots) {
+        const writer = new g.ByteWriter()
+        g.write_snapshot(writer, snap, server.world)
+        server_to_client.send(
+          writer.get_bytes(),
+          server.world.tick,
+          LATENCY_TICKS,
+        )
+      }
+      stream.transactions.length = 0
+      stream.snapshots.length = 0
+    }
+
     for (const packet of server_to_client.receive(tick)) {
       const reader = new g.ByteReader(packet)
       const header = g.read_message_header(reader)
@@ -318,13 +344,18 @@ test("rigorous straight-line movement isomorphism", () => {
         if (!client_synced) {
           client.world.tick = handshake.tick + LATENCY_TICKS * 3
 
-          if (client.world.history) {
-            g.push_snapshot(client.world, client.world.history)
+          const history = g.get_resource(client.world, g.HistoryBuffer)
+          if (history) {
+            g.push_snapshot(client.world, history)
           }
           client_synced = true
         }
       } else if (header.type === g.MessageType.Transaction) {
-        const transaction = g.read_transaction(reader, header.tick, server.world)
+        const transaction = g.read_transaction(
+          reader,
+          header.tick,
+          server.world,
+        )
         g.receive_transaction(client.world, transaction)
       }
     }
@@ -332,7 +363,8 @@ test("rigorous straight-line movement isomorphism", () => {
     if (client_synced) {
       g.record_command(client.world, player, MoveCommand({dx: 1, dy: 0}))
 
-      const commands = client.world.command_buffer.get(client.world.tick)
+      const command_buffer = g.get_resource(client.world, g.CommandBuffer)
+      const commands = command_buffer?.get(client.world.tick)
       if (commands) {
         const writer = new g.ByteWriter()
         g.write_commands(
@@ -354,9 +386,8 @@ test("rigorous straight-line movement isomorphism", () => {
       if (check_tick >= 0) {
         const s_pos = server_positions.get(check_tick)
 
-        const snapshot = client.world.history?.snapshots.find(
-          (s) => s.tick === check_tick,
-        )
+        const history = g.get_resource(client.world, g.HistoryBuffer)
+        const snapshot = history?.snapshots.find((s) => s.tick === check_tick)
 
         if (s_pos && snapshot) {
           const player_idx = snapshot.entity_to_index.get(player)
@@ -384,12 +415,6 @@ test("stop-and-go movement isomorphism", () => {
   const server_to_client = new MockPipe()
   const LATENCY_TICKS = 5
 
-  server.world.recorder = (transaction) => {
-    const writer = new g.ByteWriter()
-    g.write_transaction(writer, transaction, server.world)
-    server_to_client.send(writer.get_bytes(), server.world.tick, LATENCY_TICKS)
-  }
-
   const player = g.spawn(server.world, [Position({x: 0, y: 0}), g.Replicated])
 
   const handshake_writer = new g.ByteWriter()
@@ -407,7 +432,7 @@ test("stop-and-go movement isomorphism", () => {
     for (const packet of client_to_server.receive(server.world.tick)) {
       const reader = new g.ByteReader(packet)
       const header = g.read_message_header(reader)
-      if (header.type === g.MessageType.Input) {
+      if (header.type === g.MessageType.Command) {
         const cmd_msg = g.read_commands(reader, header.tick, server.world)
         const target_tick = Math.max(server.world.tick, cmd_msg.tick)
         for (const cmd of cmd_msg.commands) {
@@ -433,6 +458,30 @@ test("stop-and-go movement isomorphism", () => {
     }
     g.run_schedule(server.schedule, server.world as g.World)
 
+    const stream = g.get_resource(server.world, g.ReplicationStream)
+    if (stream) {
+      for (const transaction of stream.transactions) {
+        const writer = new g.ByteWriter()
+        g.write_transaction(writer, transaction, server.world)
+        server_to_client.send(
+          writer.get_bytes(),
+          server.world.tick,
+          LATENCY_TICKS,
+        )
+      }
+      for (const snap of stream.snapshots) {
+        const writer = new g.ByteWriter()
+        g.write_snapshot(writer, snap, server.world)
+        server_to_client.send(
+          writer.get_bytes(),
+          server.world.tick,
+          LATENCY_TICKS,
+        )
+      }
+      stream.transactions.length = 0
+      stream.snapshots.length = 0
+    }
+
     for (const packet of server_to_client.receive(tick)) {
       const reader = new g.ByteReader(packet)
       const header = g.read_message_header(reader)
@@ -443,7 +492,11 @@ test("stop-and-go movement isomorphism", () => {
           client_synced = true
         }
       } else if (header.type === g.MessageType.Transaction) {
-        const transaction = g.read_transaction(reader, header.tick, server.world)
+        const transaction = g.read_transaction(
+          reader,
+          header.tick,
+          server.world,
+        )
         g.receive_transaction(client.world, transaction)
       }
     }
@@ -453,7 +506,8 @@ test("stop-and-go movement isomorphism", () => {
         g.record_command(client.world, player, MoveCommand({dx: 1, dy: 0}))
       }
 
-      const commands = client.world.command_buffer.get(client.world.tick)
+      const command_buffer = g.get_resource(client.world, g.CommandBuffer)
+      const commands = command_buffer?.get(client.world.tick)
       if (commands) {
         const writer = new g.ByteWriter()
         g.write_commands(
@@ -475,9 +529,8 @@ test("stop-and-go movement isomorphism", () => {
       if (check_tick >= 0) {
         const s_pos = server_positions.get(check_tick)
 
-        const snapshot = client.world.history?.snapshots.find(
-          (s) => s.tick === check_tick,
-        )
+        const history = g.get_resource(client.world, g.HistoryBuffer)
+        const snapshot = history?.snapshots.find((s) => s.tick === check_tick)
 
         if (s_pos && snapshot) {
           const player_idx = snapshot.entity_to_index.get(player)
@@ -505,12 +558,6 @@ test("predictive spawning and rebinding isomorphism", () => {
   const server_to_client = new MockPipe()
   const LATENCY_TICKS = 5
 
-  server.world.recorder = (transaction) => {
-    const writer = new g.ByteWriter()
-    g.write_transaction(writer, transaction, server.world)
-    server_to_client.send(writer.get_bytes(), server.world.tick, LATENCY_TICKS)
-  }
-
   const player = g.spawn(server.world, [Position({x: 0, y: 0}), g.Replicated])
 
   const handshake_writer = new g.ByteWriter()
@@ -531,7 +578,7 @@ test("predictive spawning and rebinding isomorphism", () => {
     for (const packet of client_to_server.receive(server.world.tick)) {
       const reader = new g.ByteReader(packet)
       const header = g.read_message_header(reader)
-      if (header.type === g.MessageType.Input) {
+      if (header.type === g.MessageType.Command) {
         const cmd_msg = g.read_commands(reader, header.tick, server.world)
         const target_tick = Math.max(server.world.tick, cmd_msg.tick)
         for (const cmd of cmd_msg.commands) {
@@ -553,6 +600,30 @@ test("predictive spawning and rebinding isomorphism", () => {
     }
     g.run_schedule(server.schedule, server.world as g.World)
 
+    const stream = g.get_resource(server.world, g.ReplicationStream)
+    if (stream) {
+      for (const transaction of stream.transactions) {
+        const writer = new g.ByteWriter()
+        g.write_transaction(writer, transaction, server.world)
+        server_to_client.send(
+          writer.get_bytes(),
+          server.world.tick,
+          LATENCY_TICKS,
+        )
+      }
+      for (const snap of stream.snapshots) {
+        const writer = new g.ByteWriter()
+        g.write_snapshot(writer, snap, server.world)
+        server_to_client.send(
+          writer.get_bytes(),
+          server.world.tick,
+          LATENCY_TICKS,
+        )
+      }
+      stream.transactions.length = 0
+      stream.snapshots.length = 0
+    }
+
     for (const packet of server_to_client.receive(tick)) {
       const reader = new g.ByteReader(packet)
       const header = g.read_message_header(reader)
@@ -563,7 +634,11 @@ test("predictive spawning and rebinding isomorphism", () => {
           client_synced = true
         }
       } else if (header.type === g.MessageType.Transaction) {
-        const transaction = g.read_transaction(reader, header.tick, server.world)
+        const transaction = g.read_transaction(
+          reader,
+          header.tick,
+          server.world,
+        )
         g.receive_transaction(client.world, transaction)
       }
     }
@@ -574,7 +649,8 @@ test("predictive spawning and rebinding isomorphism", () => {
         spawn_triggered = true
       }
 
-      const commands = client.world.command_buffer.get(client.world.tick)
+      const command_buffer = g.get_resource(client.world, g.CommandBuffer)
+      const commands = command_buffer?.get(client.world.tick)
       if (commands) {
         const writer = new g.ByteWriter()
         g.write_commands(

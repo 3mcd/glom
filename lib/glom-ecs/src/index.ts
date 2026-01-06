@@ -1,5 +1,6 @@
 export {assert, assert_defined} from "./assert"
 export {
+  CommandBuffer,
   CommandEntity,
   CommandOf,
   cleanup_ephemeral_commands,
@@ -20,7 +21,7 @@ export {Entity, get_domain_id, get_local_id} from "./entity"
 export {get_domain} from "./entity_registry"
 export {
   capture_snapshot,
-  type HistoryBuffer,
+  HistoryBuffer,
   make_history_buffer,
   push_snapshot,
   rollback_to_snapshot,
@@ -75,6 +76,7 @@ export {
   perform_batch_reconciliation,
   perform_rollback,
   prune_buffers,
+  receive_snapshot,
   receive_transaction,
   reconcile_transaction,
   resimulate_with_transactions,
@@ -92,6 +94,7 @@ export {
 export {
   advance_world_tick,
   apply_transaction,
+  clear_replication_stream,
   commit_pending_mutations,
   emit_snapshots,
   make_causal_key,
@@ -100,7 +103,14 @@ export {
   rebind_entity,
   type Transaction,
 } from "./replication"
-export {Replicated, ReplicationConfig} from "./replication_config"
+export {
+  IncomingSnapshots,
+  IncomingTransactions,
+  InputBuffer,
+  Replicated,
+  ReplicationConfig,
+  ReplicationStream,
+} from "./replication_config"
 export {
   apply_snapshot_stream,
   capture_snapshot_stream,
@@ -144,10 +154,12 @@ export {
   add_resource,
   delete_component_value,
   get_component_value,
+  get_resource,
   make_world,
   type SnapshotEmitter,
   set_component_value,
   type World,
+  type WorldOptions,
 } from "./world"
 export {
   add_component,

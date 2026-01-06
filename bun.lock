@@ -18,6 +18,36 @@
         "typescript": "^5",
       },
     },
+    "app/networked-platformer-client": {
+      "name": "@glom/networked-platformer-client",
+      "version": "1.0.0",
+      "dependencies": {
+        "@glom/ecs": "workspace:*",
+        "@glom/networked-platformer-shared": "workspace:*",
+      },
+      "devDependencies": {
+        "@glom/transformer-rollup": "workspace:*",
+        "vite": "latest",
+      },
+    },
+    "app/networked-platformer-server": {
+      "name": "@glom/networked-platformer-server",
+      "version": "1.0.0",
+      "dependencies": {
+        "@glom/ecs": "workspace:*",
+        "@glom/networked-platformer-shared": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+    },
+    "app/networked-platformer-shared": {
+      "name": "@glom/networked-platformer-shared",
+      "version": "1.0.0",
+      "dependencies": {
+        "@glom/ecs": "workspace:*",
+      },
+    },
     "app/p2p-canvas": {
       "name": "p2p-canvas",
       "version": "1.0.0",
@@ -220,6 +250,12 @@
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.27.2", "", { "os": "win32", "cpu": "x64" }, "sha512-sRdU18mcKf7F+YgheI/zGf5alZatMUTKj/jNS6l744f9u3WFu4v7twcUI9vu4mknF4Y9aDlblIie0IM+5xxaqQ=="],
 
     "@glom/ecs": ["@glom/ecs@workspace:lib/glom-ecs"],
+
+    "@glom/networked-platformer-client": ["@glom/networked-platformer-client@workspace:app/networked-platformer-client"],
+
+    "@glom/networked-platformer-server": ["@glom/networked-platformer-server@workspace:app/networked-platformer-server"],
+
+    "@glom/networked-platformer-shared": ["@glom/networked-platformer-shared@workspace:app/networked-platformer-shared"],
 
     "@glom/transformer": ["@glom/transformer@workspace:lib/glom-transformer"],
 
