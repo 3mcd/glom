@@ -26,7 +26,7 @@ const onShieldAdded = (
 ) => {
   // yields only entities that just received a shield
   for (const [entity] of added) {
-    addVfx(entity, ShieldVFX, { intensity: 1.0 })
+    addVfx(entity, { intensity: 1.0 })
   }
 }
 ```
@@ -46,7 +46,7 @@ const onShieldRemoved = (
   removeVfx: Remove<typeof ShieldVFX>
 ) => {
   for (const [entity] of removed) {
-    removeVfx(entity, ShieldVFX)
+    removeVfx(entity)
   }
 }
 ```
@@ -65,10 +65,10 @@ const EmitsFrom = defineRelation()
 // spawn a beam and link it
 const onAttackStarted = (
   added: In<Entity, typeof Attacking>,
-  spawn: Spawn<Beam, EmitsFrom>
+  spawn: Spawn
 ) => {
   for (const [player] of added) {
-    spawn(spawner, LaserBeam, EmitsFrom(player))
+    spawn([LaserBeam, EmitsFrom(player)])
   }
 }
 
@@ -81,6 +81,16 @@ const onAttackStopped = (
     despawn(beam)
   }
 }
+```
+
+The world API equivalents for these operations:
+
+```typescript
+// spawning with initial components
+const beam = spawn(world, [LaserBeam, EmitsFrom(player)])
+
+// despawning
+despawn(world, beam)
 ```
 
 The `Out` query yields entities that no longer emit from attacking entities in `onAttackStopped`, which means they can be cleaned up.

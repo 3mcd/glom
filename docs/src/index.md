@@ -28,10 +28,10 @@ expect(pos).toEqual({x: 1, y: 2})
 ```typescript
 const Contact = defineRelation()
 
-const collide = (query: All<Entity, Read<Pos>>, spawn: Spawn<Contact>) => {
+const collide = (query: All<Entity, Read<Position>>, spawn: Spawn) => {
   for (const [a, aPos] of query) {
     for (const [b, bPos] of query) {
-      if (intersects(aPos, bPos)) spawn(a, Contact(b))
+      if (intersects(aPos, bPos)) spawn([Contact(b)])
     }
   }
 }
@@ -54,6 +54,11 @@ addSystem(schedule, glom.advanceWorldTick)
 
 // tag entities for sync
 addComponent(world, player, Replicated)
+
+// or within a system:
+const syncSystem = (q: All<Entity>, add: Add<typeof Replicated>) => {
+  for (const [e] of q) add(e)
+}
 ```
 
 The <span class="text-guides">**optimizer**</span> is a TypeScript transformer that injects system dependencies and inlines query loops.

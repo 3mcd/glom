@@ -28,6 +28,12 @@ const child = spawn(world)
 
 // the child now has a relationship pointing to its parent
 addComponent(world, child, ChildOf(parent))
+
+// within a system:
+const linkSystem = (spawn: Spawn) => {
+  const parent = spawn([])
+  const child = spawn([ChildOf(parent)])
+}
 ```
 
 ## Querying Relationships

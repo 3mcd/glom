@@ -171,6 +171,48 @@ addComponent(world, player, IsPlayer)
 worldFlushGraphChanges(world)
 ```
 
+Within a system, you use the `Spawn` and `Add` descriptors to perform these operations:
+
+```typescript
+import { Add, Spawn } from "@glom/ecs"
+
+const playerSpawner = (spawn: Spawn, addPosition: Add<typeof Position>) => {
+  const player = spawn([IsPlayer])
+  addPosition(player, { x: 0, y: 0 })
+}
+```
+
+## 8. Despawning and Removing Components
+
+Removing data or entities is just as straightforward.
+
+```typescript
+import { despawn, removeComponent } from "@glom/ecs"
+
+// remove a single component
+removeComponent(world, player, Velocity)
+
+// remove the entire entity
+despawn(world, player)
+```
+
+And the system equivalents using `Remove` and `Despawn`:
+
+```typescript
+import { Despawn, Remove } from "@glom/ecs"
+
+const cleanupSystem = (
+  query: All<Entity, Has<typeof IsDead>>,
+  remove: Remove<typeof IsDead>,
+  despawn: Despawn
+) => {
+  for (const [entity] of query) {
+    remove(entity)
+    despawn(entity)
+  }
+}
+```
+
 ## Appendix: Without the Transformer
 
 You can define systems manually if you don't want to use a build step.
