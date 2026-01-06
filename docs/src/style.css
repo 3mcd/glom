@@ -371,6 +371,12 @@ footer {
   font-family: var(--font-mono);
 }
 
+/* lists */
+ul, ol {
+  padding-left: 3rem;
+}
+
+
 /* Definitions (DL, DT, DD) */
 
 dl {
