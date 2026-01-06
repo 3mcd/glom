@@ -28,7 +28,7 @@ expect(pos).toEqual({x: 1, y: 2})
 ```typescript
 const Contact = defineRelation()
 
-const collide = (query: All<Entity, Position>, spawn: Spawn) => {
+const collide = (query: All<Entity, Pos>, spawn: Spawn) => {
   for (const [a, aPos] of query) {
     for (const [b, bPos] of query) {
       if (intersects(aPos, bPos)) spawn([Contact(b)])
