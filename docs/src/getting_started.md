@@ -185,7 +185,7 @@ flushGraphChanges(world)
 For predictable logic, use a fixed timestep loop.
 
 ```typescript
-import { makeTimestep, timestepUpdate } from "@glom/ecs"
+import { makeTimestep, advanceTimestep } from "@glom/ecs"
 
 const timestep = makeTimestep(60) // 60fps logic
 
@@ -193,7 +193,7 @@ function loop() {
   const now = performance.now()
   
   // step the logic in fixed increments
-  timestepUpdate(timestep, now, (delta) => {
+  advanceTimestep(timestep, now, (delta) => {
     runSchedule(schedule, world)
   })
   

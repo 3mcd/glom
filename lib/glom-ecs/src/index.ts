@@ -150,10 +150,10 @@ export {
 } from "./system_schedule"
 export {GlomMonitors} from "./systems/monitors"
 export {
+  advanceTimestep,
   makeTimestep,
   type Timestep,
   timestepSetOffset,
-  timestepUpdate,
 } from "./timestep"
 export {
   addResource,

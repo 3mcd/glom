@@ -26,7 +26,7 @@ export function makeTimestep(
   }
 }
 
-export function timestepUpdate(
+export function advanceTimestep(
   timestep: Timestep,
   nowLocal: number,
   onTick: (dt: number) => void,

@@ -355,7 +355,7 @@ function loop() {
   }
 
   if (client.isSynced) {
-    g.timestepUpdate(client.timestep, now, () => {
+    g.advanceTimestep(client.timestep, now, () => {
       let dx = 0,
         dy = 0
       if (client.activeKeys.has("KeyW")) dy -= 1
@@ -389,7 +389,7 @@ function loop() {
     })
   }
 
-  g.timestepUpdate(server.timestep, now, () => {
+  g.advanceTimestep(server.timestep, now, () => {
     g.runSchedule(server.schedule, server.world)
 
     const stream = g.getResource(server.world, g.ReplicationStream)
