@@ -108,7 +108,7 @@ Provide the `in` or `out` descriptors in the system metadata if you aren't using
 ```typescript
 import { In, Read, defineSystem } from "@glom/ecs"
 
-const onPositionAdded = defineSystem((added: In<Read<typeof Position>>) => {
+const onPositionAdded = defineSystem((added: In<typeof Position>) => {
   for (const [pos] of added) {
     // ...
   }

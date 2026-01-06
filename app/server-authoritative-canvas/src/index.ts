@@ -74,7 +74,7 @@ function addLogicalSystems(schedule: g.SystemSchedule) {
 const pulseSpawnerSystem = (
   query: g.All<
     g.Entity,
-    g.Read<typeof Position>,
+    typeof Position,
     g.Rel<typeof g.CommandOf, g.Has<typeof FireCommand>>
   >,
   world: g.World,
@@ -110,8 +110,8 @@ const pulseSpawnerSystem = (
 const movementSystem = (
   query: g.All<
     g.Entity,
-    g.Read<typeof Position>,
-    g.Rel<typeof g.CommandOf, g.Read<typeof MoveCommand>>
+    typeof Position,
+    g.Rel<typeof g.CommandOf, typeof MoveCommand>
   >,
   update: g.Add<typeof Position>,
 ) => {
@@ -129,7 +129,7 @@ const movementSystem = (
 }
 
 const pulseSystem = (
-  query: g.All<g.Entity, g.Read<typeof Pulse>>,
+  query: g.All<g.Entity, typeof Pulse>,
   update: g.Add<typeof Pulse>,
   despawn: g.Despawn,
 ) => {
@@ -146,8 +146,8 @@ const pulseSystem = (
 const attachedPulseSystem = (
   pulses: g.All<
     g.Entity,
-    g.Read<typeof Position>,
-    g.Rel<typeof PulseOf, g.Read<typeof Position>>
+    typeof Position,
+    g.Rel<typeof PulseOf, typeof Position>
   >,
   update: g.Add<typeof Position>,
 ) => {
@@ -157,8 +157,8 @@ const attachedPulseSystem = (
 }
 
 const renderSystem = (
-  query: g.All<g.Read<typeof Position>, g.Read<typeof Color>>,
-  pulses: g.All<g.Read<typeof Position>, g.Read<typeof Pulse>>,
+  query: g.All<typeof Position, typeof Color>,
+  pulses: g.All<typeof Position, typeof Pulse>,
   ctx: g.Write<typeof CanvasContext>,
 ) => {
   ctx.fillStyle = "#0f0f0f" // --bg

@@ -7,7 +7,7 @@ Glom is an Entity-Component System written in TypeScript. It aims to be a fast, 
 <span class="text-guides">**Systems**</span> are just functions, so they're familiar to write and test.
 
 ```typescript
-const movement = (q: All<Read<Pos>, Write<Vel>>) => {
+const movement = (q: All<Pos, Write<Vel>>) => {
   for (const [p, v] of q) {
     p.x += v.x
     p.y += v.y
@@ -28,7 +28,7 @@ expect(pos).toEqual({x: 1, y: 2})
 ```typescript
 const Contact = defineRelation()
 
-const collide = (query: All<Entity, Read<Position>>, spawn: Spawn) => {
+const collide = (query: All<Entity, Position>, spawn: Spawn) => {
   for (const [a, aPos] of query) {
     for (const [b, bPos] of query) {
       if (intersects(aPos, bPos)) spawn([Contact(b)])
@@ -36,7 +36,7 @@ const collide = (query: All<Entity, Read<Position>>, spawn: Spawn) => {
   }
 }
 
-const damage = (query: All<Write<Health>, Read<Contact>>, poof: Despawn) => {
+const damage = (query: All<Write<Health>, Contact>, poof: Despawn) => {
   for (const [health, contact] of query) {
     health.value -= 10
     poof(contact)

@@ -366,52 +366,73 @@ function extractAllTermsFromNode(
     node: ts.TypeNode,
     currentJoinIndex: number,
   ): QueryTerm | undefined => {
-    if (!ts.isTypeReferenceNode(node)) return undefined
+    if (ts.isTypeReferenceNode(node)) {
+      const typeName = node.typeName
+      const name = ts.isIdentifier(typeName)
+        ? typeName.text
+        : ts.isQualifiedName(typeName)
+          ? typeName.right.text
+          : ""
 
-    const typeName = node.typeName
-    const name = ts.isIdentifier(typeName)
-      ? typeName.text
-      : ts.isQualifiedName(typeName)
-        ? typeName.right.text
-        : ""
+      if (name === "Read" || name === "Write") {
+        const componentExpr = extractRuntimeExpr(factory, node.typeArguments?.[0])
+        return {
+          type: name === "Read" ? "read" : "write",
+          storeIndex: storeIndex++,
+          joinIndex: currentJoinIndex,
+          runtimeExpr: componentExpr,
+        }
+      }
 
-    if (name === "Read" || name === "Write") {
-      const componentExpr = extractRuntimeExpr(factory, node.typeArguments?.[0])
-      return {
-        type: name === "Read" ? "read" : "write",
-        storeIndex: storeIndex++,
-        joinIndex: currentJoinIndex,
-        runtimeExpr: componentExpr,
+      if (name === "Has" || name === "Not") {
+        const componentExpr = extractRuntimeExpr(factory, node.typeArguments?.[0])
+        return {
+          type: name === "Has" ? "has" : "not",
+          joinIndex: currentJoinIndex,
+          runtimeExpr: componentExpr,
+        }
+      }
+
+      if (name === "Entity" || name === "EntityTerm") {
+        return {
+          type: "entity",
+          joinIndex: currentJoinIndex,
+        }
+      }
+
+      if (name === "Rel") {
+        const relExpr = extractRuntimeExpr(factory, node.typeArguments?.[0])
+        const nextJoinIndex = ++joinIndex
+        const subTerm = node.typeArguments?.[1]
+          ? extractTerm(node.typeArguments[1], nextJoinIndex)
+          : undefined
+        return {
+          type: "rel",
+          joinIndex: currentJoinIndex,
+          runtimeExpr: relExpr,
+          subTerms: subTerm ? [subTerm] : [],
+        }
       }
     }
 
-    if (name === "Has" || name === "Not") {
-      const componentExpr = extractRuntimeExpr(factory, node.typeArguments?.[0])
-      return {
-        type: name === "Has" ? "has" : "not",
-        joinIndex: currentJoinIndex,
-        runtimeExpr: componentExpr,
-      }
-    }
-
-    if (name === "Entity" || name === "EntityTerm") {
-      return {
-        type: "entity",
-        joinIndex: currentJoinIndex,
-      }
-    }
-
-    if (name === "Rel") {
-      const relExpr = extractRuntimeExpr(factory, node.typeArguments?.[0])
-      const nextJoinIndex = ++joinIndex
-      const subTerm = node.typeArguments?.[1]
-        ? extractTerm(node.typeArguments[1], nextJoinIndex)
-        : undefined
-      return {
-        type: "rel",
-        joinIndex: currentJoinIndex,
-        runtimeExpr: relExpr,
-        subTerms: subTerm ? [subTerm] : [],
+    // Raw component (implicit Read)
+    const componentExpr = extractRuntimeExpr(factory, node)
+    if (componentExpr) {
+      const type = typeChecker.getTypeAtLocation(node)
+      if (
+        type.getProperty("__component_brand") ||
+        ts.isTypeQueryNode(node) ||
+        (type.getSymbol()?.getName() === "Component" &&
+          !["Read", "Write", "Has", "Not", "Rel", "Entity", "EntityTerm"].includes(
+            type.getSymbol()?.getName() || "",
+          ))
+      ) {
+        return {
+          type: "read",
+          storeIndex: storeIndex++,
+          joinIndex: currentJoinIndex,
+          runtimeExpr: componentExpr,
+        }
       }
     }
 
@@ -448,6 +469,9 @@ function extractRuntimeExpr(
   if (!node) return undefined
   if (ts.isTypeQueryNode(node)) {
     return entityNameToExpression(factory, node.exprName)
+  }
+  if (ts.isTypeReferenceNode(node)) {
+    return entityNameToExpression(factory, node.typeName)
   }
   return undefined
 }
@@ -519,7 +543,18 @@ function generateParamDescriptor(
   typeChecker: ts.TypeChecker,
   factory: ts.NodeFactory,
 ): ts.Expression | null {
-  if (!node || !ts.isTypeReferenceNode(node)) {
+  if (!node) return null
+
+  if (ts.isTypeQueryNode(node) || type.getProperty("__component_brand")) {
+    const componentExpr = extractRuntimeExpr(factory, node)
+    if (componentExpr) {
+      return factory.createObjectLiteralExpression([
+        factory.createPropertyAssignment("read", componentExpr),
+      ])
+    }
+  }
+
+  if (!ts.isTypeReferenceNode(node)) {
     const symbol = type.getSymbol() || type.aliasSymbol
     if (symbol?.getName() === "World") {
       return factory.createObjectLiteralExpression([

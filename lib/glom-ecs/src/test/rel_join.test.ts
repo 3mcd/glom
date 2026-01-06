@@ -16,7 +16,7 @@ describe("relation integration", () => {
     const system = g.defineSystem(
       (
         query: g.All<
-          g.Read<typeof Position>,
+          typeof Position,
           g.Rel<typeof ChildOf, typeof Position>
         >,
       ) => {
@@ -25,7 +25,7 @@ describe("relation integration", () => {
         }
       },
       {
-        params: [{all: [{read: Position}, {rel: [ChildOf, {read: Position}]}]}],
+        params: [{all: [Position, {rel: [ChildOf, Position]}]}],
       },
     )
 
@@ -49,7 +49,7 @@ describe("relation integration", () => {
     const system = g.defineSystem(
       (
         query: g.All<
-          g.Read<typeof Position>,
+          typeof Position,
           g.Rel<typeof ChildOf, typeof Position>
         >,
       ) => {
@@ -58,7 +58,7 @@ describe("relation integration", () => {
         }
       },
       {
-        params: [{all: [{read: Position}, {rel: [ChildOf, {read: Position}]}]}],
+        params: [{all: [Position, {rel: [ChildOf, Position]}]}],
       },
     )
 
@@ -79,7 +79,7 @@ describe("relation integration", () => {
     const system = g.defineSystem(
       (
         query: g.All<
-          g.Read<typeof Position>,
+          typeof Position,
           g.Rel<typeof ChildOf, typeof Position>
         >,
       ) => {
@@ -88,7 +88,7 @@ describe("relation integration", () => {
         }
       },
       {
-        params: [{all: [{read: Position}, {rel: [ChildOf, {read: Position}]}]}],
+        params: [{all: [Position, {rel: [ChildOf, Position]}]}],
       },
     )
 
@@ -113,7 +113,7 @@ describe("relation integration", () => {
     const system = g.defineSystem(
       (
         query: g.All<
-          g.Read<typeof Name>,
+          typeof Name,
           g.Rel<typeof ChildOf, g.Rel<typeof ChildOf, typeof Name>>
         >,
       ) => {
@@ -125,8 +125,8 @@ describe("relation integration", () => {
         params: [
           {
             all: [
-              {read: Name},
-              {rel: [ChildOf, {rel: [ChildOf, {read: Name}]}]},
+              Name,
+              {rel: [ChildOf, {rel: [ChildOf, Name]}]},
             ],
           },
         ],

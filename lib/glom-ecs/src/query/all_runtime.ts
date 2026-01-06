@@ -296,7 +296,7 @@ export class AllRuntime implements AnyAll {
     currentJoinIndex: number,
     context: {joinIndex: number},
   ): TermInfo {
-    if (typeof term !== "object" || term === null) {
+    if ((typeof term !== "object" && typeof term !== "function") || term === null) {
       throw new Error("Invalid term descriptor")
     }
     const t = term as Record<string, unknown>

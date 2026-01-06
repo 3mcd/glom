@@ -45,7 +45,7 @@ import { All, Entity, Read, Rel } from "@glom/ecs"
 
 // find all child entities and fetch their parents
 const followParentSystem = (
-  query: All<Read<Position>, Rel<typeof ChildOf, Read<Position>>>
+  query: All<Position, Rel<typeof ChildOf, Position>>
 ) => {
   for (const [childPos, parentPos] of query) {
     childPos.x = parentPos.x

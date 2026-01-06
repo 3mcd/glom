@@ -106,13 +106,13 @@ const world = makeWorld()
 
 ## 5. Writing Systems (with Transformer)
 
-Systems are functions where you implement your logic. They receive entity queries as parameters, and declaring dependencies like `Read<Position>` allows the scheduler to determine execution order.
+Systems are functions where you implement your logic. They receive entity queries as parameters, and declaring dependencies like `Position` allows the scheduler to determine execution order.
 
 ```typescript
 import { All, Read, Write } from "@glom/ecs"
 
 const movementSystem = (
-  query: All<Write<typeof Position>, Read<typeof Velocity>>
+  query: All<Write<typeof Position>, typeof Velocity>
 ) => {
   for (const [pos, vel] of query) {
     pos.x += vel.dx
@@ -202,7 +202,7 @@ If your workflow doesn't support a build-time transformer, you can use the `defi
 ```typescript
 import { All, Read, Write, defineSystem } from "@glom/ecs"
 
-const movementSystem = (query: All<Write<typeof Position>, Read<typeof Velocity>>) => {
+const movementSystem = (query: All<Write<typeof Position>, typeof Velocity>) => {
   for (const [pos, vel] of query) {
     pos.x += vel.dx
     pos.y += vel.dy

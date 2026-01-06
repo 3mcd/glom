@@ -21,7 +21,7 @@ const physicsSystem = (query: All<Write<typeof Position>>) => {
 }
 
 // rendering reads Position
-const renderingSystem = (query: All<Read<typeof Position>>) => {
+const renderingSystem = (query: All<typeof Position>) => {
   for (const [pos] of query) {
     // runs after physics
   }

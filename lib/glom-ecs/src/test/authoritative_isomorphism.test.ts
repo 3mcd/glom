@@ -50,8 +50,8 @@ const movementSystem = g.defineSystem(
   (
     query: g.All<
       g.Entity,
-      g.Read<typeof Position>,
-      g.Rel<typeof g.CommandOf, g.Read<typeof MoveCommand>>
+      typeof Position,
+      g.Rel<typeof g.CommandOf, typeof MoveCommand>
     >,
     update: g.Add<typeof Position>,
   ) => {
@@ -66,8 +66,8 @@ const movementSystem = g.defineSystem(
     params: [
       g.All(
         {entity: true},
-        g.Read(Position),
-        g.Rel(g.CommandOf, g.Read(MoveCommand)),
+        Position,
+        g.Rel(g.CommandOf, MoveCommand),
       ),
       g.Add(Position),
     ],
@@ -79,7 +79,7 @@ const pulseSpawnerSystem = g.defineSystem(
   (
     query: g.All<
       g.Entity,
-      g.Read<typeof Position>,
+      typeof Position,
       g.Rel<typeof g.CommandOf, g.Has<typeof FireCommand>>
     >,
     world: g.World,
@@ -129,7 +129,7 @@ const pulseSpawnerSystem = g.defineSystem(
     params: [
       g.All(
         {entity: true},
-        g.Read(Position),
+        Position,
         g.Rel(g.CommandOf, g.Has(FireCommand)),
       ),
       g.WorldTerm(),
@@ -142,8 +142,8 @@ const attachedPulseSystem = g.defineSystem(
   (
     pulses: g.All<
       g.Entity,
-      g.Read<typeof Position>,
-      g.Rel<typeof PulseOf, g.Read<typeof Position>>
+      typeof Position,
+      g.Rel<typeof PulseOf, typeof Position>
     >,
     update: g.Add<typeof Position>,
   ) => {
@@ -156,7 +156,7 @@ const attachedPulseSystem = g.defineSystem(
   },
   {
     params: [
-      g.All({entity: true}, g.Read(Position), g.Rel(PulseOf, g.Read(Position))),
+      g.All({entity: true}, Position, g.Rel(PulseOf, Position)),
       g.Add(Position),
     ],
     name: "attachedPulseSystem",

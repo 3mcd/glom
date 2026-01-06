@@ -32,8 +32,8 @@ describe("netcode orchestration", () => {
     const jumpSystem = defineSystem(
       (
         playerQuery: All<
-          Read<typeof Position>,
-          Rel<typeof commands.CommandOf, Read<typeof Jump>>
+          typeof Position,
+          Rel<typeof commands.CommandOf, typeof Jump>
         >,
       ) => {
         for (const [pos, _jump] of playerQuery) {
@@ -44,7 +44,7 @@ describe("netcode orchestration", () => {
       {
         params: [
           {
-            all: [{read: Position}, {rel: [commands.CommandOf, {read: Jump}]}],
+            all: [Position, {rel: [commands.CommandOf, Jump]}],
           } as any,
         ],
         name: "jumpSystem",

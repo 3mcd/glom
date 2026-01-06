@@ -53,7 +53,7 @@ describe("transformer", () => {
     const input = `
       import * as g from "@glom/ecs"
       const Position = g.defineComponent<{x: number; y: number}>()
-      const onAdded = (added: g.In<g.Read<typeof Position>>) => {
+      const onAdded = (added: g.In<typeof Position>) => {
         for (const [pos] of added) {
           console.log(pos)
         }
@@ -69,7 +69,7 @@ describe("transformer", () => {
     const input = `
       import * as g from "@glom/ecs"
       const Position = g.defineComponent<{x: number; y: number}>()
-      const onRemoved = (removed: g.Out<g.Read<typeof Position>>) => {
+      const onRemoved = (removed: g.Out<typeof Position>) => {
         for (const [pos] of removed) {
           console.log(pos)
         }
@@ -107,7 +107,7 @@ describe("transformer", () => {
         export type Read<T> = { __read: T };
       }
       const Position = { __component_brand: true };
-      type MyIn = g.In<g.Read<typeof Position>>
+      type MyIn = g.In<typeof Position>
       const onAdded = (added: MyIn) => {
         for (const [pos] of added) {
           console.log(pos)
@@ -124,7 +124,7 @@ describe("transformer", () => {
       import * as g from "@glom/ecs"
       const Position = g.defineComponent<{x: number; y: number}>()
       const Velocity = g.defineComponent<{dx: number; dy: number}>()
-      const move = (q1: g.All<g.Write<typeof Position>>, q2: g.All<g.Read<typeof Velocity>>) => {
+      const move = (q1: g.All<g.Write<typeof Position>>, q2: g.All<typeof Velocity>) => {
         for (const [pos] of q1) {
           for (const [vel] of q2) {
             pos.x += vel.dx
@@ -145,7 +145,7 @@ describe("transformer", () => {
       import * as g from "@glom/ecs"
       const Position = g.defineComponent<{x: number; y: number}>()
       const TargetOf = g.defineRelation()
-      const follow = (q: g.All<g.Write<typeof Position>, g.Rel<typeof TargetOf, g.Read<typeof Position>>>) => {
+      const follow = (q: g.All<g.Write<typeof Position>, g.Rel<typeof TargetOf, typeof Position>>) => {
         for (const [pos, targetPos] of q) {
           pos.x = targetPos.x
         }
@@ -235,6 +235,31 @@ describe("transformer", () => {
     expect(output).toContain("not: A")
     expect(output).toContain("read: A")
     expect(output).toContain("write: A")
+  })
+
+  test("transforms unboxed component (implicit Read)", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const move = (q: g.All<typeof Position>) => {
+        for (const [pos] of q) {
+          pos.x += 1
+        }
+      }
+    `
+    const output = transform(input)
+    expect(output).toContain("_q0_q = q.joins[0]")
+    expect(output).toContain("params: [{ all: [{ read: Position }] }]")
+  })
+
+  test("transforms unboxed component in system parameter", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const mySystem = (pos: typeof Position) => {}
+    `
+    const output = transform(input)
+    expect(output).toContain("params: [{ read: Position }]")
   })
 
   test("transforms aliased World", () => {

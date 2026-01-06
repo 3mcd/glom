@@ -79,7 +79,7 @@ export type TermValue<T extends Term> =
           : T extends Rel<Relation, infer U>
             ? TermValue<U>
             : T extends Component<infer V>
-              ? V
+              ? Readonly<V>
               : T extends EntityTerm
                 ? Entity
                 : T extends Entity

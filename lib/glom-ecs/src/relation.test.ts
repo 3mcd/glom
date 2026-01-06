@@ -26,7 +26,7 @@ describe("relation", () => {
 
     let childName = ""
     const system1 = defineSystem(
-      (query: All<Read<typeof Name>, Has<Relationship>>) => {
+      (query: All<typeof Name, Has<Relationship>>) => {
         for (const [name] of query) {
           childName = name
         }
@@ -45,7 +45,7 @@ describe("relation", () => {
 
     const children: string[] = []
     const system2 = defineSystem(
-      (query: All<Entity, Read<typeof Name>, Has<Relation>>) => {
+      (query: All<Entity, typeof Name, Has<Relation>>) => {
         for (const [_, name] of query) {
           children.push(name)
         }
@@ -62,7 +62,7 @@ describe("relation", () => {
     despawn(world, parent)
     const childrenAfter = [] as string[]
     const system3 = defineSystem(
-      (query: All<Entity, Read<typeof Name>, Has<Relation>>) => {
+      (query: All<Entity, typeof Name, Has<Relation>>) => {
         for (const [_, name] of query) {
           childrenAfter.push(name)
         }

@@ -42,8 +42,8 @@ const schema = [Position, Color, MoveCommand, CanvasContext]
 const movementSystem = (
   query: g.All<
     g.Entity,
-    g.Read<typeof Position>,
-    g.Rel<typeof g.CommandOf, g.Read<typeof MoveCommand>>
+    typeof Position,
+    g.Rel<typeof g.CommandOf, typeof MoveCommand>
   >,
   world: g.World,
 ) => {
@@ -61,7 +61,7 @@ const movementSystem = (
 }
 
 const renderSystem = (
-  query: g.All<g.Read<typeof Position>, g.Read<typeof Color>>,
+  query: g.All<typeof Position, typeof Color>,
   ctx: g.Write<typeof CanvasContext>,
 ) => {
   ctx.fillStyle = "#0f0f0f" // --bg

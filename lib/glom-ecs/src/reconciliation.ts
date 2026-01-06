@@ -263,7 +263,7 @@ export const applyRemoteSnapshots = defineSystem(
 )
 
 export const performRollback = defineSystem(
-  (config: Read<typeof ReplicationConfig>, world: World) => {
+  (config: typeof ReplicationConfig, world: World) => {
     if (!config.reconcileSchedule) return
     performBatchReconciliation(world, config.reconcileSchedule)
   },
@@ -274,7 +274,7 @@ export const performRollback = defineSystem(
 )
 
 export const cleanupGhosts = defineSystem(
-  (config: Read<typeof ReplicationConfig>, world: World) => {
+  (config: typeof ReplicationConfig, world: World) => {
     const window = config.ghostCleanupWindow ?? 60
     cleanupTransientEntities(world, world.tick - window)
   },
