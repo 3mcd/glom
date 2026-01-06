@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import type {ComponentSerde, ComponentResolver} from "./component"
+import type {ComponentResolver, ComponentSerde} from "./component"
 import type {Entity} from "./entity"
 import {ByteReader, ByteWriter} from "./lib/binary"
 import {
@@ -35,7 +35,7 @@ describe("protocol serialization", () => {
 
     const reader = new ByteReader(writer.getBytes())
     const header = readMessageHeader(reader)
-    expect(header.type).toBe(MessageType.ClockSync)
+    expect(header.type).toBe(MessageType.Clocksync)
 
     const data = readClocksync(reader)
     expect(data.t0).toBe(sync.t0)
@@ -195,7 +195,8 @@ describe("protocol serialization", () => {
         if (id === 1) {
           return {
             bytesPerElement: 4,
-            encode: (val: number, writer: ByteWriter) => writer.writeUint32(val),
+            encode: (val: number, writer: ByteWriter) =>
+              writer.writeUint32(val),
             decode: (reader: ByteReader) => reader.readUint32(),
           }
         }

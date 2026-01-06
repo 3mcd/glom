@@ -1,4 +1,4 @@
-import {type ClockSyncManager, makeClocksyncManager} from "./clocksync"
+import {type ClocksyncManager, makeClocksyncManager} from "./clocksync"
 import {CommandBuffer, CommandEntity, CommandOf, IntentTick} from "./command"
 import type {Component, ComponentInstance, ComponentLike} from "./component"
 import {type Entity, RESOURCE_ENTITY} from "./entity"
@@ -95,7 +95,7 @@ export type World<R extends ComponentLike = any> = {
   tickSpawnCount: number
   readonly transientRegistry: Map<number, {entity: Entity; tick: number}>
   readonly pendingOps: ReplicationOp[]
-  readonly clocksync: ClockSyncManager
+  readonly clocksync: ClocksyncManager
 
   readonly _reduction_entity_to_ops: Map<Entity, ReplicationOp[]>
   readonly _reduction_component_changes: Map<number, ReplicationOp>

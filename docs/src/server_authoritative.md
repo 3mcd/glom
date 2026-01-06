@@ -111,13 +111,13 @@ Glom includes utilities for NTP-style clock synchronization to calculate the tim
 
 ### The Sync Loop
 
-1. **Request**: The client sends a `ClockSync` message with its current local time as `t0`.
+1. **Request**: The client sends a `Clocksync` message with its current local time as `t0`.
 2. **Response**: The server receives the message and immediately sends it back, adding its own local time as `t1`.
 3. **Calculation**: The client receives the response at time `t2` and calculates the offset.
 
 ```typescript
 // on the client, when receiving a clock sync response:
-if (header.type === MessageType.ClockSync) {
+if (header.type === MessageType.Clocksync) {
   const sync = readClocksync(reader)
   const t2 = performance.now()
   

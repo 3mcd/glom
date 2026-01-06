@@ -39,7 +39,7 @@ export {
 } from "./lib/binary"
 export type {SnapshotBlock, SnapshotMessage} from "./net_types"
 export {
-  type ClockSync,
+  type Clocksync,
   type CommandMessage,
   type HandshakeClient,
   type HandshakeServer,

@@ -1,20 +1,20 @@
-export type ClockSyncSample = {
+export type ClocksyncSample = {
   rtt: number
   offset: number
 }
 
 export type AgentSync = {
-  readonly samples: ClockSyncSample[]
+  readonly samples: ClocksyncSample[]
   smoothedRtt: number
   smoothedOffset: number
 }
 
-export type ClockSyncManager = {
+export type ClocksyncManager = {
   readonly agents: Map<number, AgentSync>
   readonly maxSamples: number
 }
 
-export function makeClocksyncManager(maxSamples = 16): ClockSyncManager {
+export function makeClocksyncManager(maxSamples = 16): ClocksyncManager {
   return {
     agents: new Map(),
     maxSamples,
@@ -25,7 +25,7 @@ export function calculateOffsetAndRtt(
   t0: number,
   t1: number,
   t2: number,
-): ClockSyncSample {
+): ClocksyncSample {
   const rtt = t2 - t0
   const latency = rtt / 2
   const offset = t1 - (t0 + latency)
@@ -33,7 +33,7 @@ export function calculateOffsetAndRtt(
 }
 
 export function addClocksyncSample(
-  manager: ClockSyncManager,
+  manager: ClocksyncManager,
   agentId: number,
   t0: number,
   t1: number,
@@ -69,7 +69,7 @@ export function addClocksyncSample(
   }
 }
 
-export function getConsensusOffset(manager: ClockSyncManager): number {
+export function getConsensusOffset(manager: ClocksyncManager): number {
   if (manager.agents.size === 0) return 0
 
   let totalOffset = 0
@@ -80,7 +80,7 @@ export function getConsensusOffset(manager: ClockSyncManager): number {
   return totalOffset / manager.agents.size
 }
 
-export function getAverageRtt(manager: ClockSyncManager): number {
+export function getAverageRtt(manager: ClocksyncManager): number {
   if (manager.agents.size === 0) return 0
 
   let totalRtt = 0

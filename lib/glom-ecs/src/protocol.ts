@@ -15,7 +15,7 @@ function toResolver(res: ResolverLike): ComponentResolver {
 
 export enum MessageType {
   Handshake = 0x01,
-  ClockSync = 0x02,
+  Clocksync = 0x02,
   Transaction = 0x03,
   Command = 0x04,
   Snapshot = 0x05,
@@ -83,7 +83,7 @@ export function readHandshakeServer(reader: ByteReader): HandshakeServer {
   }
 }
 
-export type ClockSync = {
+export type Clocksync = {
   t0: number
   t1: number
   t2: number
@@ -92,15 +92,15 @@ export type ClockSync = {
 export function writeClocksync(
   writer: ByteWriter,
   tick: number,
-  data: ClockSync,
+  data: Clocksync,
 ) {
-  writeMessageHeader(writer, MessageType.ClockSync, tick)
+  writeMessageHeader(writer, MessageType.Clocksync, tick)
   writer.writeFloat64(data.t0)
   writer.writeFloat64(data.t1)
   writer.writeFloat64(data.t2)
 }
 
-export function readClocksync(reader: ByteReader): ClockSync {
+export function readClocksync(reader: ByteReader): Clocksync {
   return {
     t0: reader.readFloat64(),
     t1: reader.readFloat64(),
