@@ -72,7 +72,4 @@ while (i < count) {
 
 ## Getting Started
 
-Check out the links in the header to learn more, or hop straight to [Getting Started](./gettingStarted) to get up and running with Glom.
-
-
-
+Glom comes with many other neat things worth checking out, most of which are documented here. And you can hop straight to [the Getting Started guide](./getting_started) to start building.
