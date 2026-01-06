@@ -89,7 +89,10 @@ function createPeer(
     g.ReplicationConfig({
       historyWindow: 64,
       ghostCleanupWindow: 60,
-      snapshotComponents: [world.componentRegistry.getId(Position)],
+      snapshotComponents: [
+        world.componentRegistry.getId(Position),
+        world.componentRegistry.getId(Color),
+      ],
     }),
   )
   g.addResource(world, g.ReplicationStream({transactions: [], snapshots: []}))

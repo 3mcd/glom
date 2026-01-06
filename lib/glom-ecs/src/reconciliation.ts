@@ -234,12 +234,13 @@ export const applyRemoteTransactions = defineSystem(
   (world: World) => {
     const incoming = getResource(world, IncomingTransactions)
     if (!incoming) return
-    const transactions = incoming.get(world.tick)
-    if (transactions) {
-      for (const transaction of transactions) {
-        applyTransaction(world, transaction)
+    for (const [tick, transactions] of incoming.entries()) {
+      if (tick <= world.tick) {
+        for (const transaction of transactions) {
+          applyTransaction(world, transaction)
+        }
+        incoming.delete(tick)
       }
-      incoming.delete(world.tick)
     }
   },
   {params: [WorldTerm()], name: "applyRemoteTransactions"},
@@ -249,12 +250,13 @@ export const applyRemoteSnapshots = defineSystem(
   (world: World) => {
     const incoming = getResource(world, IncomingSnapshots)
     if (!incoming) return
-    const snapshots = incoming.get(world.tick)
-    if (snapshots) {
-      for (const snap of snapshots) {
-        applySnapshotStream(world, snap)
+    for (const [tick, snapshots] of incoming.entries()) {
+      if (tick <= world.tick) {
+        for (const snap of snapshots) {
+          applySnapshotStream(world, snap)
+        }
+        incoming.delete(tick)
       }
-      incoming.delete(world.tick)
     }
   },
   {params: [WorldTerm()], name: "applyRemoteSnapshots"},
