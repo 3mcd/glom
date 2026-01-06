@@ -95,6 +95,13 @@ export function entityGraphNodeAddRelation(
     relMap.subjectToObjects.set(subject as number, objects)
   }
   sparseSetAdd(objects, object)
+
+  entityGraphNodeTraverseLeft(node, (visit) => {
+    const listeners = visit.listeners
+    for (let i = 0; i < listeners.length; i++) {
+      listeners[i]?.relationAdded?.(subject, relationId, object, node)
+    }
+  })
 }
 
 export function entityGraphNodeRemoveRelation(
@@ -113,6 +120,13 @@ export function entityGraphNodeRemoveRelation(
   if (sparseSetSize(objects) === 0) {
     relMap.subjectToObjects.delete(subject as number)
   }
+
+  entityGraphNodeTraverseLeft(node, (visit) => {
+    const listeners = visit.listeners
+    for (let i = 0; i < listeners.length; i++) {
+      listeners[i]?.relationRemoved?.(subject, relationId, object, node)
+    }
+  })
 }
 
 export function entityGraphNodeLink(

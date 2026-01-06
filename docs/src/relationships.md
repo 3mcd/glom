@@ -30,7 +30,7 @@ const child = spawn(world)
 addComponent(world, child, ChildOf(parent))
 
 // within a system:
-const linkSystem = (spawn: Spawn) => {
+const linkSystem = (spawn: Spawn<typeof ChildOf>) => {
   const parent = spawn([])
   const child = spawn([ChildOf(parent)])
 }
@@ -38,18 +38,35 @@ const linkSystem = (spawn: Spawn) => {
 
 ## Querying Relationships
 
-Use the `Rel` descriptor in your system query to extract components from both the source and the target entities to find entities with a specific relationship.
+Use the `Join` query type to find entities linked through a relationship. `Join` takes three parameters: the source query, the target query, and the relation between them.
 
 ```typescript
-import { All, Entity, Read, Rel } from "@glom/ecs"
+import { All, Entity, Read, Join } from "@glom/ecs"
 
 // find all child entities and fetch their parents
 const followParentSystem = (
-  query: All<Position, Rel<typeof ChildOf, Position>>
+  query: Join<All<Position>, All<Position>, typeof ChildOf>
 ) => {
   for (const [childPos, parentPos] of query) {
     childPos.x = parentPos.x
     childPos.y = parentPos.y
+  }
+}
+```
+
+The source and target queries are standard `All` queries. This makes it easy to fetch multiple components from both sides of the relationship in one go.
+
+## Cartesian Products (Cross Joins)
+
+If you omit the third parameter to `Join`, it will perform a "cross join", returning every combination of entities that match the source and target queries. This is useful for fetching global settings or performing exhaustive pairwise checks.
+
+```typescript
+// iterate through every entity with a Position and every entity with a Name
+const pairwiseSystem = (
+  query: Join<All<Position>, All<Name>>
+) => {
+  for (const [pos, name] of query) {
+    // ...
   }
 }
 ```

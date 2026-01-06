@@ -15,17 +15,14 @@ describe("relation integration", () => {
     const results: [{x: number}, {x: number}][] = []
     const system = g.defineSystem(
       (
-        query: g.All<
-          typeof Position,
-          g.Rel<typeof ChildOf, typeof Position>
-        >,
+        query: g.Join<g.All<typeof Position>, g.All<typeof Position>, typeof ChildOf>,
       ) => {
         for (const [pos, parentPos] of query) {
           results.push([pos, parentPos])
         }
       },
       {
-        params: [{all: [Position, {rel: [ChildOf, Position]}]}],
+        params: [{join: [{all: [Position]}, {all: [Position]}, ChildOf]}],
       },
     )
 
@@ -48,17 +45,14 @@ describe("relation integration", () => {
     const results: unknown[][] = []
     const system = g.defineSystem(
       (
-        query: g.All<
-          typeof Position,
-          g.Rel<typeof ChildOf, typeof Position>
-        >,
+        query: g.Join<g.All<typeof Position>, g.All<typeof Position>, typeof ChildOf>,
       ) => {
         for (const res of query) {
           results.push(res)
         }
       },
       {
-        params: [{all: [Position, {rel: [ChildOf, Position]}]}],
+        params: [{join: [{all: [Position]}, {all: [Position]}, ChildOf]}],
       },
     )
 
@@ -78,17 +72,14 @@ describe("relation integration", () => {
     const results: [{x: number}, {x: number}][] = []
     const system = g.defineSystem(
       (
-        query: g.All<
-          typeof Position,
-          g.Rel<typeof ChildOf, typeof Position>
-        >,
+        query: g.Join<g.All<typeof Position>, g.All<typeof Position>, typeof ChildOf>,
       ) => {
         for (const [pos, parentPos] of query) {
           results.push([pos, parentPos])
         }
       },
       {
-        params: [{all: [Position, {rel: [ChildOf, Position]}]}],
+        params: [{join: [{all: [Position]}, {all: [Position]}, ChildOf]}],
       },
     )
 
@@ -112,21 +103,29 @@ describe("relation integration", () => {
     const results: [string, string][] = []
     const system = g.defineSystem(
       (
-        query: g.All<
-          typeof Name,
-          g.Rel<typeof ChildOf, g.Rel<typeof ChildOf, typeof Name>>
+        query: g.Join<
+          g.All<typeof Name>,
+          g.Join<g.All<typeof Name>, g.All<typeof Name>, typeof ChildOf>,
+          typeof ChildOf
         >,
       ) => {
-        for (const [name, grandparentName] of query) {
+        for (const [name, _parentName, grandparentName] of query) {
           results.push([name, grandparentName])
         }
       },
       {
         params: [
           {
-            all: [
-              Name,
-              {rel: [ChildOf, {rel: [ChildOf, Name]}]},
+            join: [
+              {all: [Name]},
+              {
+                join: [
+                  {all: [Name]},
+                  {all: [Name]},
+                  ChildOf,
+                ],
+              },
+              ChildOf,
             ],
           },
         ],

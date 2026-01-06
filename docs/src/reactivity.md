@@ -56,7 +56,7 @@ const onShieldRemoved = (
 Transition queries can also manage separate entities. This example demonstrates spawning a laser when a player begins attacking, and despawning it when they stop.
 
 ```typescript
-import { Despawn, Entity, In, Out, Rel, Spawn, defineRelation, defineTag } from "@glom/ecs"
+import { Despawn, Entity, In, Out, Spawn, defineRelation, defineTag } from "@glom/ecs"
 
 const Attacking = defineTag()
 const LaserBeam = defineTag()
@@ -65,7 +65,7 @@ const EmitsFrom = defineRelation()
 // spawn a beam and link it
 const onAttackStarted = (
   added: In<Entity, typeof Attacking>,
-  spawn: Spawn
+  spawn: Spawn<typeof LaserBeam>
 ) => {
   for (const [player] of added) {
     spawn([LaserBeam, EmitsFrom(player)])
@@ -74,7 +74,7 @@ const onAttackStarted = (
 
 // find the beam and despawn it
 const onAttackStopped = (
-  removed: Out<Entity, Rel<typeof EmitsFrom, Has<typeof Attacking>>>,
+  removed: Out<Join<All<Entity>, All<Has<typeof Attacking>>, typeof EmitsFrom>>,
   despawn: Despawn
 ) => {
   for (const [beam] of removed) {

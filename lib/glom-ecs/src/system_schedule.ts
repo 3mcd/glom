@@ -7,7 +7,6 @@ import {
   isAllDescriptor,
   isHasDescriptor,
   isReadDescriptor,
-  isRelDescriptor,
   isRemoveDescriptor,
   isWriteDescriptor,
   systemDescriptorKey,
@@ -97,10 +96,6 @@ function extractSystemDeps(exec: SystemExecutor): SystemDeps {
     } else if (isHasDescriptor(term)) {
       const c = term.has as ComponentLike
       if (c) reads.add(c)
-    } else if (isRelDescriptor(term)) {
-      const [rel, object] = term.rel
-      if (rel) reads.add(rel as ComponentLike)
-      addTermDeps(object)
     }
   }
 

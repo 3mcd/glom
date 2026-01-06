@@ -5,7 +5,6 @@ import type {
   HasDescriptor,
   NotDescriptor,
   ReadDescriptor,
-  RelDescriptor,
   RemoveDescriptor,
   SpawnDescriptor,
   WorldDescriptor,
@@ -15,8 +14,8 @@ import type {
 import type {Entity} from "../entity"
 import type {Relation} from "../relation"
 
-export interface Spawn {
-  readonly __spawn: true
+export interface Spawn<T extends ComponentLike = never> {
+  readonly __spawn: T | true
   (components: (ComponentInstance<unknown> | ComponentLike)[]): Entity
 }
 
@@ -64,10 +63,6 @@ export interface Not<T extends ComponentLike> {
   readonly __not: T
 }
 
-export interface Rel<R extends Relation, T extends Term> {
-  readonly __rel: [R, T]
-}
-
 export type TermValue<T extends Term> =
   T extends Read<infer U>
     ? U extends Component<infer V>
@@ -81,15 +76,13 @@ export type TermValue<T extends Term> =
         ? void
         : T extends Not<ComponentLike>
           ? void
-          : T extends Rel<Relation, infer U>
-            ? TermValue<U>
-            : T extends Component<infer V>
-              ? Readonly<V>
-              : T extends EntityTerm
+          : T extends Component<infer V>
+            ? Readonly<V>
+            : T extends EntityTerm
+              ? Entity
+              : T extends Entity
                 ? Entity
-                : T extends Entity
-                  ? Entity
-                  : never
+                : never
 
 export type Term =
   | ComponentLike
@@ -97,7 +90,6 @@ export type Term =
   | {readonly __write: ComponentLike}
   | {readonly __has: ComponentLike}
   | {readonly __not: ComponentLike}
-  | {readonly __rel: [Relation, unknown]}
   | EntityTerm
   | Entity
 
@@ -129,8 +121,12 @@ export function World(): WorldDescriptor {
   return {world: true}
 }
 
-export function Spawn(): SpawnDescriptor {
-  return {spawn: true}
+export function Spawn<T extends ComponentLike>(component: T): SpawnDescriptor<T>
+export function Spawn(): SpawnDescriptor<any>
+export function Spawn<T extends ComponentLike>(
+  component?: T,
+): SpawnDescriptor<T | any> {
+  return {spawn: component ?? true}
 }
 
 export function Despawn(): DespawnDescriptor {
@@ -145,19 +141,4 @@ export function Remove<T extends ComponentLike>(
   component: T,
 ): RemoveDescriptor<T> {
   return {remove: component}
-}
-
-export function Rel<R extends Relation, T>(
-  relation: R,
-  object: T,
-): RelDescriptor<R, T>
-export function Rel<R extends Relation>(relation: R): RelDescriptor<R, R>
-export function Rel<R extends Relation, T>(
-  relation: R,
-  object?: T,
-): RelDescriptor<R, T | R> {
-  return {rel: [relation, object ?? relation]} as unknown as RelDescriptor<
-    R,
-    T | R
-  >
 }

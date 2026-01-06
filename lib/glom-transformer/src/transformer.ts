@@ -1,313 +1,39 @@
 import ts from "typescript"
 
-export function createTransformer(
-  program: ts.Program,
-): ts.TransformerFactory<ts.SourceFile> {
-  const typeChecker = program.getTypeChecker()
-
-  return (context: ts.TransformationContext) => {
-    return (sourceFile: ts.SourceFile) => {
-      const visitor: ts.Visitor = (
-        node: ts.Node,
-      ): ts.Node | ts.Node[] | undefined => {
-        if (ts.isVariableStatement(node)) {
-          const newDeclarations: ts.VariableDeclaration[] = []
-          const metadataStatements: ts.Statement[] = []
-          let transformed = false
-
-          for (const decl of node.declarationList.declarations) {
-            if (
-              decl.initializer &&
-              (ts.isArrowFunction(decl.initializer) ||
-                ts.isFunctionExpression(decl.initializer))
-            ) {
-              const name = ts.isIdentifier(decl.name)
-                ? decl.name.text
-                : undefined
-              const result = transformSystem(
-                decl.initializer,
-                typeChecker,
-                context,
-                name,
-              )
-
-              if (result.isSystem) {
-                newDeclarations.push(
-                  ts.factory.updateVariableDeclaration(
-                    decl,
-                    decl.name,
-                    decl.exclamationToken,
-                    decl.type,
-                    result.transformedNode as ts.Expression,
-                  ),
-                )
-                if (name && result.metadataObj) {
-                  metadataStatements.push(
-                    createMetadataStatement(
-                      context.factory,
-                      name,
-                      result.metadataObj,
-                    ),
-                  )
-                }
-                transformed = true
-                continue
-              }
-            }
-            newDeclarations.push(decl)
-          }
-
-          if (transformed) {
-            const updatedStatement = ts.factory.updateVariableStatement(
-              node,
-              node.modifiers,
-              ts.factory.updateVariableDeclarationList(
-                node.declarationList,
-                newDeclarations,
-              ),
-            )
-            return [updatedStatement, ...metadataStatements]
-          }
-        }
-
-        if (ts.isFunctionDeclaration(node)) {
-          const name = node.name?.text
-          const result = transformSystem(node, typeChecker, context, name)
-          if (result.isSystem) {
-            const metadataStatements: ts.Statement[] = []
-            if (name && result.metadataObj) {
-              metadataStatements.push(
-                createMetadataStatement(
-                  context.factory,
-                  name,
-                  result.metadataObj,
-                ),
-              )
-            }
-            return [
-              result.transformedNode as ts.FunctionDeclaration,
-              ...metadataStatements,
-            ]
-          }
-        }
-
-        if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
-          const result = transformSystem(node, typeChecker, context)
-          if (result.isSystem) {
-            return wrapWithMetadata(
-              context.factory,
-              result.transformedNode as ts.Expression,
-              result.metadataObj,
-            )
-          }
-        }
-
-        return ts.visitEachChild(node, visitor, context)
-      }
-
-      return ts.visitNode(sourceFile, visitor) as ts.SourceFile
+export type QueryTerm =
+  | {
+      type: "read"
+      component: any
+      storeIndex: number
+      joinIndex: number
+      runtimeExpr?: ts.Expression
     }
-  }
-}
+  | {
+      type: "write"
+      component: any
+      storeIndex: number
+      joinIndex: number
+      runtimeExpr?: ts.Expression
+    }
+  | {type: "has"; component: any; joinIndex: number; runtimeExpr?: ts.Expression}
+  | {type: "not"; component: any; joinIndex: number; runtimeExpr?: ts.Expression}
+  | {type: "entity"; joinIndex: number}
+  | {
+      type: "rel"
+      joinIndex: number
+      runtimeExpr?: ts.Expression
+      subTerms?: QueryTerm[]
+    }
 
-interface QueryTerm {
-  type: "read" | "write" | "has" | "not" | "rel" | "entity"
-  storeIndex?: number
-  joinIndex: number
-  subTerms?: QueryTerm[]
-  runtimeExpr?: ts.Expression
-}
-
-interface TransformationResult {
-  isSystem: boolean
-  transformedNode: ts.Node
-  metadataObj: ts.ObjectLiteralExpression | null
-  systemName: string
-}
-
-interface ParamQueryInfo {
+type ParamQueryInfo = {
   paramName: ts.BindingName
   terms: QueryTerm[]
   isUnique: boolean
 }
 
-function transformSystem(
-  systemNode: ts.FunctionExpression | ts.ArrowFunction | ts.FunctionDeclaration,
-  typeChecker: ts.TypeChecker,
-  context: ts.TransformationContext,
-  nameHint?: string,
-): TransformationResult {
-  const signature = typeChecker.getSignatureFromDeclaration(systemNode)
-  if (!signature)
-    return {
-      isSystem: false,
-      transformedNode: systemNode,
-      metadataObj: null,
-      systemName: "",
-    }
-
-  const params = signature.getParameters()
-  if (params.length === 0)
-    return {
-      isSystem: false,
-      transformedNode: systemNode,
-      metadataObj: null,
-      systemName: "",
-    }
-
-  const allQueryInfos: ParamQueryInfo[] = []
-
-  const systemName =
-    nameHint ||
-    (ts.isFunctionDeclaration(systemNode) && systemNode.name
-      ? systemNode.name.text
-      : ts.isFunctionExpression(systemNode) && systemNode.name
-        ? systemNode.name.text
-        : "anonymousSystem")
-
-  const paramDescriptors: ts.Expression[] = []
-  let isGlomSystem = false
-
-  for (let i = 0; i < systemNode.parameters.length; i++) {
-    const param = systemNode.parameters[i]
-    const typeNode = param.type
-    const type = typeChecker.getTypeOfSymbolAtLocation(params[i], systemNode)
-    const isAll = isGlomAllType(type)
-    const actualName =
-      type.aliasSymbol?.getName() || type.getSymbol()?.getName()
-    const isUnique = actualName === "Unique" || !!type.getProperty("__unique")
-
-    if (isAll && typeNode && ts.isTypeReferenceNode(typeNode)) {
-      const terms = extractAllTermsFromNode(
-        typeNode,
-        context.factory,
-        typeChecker,
-      )
-      if (terms.length > 0) {
-        allQueryInfos.push({
-          paramName: param.name,
-          terms,
-          isUnique,
-        })
-      }
-    }
-
-    const desc = generateParamDescriptor(
-      typeNode,
-      type,
-      typeChecker,
-      context.factory,
-    )
-    if (desc) {
-      paramDescriptors.push(desc)
-      isGlomSystem = true
-    } else {
-      paramDescriptors.push(context.factory.createObjectLiteralExpression([]))
-    }
-  }
-
-  if (!isGlomSystem) {
-    return {
-      isSystem: false,
-      transformedNode: systemNode,
-      metadataObj: null,
-      systemName,
-    }
-  }
-
-  let transformedNode: ts.Node = systemNode
-  if (allQueryInfos.length > 0) {
-    transformedNode = rewriteSystemFunction(systemNode, allQueryInfos, context)
-  }
-
-  const metadataObj = context.factory.createObjectLiteralExpression(
-    [
-      context.factory.createPropertyAssignment(
-        context.factory.createIdentifier("params"),
-        context.factory.createArrayLiteralExpression(paramDescriptors, false),
-      ),
-      context.factory.createPropertyAssignment(
-        context.factory.createIdentifier("name"),
-        context.factory.createStringLiteral(systemName),
-      ),
-    ],
-    false,
-  )
-
-  return {isSystem: true, transformedNode, metadataObj, systemName}
-}
-
-function createMetadataStatement(
-  factory: ts.NodeFactory,
-  name: string,
-  metadataObj: ts.ObjectLiteralExpression,
-): ts.Statement {
-  return factory.createExpressionStatement(
-    factory.createCallExpression(
-      factory.createPropertyAccessExpression(
-        factory.createIdentifier("Object"),
-        factory.createIdentifier("defineProperty"),
-      ),
-      undefined,
-      [
-        factory.createIdentifier(name),
-        factory.createStringLiteral("__system_desc"),
-        factory.createObjectLiteralExpression(
-          [
-            factory.createPropertyAssignment(
-              factory.createIdentifier("value"),
-              metadataObj,
-            ),
-            factory.createPropertyAssignment(
-              factory.createIdentifier("enumerable"),
-              factory.createFalse(),
-            ),
-            factory.createPropertyAssignment(
-              factory.createIdentifier("configurable"),
-              factory.createTrue(),
-            ),
-          ],
-          false,
-        ),
-      ],
-    ),
-  )
-}
-
-function wrapWithMetadata(
-  factory: ts.NodeFactory,
-  expr: ts.Expression,
-  metadataObj: ts.ObjectLiteralExpression | null,
-): ts.Expression {
-  if (!metadataObj) return expr
-  return factory.createCallExpression(
-    factory.createPropertyAccessExpression(
-      factory.createIdentifier("Object"),
-      factory.createIdentifier("defineProperty"),
-    ),
-    undefined,
-    [
-      expr,
-      factory.createStringLiteral("__system_desc"),
-      factory.createObjectLiteralExpression(
-        [
-          factory.createPropertyAssignment(
-            factory.createIdentifier("value"),
-            metadataObj,
-          ),
-          factory.createPropertyAssignment(
-            factory.createIdentifier("enumerable"),
-            factory.createFalse(),
-          ),
-          factory.createPropertyAssignment(
-            factory.createIdentifier("configurable"),
-            factory.createTrue(),
-          ),
-        ],
-        false,
-      ),
-    ],
-  )
+function getSymbolName(type: ts.Type): string | undefined {
+  const symbol = type.aliasSymbol || type.getSymbol()
+  return symbol?.getName()
 }
 
 function isGlomAllType(type: ts.Type): boolean {
@@ -315,30 +41,18 @@ function isGlomAllType(type: ts.Type): boolean {
     type.getProperty("__all") ||
     type.getProperty("__in") ||
     type.getProperty("__out") ||
-    type.getProperty("__unique")
+    type.getProperty("__unique") ||
+    type.getProperty("__join")
   )
     return true
-  const symbol = type.getSymbol() || type.aliasSymbol
-  if (!symbol) return false
-  const name = symbol.getName()
-  if (name === "All" || name === "In" || name === "Out" || name === "Unique")
-    return true
-
-  const target = (type as {target?: ts.Type}).target
-  if (target) {
-    const targetSymbol = target.getSymbol() || target.aliasSymbol
-    if (targetSymbol) {
-      const targetName = targetSymbol.getName()
-      if (
-        targetName === "All" ||
-        targetName === "In" ||
-        targetName === "Out" ||
-        targetName === "Unique"
-      )
-        return true
-    }
-  }
-  return false
+  const name = getSymbolName(type)
+  return (
+    name === "All" ||
+    name === "In" ||
+    name === "Out" ||
+    name === "Unique" ||
+    name === "Join"
+  )
 }
 
 function extractAllTermsFromNode(
@@ -361,21 +75,59 @@ function extractAllTermsFromNode(
     }
   }
 
-  const terms: QueryTerm[] = []
   let storeIndex = 0
   let joinIndex = 0
 
   const extractTerm = (
     node: ts.TypeNode,
     currentJoinIndex: number,
-  ): QueryTerm | undefined => {
-    if (ts.isTypeReferenceNode(node)) {
-      const typeName = node.typeName
-      const name = ts.isIdentifier(typeName)
-        ? typeName.text
-        : ts.isQualifiedName(typeName)
-          ? typeName.right.text
-          : ""
+  ): QueryTerm | QueryTerm[] | undefined => {
+    const type = typeChecker.getTypeAtLocation(node)
+    const name = getSymbolName(type)
+
+    if (ts.isTypeReferenceNode(node) || type.aliasSymbol) {
+      if (name === "Join" || type.getProperty("__join")) {
+        const leftArg = node.typeArguments?.[0]
+        const rightArg = node.typeArguments?.[1]
+
+        const leftTerms = leftArg
+          ? extractTerm(leftArg, currentJoinIndex)
+          : undefined
+        const nextJoinIndex = ++joinIndex
+        const rightTerms = rightArg
+          ? extractTerm(rightArg, nextJoinIndex)
+          : undefined
+
+        const results: QueryTerm[] = []
+        if (Array.isArray(leftTerms)) results.push(...leftTerms)
+        else if (leftTerms) results.push(leftTerms)
+
+        if (Array.isArray(rightTerms)) results.push(...rightTerms)
+        else if (rightTerms) results.push(rightTerms)
+
+        return results
+      }
+
+      if (
+        name === "All" ||
+        name === "In" ||
+        name === "Out" ||
+        name === "Unique" ||
+        type.getProperty("__all") ||
+        type.getProperty("__in") ||
+        type.getProperty("__out") ||
+        type.getProperty("__unique")
+      ) {
+        const results: QueryTerm[] = []
+        if (node.typeArguments) {
+          for (const arg of node.typeArguments) {
+            const term = extractTerm(arg, currentJoinIndex)
+            if (Array.isArray(term)) results.push(...term)
+            else if (term) results.push(term)
+          }
+        }
+        return results
+      }
 
       if (name === "Read" || name === "Write") {
         const componentExpr = extractRuntimeExpr(
@@ -408,39 +160,22 @@ function extractAllTermsFromNode(
           joinIndex: currentJoinIndex,
         }
       }
-
-      if (name === "Rel") {
-        const relExpr = extractRuntimeExpr(factory, node.typeArguments?.[0])
-        const nextJoinIndex = ++joinIndex
-        const subTerm = node.typeArguments?.[1]
-          ? extractTerm(node.typeArguments[1], nextJoinIndex)
-          : undefined
-        return {
-          type: "rel",
-          joinIndex: currentJoinIndex,
-          runtimeExpr: relExpr,
-          subTerms: subTerm ? [subTerm] : [],
-        }
-      }
     }
 
-    // Raw component (implicit Read)
     const componentExpr = extractRuntimeExpr(factory, node)
     if (componentExpr) {
-      const type = typeChecker.getTypeAtLocation(node)
       if (
         type.getProperty("__component_brand") ||
         ts.isTypeQueryNode(node) ||
-        (type.getSymbol()?.getName() === "Component" &&
+        (name === "Component" &&
           ![
             "Read",
             "Write",
             "Has",
             "Not",
-            "Rel",
             "Entity",
             "EntityTerm",
-          ].includes(type.getSymbol()?.getName() || ""))
+          ].includes(name || ""))
       ) {
         return {
           type: "read",
@@ -454,14 +189,10 @@ function extractAllTermsFromNode(
     return undefined
   }
 
-  if (typeNode.typeArguments) {
-    for (const arg of typeNode.typeArguments) {
-      const term = extractTerm(arg, 0)
-      if (term) terms.push(term)
-    }
-  }
-
-  return terms
+  const terms = extractTerm(typeNode, 0)
+  if (Array.isArray(terms)) return terms
+  if (terms) return [terms]
+  return []
 }
 
 function entityNameToExpression(
@@ -494,35 +225,17 @@ function extractRuntimeExpr(
 function generateAllDescriptor(
   terms: QueryTerm[],
   factory: ts.NodeFactory,
-  key: "all" | "unique" = "all",
+  key = "all",
 ): ts.Expression {
   const generateTerm = (term: QueryTerm): ts.Expression => {
     switch (term.type) {
       case "read":
-        return factory.createObjectLiteralExpression([
-          factory.createPropertyAssignment(
-            "read",
-            term.runtimeExpr || factory.createIdentifier("unknown"),
-          ),
-        ])
       case "write":
-        return factory.createObjectLiteralExpression([
-          factory.createPropertyAssignment(
-            "write",
-            term.runtimeExpr || factory.createIdentifier("unknown"),
-          ),
-        ])
       case "has":
-        return factory.createObjectLiteralExpression([
-          factory.createPropertyAssignment(
-            "has",
-            term.runtimeExpr || factory.createIdentifier("unknown"),
-          ),
-        ])
       case "not":
         return factory.createObjectLiteralExpression([
           factory.createPropertyAssignment(
-            "not",
+            term.type,
             term.runtimeExpr || factory.createIdentifier("unknown"),
           ),
         ])
@@ -534,12 +247,25 @@ function generateAllDescriptor(
         return factory.createObjectLiteralExpression([
           factory.createPropertyAssignment(
             "rel",
-            factory.createArrayLiteralExpression([
-              term.runtimeExpr || factory.createIdentifier("unknown"),
-              term.subTerms?.[0]
-                ? generateTerm(term.subTerms[0])
-                : factory.createObjectLiteralExpression([]),
-            ]),
+            factory.createArrayLiteralExpression(
+              [
+                term.runtimeExpr || factory.createIdentifier("unknown"),
+                term.subTerms
+                  ? term.subTerms.length === 1
+                    ? generateTerm(term.subTerms[0]!)
+                    : factory.createObjectLiteralExpression([
+                        factory.createPropertyAssignment(
+                          "all",
+                          factory.createArrayLiteralExpression(
+                            term.subTerms.map(generateTerm),
+                            false,
+                          ),
+                        ),
+                      ])
+                  : factory.createObjectLiteralExpression([]),
+              ],
+              false,
+            ),
           ),
         ])
     }
@@ -548,7 +274,7 @@ function generateAllDescriptor(
   return factory.createObjectLiteralExpression([
     factory.createPropertyAssignment(
       key,
-      factory.createArrayLiteralExpression(terms.map(generateTerm)),
+      factory.createArrayLiteralExpression(terms.map(generateTerm), false),
     ),
   ])
 }
@@ -561,6 +287,8 @@ function generateParamDescriptor(
 ): ts.Expression | null {
   if (!node) return null
 
+  const name = getSymbolName(type)
+
   if (ts.isTypeQueryNode(node) || type.getProperty("__component_brand")) {
     const componentExpr = extractRuntimeExpr(factory, node)
     if (componentExpr) {
@@ -570,324 +298,174 @@ function generateParamDescriptor(
     }
   }
 
-  if (!ts.isTypeReferenceNode(node)) {
-    const symbol = type.getSymbol() || type.aliasSymbol
-    if (symbol?.getName() === "World") {
-      return factory.createObjectLiteralExpression([
-        factory.createPropertyAssignment("world", factory.createTrue()),
-      ])
-    }
-    return null
+  if (name === "World" || type.getProperty("__world")) {
+    return factory.createObjectLiteralExpression([
+      factory.createPropertyAssignment("world", factory.createTrue()),
+    ])
   }
 
-  const typeName = node.typeName
-  const name = ts.isIdentifier(typeName)
-    ? typeName.text
-    : ts.isQualifiedName(typeName)
-      ? typeName.right.text
-      : ""
-
-  const symbol = type.getSymbol() || type.aliasSymbol
-  const actualName = symbol?.getName()
-
-  if (actualName === "In" || type.getProperty("__in")) {
+  if (name === "In" || type.getProperty("__in")) {
+    if (ts.isTypeReferenceNode(node)) {
+      const innerType = node.typeArguments?.[0]
+      if (innerType) {
+        const innerTypeResolved = typeChecker.getTypeAtLocation(innerType)
+        const innerName = getSymbolName(innerTypeResolved)
+        if (innerName === "Join" || innerTypeResolved.getProperty("__join")) {
+          const innerDesc = generateParamDescriptor(
+            innerType,
+            innerTypeResolved,
+            typeChecker,
+            factory,
+          )
+          if (innerDesc) {
+            return factory.createObjectLiteralExpression([
+              factory.createPropertyAssignment("in", innerDesc),
+            ])
+          }
+        }
+      }
+    }
     return factory.createObjectLiteralExpression([
       factory.createPropertyAssignment(
         "in",
         generateAllDescriptor(
-          extractAllTermsFromNode(node, factory, typeChecker),
+          extractAllTermsFromNode(node as ts.TypeReferenceNode, factory, typeChecker),
           factory,
         ),
       ),
     ])
   }
 
-  if (actualName === "Out" || type.getProperty("__out")) {
+  if (name === "Out" || type.getProperty("__out")) {
+    if (ts.isTypeReferenceNode(node)) {
+      const innerType = node.typeArguments?.[0]
+      if (innerType) {
+        const innerTypeResolved = typeChecker.getTypeAtLocation(innerType)
+        const innerName = getSymbolName(innerTypeResolved)
+        if (innerName === "Join" || innerTypeResolved.getProperty("__join")) {
+          const innerDesc = generateParamDescriptor(
+            innerType,
+            innerTypeResolved,
+            typeChecker,
+            factory,
+          )
+          if (innerDesc) {
+            return factory.createObjectLiteralExpression([
+              factory.createPropertyAssignment("out", innerDesc),
+            ])
+          }
+        }
+      }
+    }
     return factory.createObjectLiteralExpression([
       factory.createPropertyAssignment(
         "out",
         generateAllDescriptor(
-          extractAllTermsFromNode(node, factory, typeChecker),
+          extractAllTermsFromNode(node as ts.TypeReferenceNode, factory, typeChecker),
           factory,
         ),
       ),
     ])
   }
 
-  if (actualName === "Unique" || type.getProperty("__unique")) {
+  if (name === "Unique" || type.getProperty("__unique")) {
     return generateAllDescriptor(
-      extractAllTermsFromNode(node, factory, typeChecker),
+      extractAllTermsFromNode(node as ts.TypeReferenceNode, factory, typeChecker),
       factory,
       "unique",
     )
   }
 
+  if (name === "Join" || type.getProperty("__join")) {
+    if (ts.isTypeReferenceNode(node)) {
+      const leftArg = node.typeArguments?.[0]
+      const rightArg = node.typeArguments?.[1]
+      const relArg = node.typeArguments?.[2]
+
+      const leftDesc = leftArg
+        ? generateParamDescriptor(
+            leftArg,
+            typeChecker.getTypeAtLocation(leftArg),
+            typeChecker,
+            factory,
+          )
+        : null
+      const rightDesc = rightArg
+        ? generateParamDescriptor(
+            rightArg,
+            typeChecker.getTypeAtLocation(rightArg),
+            typeChecker,
+            factory,
+          )
+        : null
+      const relExpr = relArg ? extractRuntimeExpr(factory, relArg) : undefined
+
+      return factory.createObjectLiteralExpression([
+        factory.createPropertyAssignment(
+          "join",
+          factory.createArrayLiteralExpression(
+            [
+              leftDesc || factory.createObjectLiteralExpression([]),
+              rightDesc || factory.createObjectLiteralExpression([]),
+              relExpr || factory.createIdentifier("undefined"),
+            ],
+            false,
+          ),
+        ),
+      ])
+    }
+  }
+
   if (isGlomAllType(type)) {
     return generateAllDescriptor(
-      extractAllTermsFromNode(node, factory, typeChecker),
+      extractAllTermsFromNode(node as ts.TypeReferenceNode, factory, typeChecker),
       factory,
     )
   }
 
-  switch (name) {
-    case "Read":
-      return factory.createObjectLiteralExpression([
-        factory.createPropertyAssignment(
-          "read",
-          extractRuntimeExpr(factory, node.typeArguments?.[0]) ||
-            factory.createIdentifier("unknown"),
-        ),
-      ])
-    case "Write":
-      return factory.createObjectLiteralExpression([
-        factory.createPropertyAssignment(
-          "write",
-          extractRuntimeExpr(factory, node.typeArguments?.[0]) ||
-            factory.createIdentifier("unknown"),
-        ),
-      ])
-    case "Add":
-      return factory.createObjectLiteralExpression([
-        factory.createPropertyAssignment(
-          "add",
-          extractRuntimeExpr(factory, node.typeArguments?.[0]) ||
-            factory.createIdentifier("unknown"),
-        ),
-      ])
-    case "Remove":
-      return factory.createObjectLiteralExpression([
-        factory.createPropertyAssignment(
-          "remove",
-          extractRuntimeExpr(factory, node.typeArguments?.[0]) ||
-            factory.createIdentifier("unknown"),
-        ),
-      ])
-    case "Has":
-      return factory.createObjectLiteralExpression([
-        factory.createPropertyAssignment(
-          "has",
-          extractRuntimeExpr(factory, node.typeArguments?.[0]) ||
-            factory.createIdentifier("unknown"),
-        ),
-      ])
-    case "Not":
-      return factory.createObjectLiteralExpression([
-        factory.createPropertyAssignment(
-          "not",
-          extractRuntimeExpr(factory, node.typeArguments?.[0]) ||
-            factory.createIdentifier("unknown"),
-        ),
-      ])
-    case "Spawn":
-      return factory.createObjectLiteralExpression([
-        factory.createPropertyAssignment("spawn", factory.createTrue()),
-      ])
-    case "Despawn":
-      return factory.createObjectLiteralExpression([
-        factory.createPropertyAssignment("despawn", factory.createTrue()),
-      ])
-    case "World":
-      return factory.createObjectLiteralExpression([
-        factory.createPropertyAssignment("world", factory.createTrue()),
-      ])
-    default: {
-      const symbol = typeChecker.getSymbolAtLocation(typeName)
-      if (symbol?.getName() === "World") {
+  if (ts.isTypeReferenceNode(node)) {
+    const typeName = node.typeName
+    const nodeName = ts.isIdentifier(typeName)
+      ? typeName.text
+      : ts.isQualifiedName(typeName)
+        ? typeName.right.text
+        : ""
+
+    switch (nodeName) {
+      case "Read":
+      case "Write":
+      case "Add":
+      case "Remove":
+      case "Has":
+      case "Not":
         return factory.createObjectLiteralExpression([
-          factory.createPropertyAssignment("world", factory.createTrue()),
-        ])
-      }
-      return null
-    }
-  }
-}
-
-function rewriteSystemFunction(
-  fn: ts.FunctionExpression | ts.ArrowFunction | ts.FunctionDeclaration,
-  queryInfos: ParamQueryInfo[],
-  context: ts.TransformationContext,
-): ts.FunctionExpression | ts.ArrowFunction | ts.FunctionDeclaration {
-  const {factory} = context
-
-  const originalBody = fn.body
-  if (!originalBody || !ts.isBlock(originalBody)) return fn
-
-  const queryMap = new Map<string, QueryTerm[]>()
-  const uniqueParams = new Set<string>()
-  const destructuredUnique = new Map<ts.BindingPattern, string>()
-
-  queryInfos.forEach((q) => {
-    if (ts.isIdentifier(q.paramName)) {
-      queryMap.set(q.paramName.text, q.terms)
-      if (q.isUnique) uniqueParams.add(q.paramName.text)
-    }
-  })
-
-  const usedQueries = new Set<string>()
-
-  const uniqueExtractions: ts.Statement[] = []
-  const newParameters = fn.parameters.map((p) => {
-    const info = queryInfos.find((q) => q.paramName === p.name)
-    if (info) {
-      if (!info.isUnique) return p
-
-      const originalBinding = p.name
-      const newName = factory.createUniqueName(
-        ts.isIdentifier(originalBinding)
-          ? `_unique_${originalBinding.text}`
-          : "_unique_query",
-      )
-      const newNameText = newName.text
-
-      if (ts.isIdentifier(originalBinding)) {
-        uniqueParams.add(originalBinding.text)
-        queryMap.set(originalBinding.text, info.terms)
-      } else {
-        destructuredUnique.set(
-          originalBinding as ts.BindingPattern,
-          newNameText,
-        )
-      }
-
-      uniqueExtractions.push(
-        factory.createVariableStatement(
-          undefined,
-          factory.createVariableDeclarationList(
-            [
-              factory.createVariableDeclaration(
-                originalBinding,
-                undefined,
-                undefined,
-                factory.createCallExpression(
-                  factory.createPropertyAccessExpression(newName, "get"),
-                  undefined,
-                  [],
-                ),
-              ),
-            ],
-            ts.NodeFlags.Const,
+          factory.createPropertyAssignment(
+            nodeName.toLowerCase(),
+            extractRuntimeExpr(factory, node.typeArguments?.[0]) ||
+              factory.createIdentifier("unknown"),
           ),
-        ),
-      )
-      return factory.updateParameterDeclaration(
-        p,
-        p.modifiers,
-        p.dotDotDotToken,
-        newName,
-        p.questionToken,
-        p.type,
-        p.initializer,
-      )
-    }
-    return p
-  })
-
-  const transformNode = (node: ts.Node): ts.Node => {
-    if (ts.isForOfStatement(node)) {
-      const expression = node.expression
-      if (ts.isIdentifier(expression)) {
-        const terms = queryMap.get(expression.text)
-        if (terms) {
-          usedQueries.add(expression.text)
-
-          let loopVariables: ts.BindingElement[] = []
-          if (ts.isVariableDeclarationList(node.initializer)) {
-            const decl = node.initializer.declarations[0]
-            if (decl && ts.isArrayBindingPattern(decl.name)) {
-              loopVariables = [
-                ...decl.name.elements.filter(ts.isBindingElement),
-              ]
-            }
-          }
-
-          let loopBody: ts.Statement[] = []
-          if (ts.isBlock(node.statement)) {
-            loopBody = ts.visitNodes(
-              node.statement.statements,
-              transformNode,
-            ) as unknown as ts.Statement[]
-          } else {
-            loopBody = [
-              ts.visitNode(node.statement, transformNode) as ts.Statement,
-            ]
-          }
-
-          if (loopBody.length > 0) {
-            return factory.createBlock(
-              generateLoops(
-                expression.text,
-                terms,
-                loopVariables,
-                loopBody,
-                factory,
-              ),
-              true,
-            )
-          }
-        }
-      }
-    }
-    return ts.visitEachChild(node, transformNode, context)
-  }
-
-  const updatedBody = ts.visitNode(originalBody, transformNode) as ts.Block
-
-  const preambles: ts.Statement[] = []
-  usedQueries.forEach((paramName) => {
-    const terms = queryMap.get(paramName) as QueryTerm[]
-    preambles.push(...generatePreamble(paramName, terms, factory))
-  })
-
-  const finalBody = factory.createBlock(
-    [...uniqueExtractions, ...preambles, ...updatedBody.statements],
-    true,
-  )
-
-  if (ts.isArrowFunction(fn)) {
-    return factory.updateArrowFunction(
-      fn,
-      fn.modifiers,
-      fn.typeParameters,
-      newParameters,
-      fn.type,
-      fn.equalsGreaterThanToken,
-      finalBody,
-    )
-  } else if (ts.isFunctionExpression(fn)) {
-    return factory.updateFunctionExpression(
-      fn,
-      fn.modifiers,
-      fn.asteriskToken,
-      fn.name,
-      fn.typeParameters,
-      newParameters,
-      fn.type,
-      finalBody,
-    )
-  } else {
-    return factory.updateFunctionDeclaration(
-      fn,
-      fn.modifiers,
-      fn.asteriskToken,
-      fn.name,
-      fn.typeParameters,
-      newParameters,
-      fn.type,
-      finalBody,
-    )
-  }
-}
-
-function flattenTerms(terms: QueryTerm[]): QueryTerm[] {
-  const result: QueryTerm[] = []
-  const visit = (t: QueryTerm) => {
-    result.push(t)
-    if (t.subTerms) {
-      t.subTerms.forEach(visit)
+        ])
+      case "Spawn":
+        return factory.createObjectLiteralExpression([
+          factory.createPropertyAssignment(
+            "spawn",
+            extractRuntimeExpr(factory, node.typeArguments?.[0]) ||
+              factory.createTrue(),
+          ),
+        ])
+      case "Despawn":
+        return factory.createObjectLiteralExpression([
+          factory.createPropertyAssignment("despawn", factory.createTrue()),
+        ])
+      case "Entity":
+      case "EntityTerm":
+        return factory.createObjectLiteralExpression([
+          factory.createPropertyAssignment("entity", factory.createTrue()),
+        ])
     }
   }
-  terms.forEach(visit)
-  return result
+
+  return null
 }
 
 function generatePreamble(
@@ -895,16 +473,17 @@ function generatePreamble(
   terms: QueryTerm[],
   factory: ts.NodeFactory,
 ): ts.Statement[] {
-  const preamble: ts.Statement[] = []
+  const statements: ts.Statement[] = []
   const allTerms = flattenTerms(terms)
 
-  preamble.push(
+  // const _e_to_i_query = query.entityToIndex
+  statements.push(
     factory.createVariableStatement(
       undefined,
       factory.createVariableDeclarationList(
         [
           factory.createVariableDeclaration(
-            factory.createIdentifier(`_e_to_i_${queryParamName}`),
+            `_e_to_i_${queryParamName}`,
             undefined,
             undefined,
             factory.createPropertyAccessExpression(
@@ -918,45 +497,46 @@ function generatePreamble(
     ),
   )
 
+  const usedStores = new Set<number>()
   allTerms.forEach((t) => {
-    if (t.storeIndex !== undefined) {
-      preamble.push(
-        factory.createVariableStatement(
-          undefined,
-          factory.createVariableDeclarationList(
-            [
-              factory.createVariableDeclaration(
-                factory.createIdentifier(
-                  `_store${t.storeIndex}_${queryParamName}`,
-                ),
-                undefined,
-                undefined,
-                factory.createElementAccessExpression(
-                  factory.createPropertyAccessExpression(
-                    factory.createIdentifier(queryParamName),
-                    factory.createIdentifier("stores"),
-                  ),
-                  factory.createNumericLiteral(t.storeIndex),
-                ),
-              ),
-            ],
-            ts.NodeFlags.Const,
-          ),
-        ),
-      )
-    }
+    if (t.storeIndex !== undefined) usedStores.add(t.storeIndex)
   })
 
-  const joinCount =
-    allTerms.reduce((max, t) => Math.max(max, t.joinIndex), 0) + 1
-  for (let i = 0; i < joinCount; i++) {
-    preamble.push(
+  usedStores.forEach((idx) => {
+    statements.push(
       factory.createVariableStatement(
         undefined,
         factory.createVariableDeclarationList(
           [
             factory.createVariableDeclaration(
-              factory.createIdentifier(`_q${i}_${queryParamName}`),
+              `_store${idx}_${queryParamName}`,
+              undefined,
+              undefined,
+              factory.createElementAccessExpression(
+                factory.createPropertyAccessExpression(
+                  factory.createIdentifier(queryParamName),
+                  factory.createIdentifier("stores"),
+                ),
+                factory.createNumericLiteral(idx),
+              ),
+            ),
+          ],
+          ts.NodeFlags.Const,
+        ),
+      ),
+    )
+  })
+
+  const joinCount =
+    allTerms.reduce((max, t) => Math.max(max, t.joinIndex), 0) + 1
+  for (let i = 0; i < joinCount; i++) {
+    statements.push(
+      factory.createVariableStatement(
+        undefined,
+        factory.createVariableDeclarationList(
+          [
+            factory.createVariableDeclaration(
+              `_q${i}_${queryParamName}`,
               undefined,
               undefined,
               factory.createElementAccessExpression(
@@ -974,7 +554,7 @@ function generatePreamble(
     )
   }
 
-  return preamble
+  return statements
 }
 
 function generateLoops(
@@ -1135,232 +715,37 @@ function generateLoops(
               ts.NodeFlags.Const,
             ),
           ),
-          factory.createVariableStatement(
-            undefined,
-            factory.createVariableDeclarationList(
-              [
-                factory.createVariableDeclaration(
-                  idxIdent,
+          ...(currentJoinLevel === 0
+            ? [
+                factory.createVariableStatement(
                   undefined,
-                  undefined,
-                  factory.createElementAccessExpression(
-                    factory.createPropertyAccessExpression(
-                      nIdent,
-                      factory.createIdentifier("indices"),
-                    ),
-                    jIdent,
+                  factory.createVariableDeclarationList(
+                    [
+                      factory.createVariableDeclaration(
+                        idxIdent,
+                        undefined,
+                        undefined,
+                        factory.createElementAccessExpression(
+                          factory.createPropertyAccessExpression(
+                            nIdent,
+                            factory.createIdentifier("indices"),
+                          ),
+                          jIdent,
+                        ),
+                      ),
+                    ],
+                    ts.NodeFlags.Const,
                   ),
                 ),
-              ],
-              ts.NodeFlags.Const,
-            ),
-          ),
+              ]
+            : []),
           ...innerBody,
         ],
         true,
       ),
     )
 
-    if (currentJoinLevel > 0 && currentSubjectEnt) {
-      const relIdent = factory.createIdentifier(
-        `_rel${currentJoinLevel}_${queryParamName}`,
-      )
-      const targetsIdent = factory.createIdentifier(
-        `_targets${currentJoinLevel}_${queryParamName}`,
-      )
-      const joinOnIdIdent = factory.createPropertyAccessExpression(
-        factory.createPropertyAccessExpression(
-          qIdent,
-          factory.createIdentifier("joinOn"),
-        ),
-        factory.createIdentifier("id"),
-      )
-
-      const relTargetsIdent = factory.createIdentifier(
-        `_rel_targets${currentJoinLevel}_${queryParamName}`,
-      )
-
-      return [
-        factory.createForStatement(
-          factory.createVariableDeclarationList(
-            [
-              factory.createVariableDeclaration(
-                iIdent,
-                undefined,
-                undefined,
-                factory.createNumericLiteral(0),
-              ),
-            ],
-            ts.NodeFlags.Let,
-          ),
-          factory.createBinaryExpression(
-            iIdent,
-            ts.SyntaxKind.LessThanToken,
-            factory.createPropertyAccessExpression(
-              factory.createPropertyAccessExpression(
-                qIdent,
-                factory.createIdentifier("nodes"),
-              ),
-              factory.createIdentifier("length"),
-            ),
-          ),
-          factory.createPostfixUnaryExpression(
-            iIdent,
-            ts.SyntaxKind.PlusPlusToken,
-          ),
-          factory.createBlock(
-            [
-              factory.createVariableStatement(
-                undefined,
-                factory.createVariableDeclarationList(
-                  [
-                    factory.createVariableDeclaration(
-                      nIdent,
-                      undefined,
-                      undefined,
-                      factory.createElementAccessExpression(
-                        factory.createPropertyAccessExpression(
-                          qIdent,
-                          factory.createIdentifier("nodes"),
-                        ),
-                        iIdent,
-                      ),
-                    ),
-                  ],
-                  ts.NodeFlags.Const,
-                ),
-              ),
-              factory.createVariableStatement(
-                undefined,
-                factory.createVariableDeclarationList(
-                  [
-                    factory.createVariableDeclaration(
-                      relIdent,
-                      undefined,
-                      undefined,
-                      factory.createElementAccessExpression(
-                        factory.createPropertyAccessExpression(
-                          nIdent,
-                          factory.createIdentifier("relMaps"),
-                        ),
-                        joinOnIdIdent,
-                      ),
-                    ),
-                  ],
-                  ts.NodeFlags.Const,
-                ),
-              ),
-              factory.createIfStatement(
-                factory.createPrefixUnaryExpression(
-                  ts.SyntaxKind.ExclamationToken,
-                  relIdent,
-                ),
-                factory.createContinueStatement(),
-              ),
-              factory.createVariableStatement(
-                undefined,
-                factory.createVariableDeclarationList(
-                  [
-                    factory.createVariableDeclaration(
-                      relTargetsIdent,
-                      undefined,
-                      undefined,
-                      factory.createCallExpression(
-                        factory.createPropertyAccessExpression(
-                          factory.createPropertyAccessExpression(
-                            relIdent,
-                            factory.createIdentifier("subjectToObjects"),
-                          ),
-                          factory.createIdentifier("get"),
-                        ),
-                        undefined,
-                        [currentSubjectEnt],
-                      ),
-                    ),
-                  ],
-                  ts.NodeFlags.Const,
-                ),
-              ),
-              factory.createIfStatement(
-                factory.createPrefixUnaryExpression(
-                  ts.SyntaxKind.ExclamationToken,
-                  relTargetsIdent,
-                ),
-                factory.createContinueStatement(),
-              ),
-              factory.createVariableStatement(
-                undefined,
-                factory.createVariableDeclarationList(
-                  [
-                    factory.createVariableDeclaration(
-                      targetsIdent,
-                      undefined,
-                      undefined,
-                      factory.createPropertyAccessExpression(
-                        relTargetsIdent,
-                        factory.createIdentifier("dense"),
-                      ),
-                    ),
-                  ],
-                  ts.NodeFlags.Const,
-                ),
-              ),
-              factory.createForStatement(
-                factory.createVariableDeclarationList(
-                  [
-                    factory.createVariableDeclaration(
-                      jIdent,
-                      undefined,
-                      undefined,
-                      factory.createNumericLiteral(0),
-                    ),
-                  ],
-                  ts.NodeFlags.Let,
-                ),
-                factory.createBinaryExpression(
-                  jIdent,
-                  ts.SyntaxKind.LessThanToken,
-                  factory.createPropertyAccessExpression(
-                    targetsIdent,
-                    factory.createIdentifier("length"),
-                  ),
-                ),
-                factory.createPostfixUnaryExpression(
-                  jIdent,
-                  ts.SyntaxKind.PlusPlusToken,
-                ),
-                factory.createBlock(
-                  [
-                    factory.createVariableStatement(
-                      undefined,
-                      factory.createVariableDeclarationList(
-                        [
-                          factory.createVariableDeclaration(
-                            eIdent,
-                            undefined,
-                            undefined,
-                            factory.createElementAccessExpression(
-                              targetsIdent,
-                              jIdent,
-                            ),
-                          ),
-                        ],
-                        ts.NodeFlags.Const,
-                      ),
-                    ),
-                    ...(currentJoinLevel === joinCount - 1
-                      ? innerBody
-                      : generateRecursive(currentJoinLevel + 1, eIdent)),
-                  ],
-                  true,
-                ),
-              ),
-            ],
-            true,
-          ),
-        ),
-      ]
-    } else {
+    if (currentJoinLevel === 0) {
       return [
         factory.createForStatement(
           factory.createVariableDeclarationList(
@@ -1417,8 +802,687 @@ function generateLoops(
           ),
         ),
       ]
+    } else {
+      // Relational join or Cartesian product
+      return [
+        factory.createIfStatement(
+          factory.createBinaryExpression(
+            factory.createPropertyAccessExpression(
+              qIdent,
+              factory.createIdentifier("joinOnId"),
+            ),
+            ts.SyntaxKind.ExclamationEqualsEqualsToken,
+            factory.createIdentifier("undefined"),
+          ),
+          factory.createBlock(
+            [
+              factory.createForStatement(
+                factory.createVariableDeclarationList(
+                  [
+                    factory.createVariableDeclaration(
+                      iIdent,
+                      undefined,
+                      undefined,
+                      factory.createNumericLiteral(0),
+                    ),
+                  ],
+                  ts.NodeFlags.Let,
+                ),
+                factory.createBinaryExpression(
+                  iIdent,
+                  ts.SyntaxKind.LessThanToken,
+                  factory.createPropertyAccessExpression(
+                    factory.createPropertyAccessExpression(
+                      qIdent,
+                      factory.createIdentifier("nodes"),
+                    ),
+                    factory.createIdentifier("length"),
+                  ),
+                ),
+                factory.createPostfixUnaryExpression(
+                  iIdent,
+                  ts.SyntaxKind.PlusPlusToken,
+                ),
+                factory.createBlock(
+                  [
+                    factory.createVariableStatement(
+                      undefined,
+                      factory.createVariableDeclarationList(
+                        [
+                          factory.createVariableDeclaration(
+                            nIdent,
+                            undefined,
+                            undefined,
+                            factory.createElementAccessExpression(
+                              factory.createPropertyAccessExpression(
+                                qIdent,
+                                factory.createIdentifier("nodes"),
+                              ),
+                              iIdent,
+                            ),
+                          ),
+                        ],
+                        ts.NodeFlags.Const,
+                      ),
+                    ),
+                    factory.createVariableStatement(
+                      undefined,
+                      factory.createVariableDeclarationList(
+                        [
+                          factory.createVariableDeclaration(
+                            factory.createIdentifier(
+                              `_rel_map${currentJoinLevel}_${queryParamName}`,
+                            ),
+                            undefined,
+                            undefined,
+                            factory.createElementAccessExpression(
+                              factory.createPropertyAccessExpression(
+                                nIdent,
+                                factory.createIdentifier("relMaps"),
+                              ),
+                              factory.createPropertyAccessExpression(
+                                qIdent,
+                                factory.createIdentifier("joinOnId"),
+                              ),
+                            ),
+                          ),
+                        ],
+                        ts.NodeFlags.Const,
+                      ),
+                    ),
+                    factory.createVariableStatement(
+                      undefined,
+                      factory.createVariableDeclarationList(
+                        [
+                          factory.createVariableDeclaration(
+                            factory.createIdentifier(
+                              `_rel_targets${currentJoinLevel}_${queryParamName}`,
+                            ),
+                            undefined,
+                            undefined,
+                            factory.createConditionalExpression(
+                              factory.createIdentifier(
+                                `_rel_map${currentJoinLevel}_${queryParamName}`,
+                              ),
+                              factory.createToken(ts.SyntaxKind.QuestionToken),
+                              factory.createCallExpression(
+                                factory.createPropertyAccessExpression(
+                                  factory.createPropertyAccessExpression(
+                                    factory.createIdentifier(
+                                      `_rel_map${currentJoinLevel}_${queryParamName}`,
+                                    ),
+                                    factory.createIdentifier("subjectToObjects"),
+                                  ),
+                                  factory.createIdentifier("get"),
+                                ),
+                                undefined,
+                                [currentSubjectEnt!],
+                              ),
+                              factory.createToken(ts.SyntaxKind.ColonToken),
+                              factory.createIdentifier("undefined"),
+                            ),
+                          ),
+                        ],
+                        ts.NodeFlags.Const,
+                      ),
+                    ),
+                    factory.createIfStatement(
+                      factory.createIdentifier(
+                        `_rel_targets${currentJoinLevel}_${queryParamName}`,
+                      ),
+                      factory.createBlock(
+                        [
+                          factory.createForStatement(
+                            factory.createVariableDeclarationList(
+                              [
+                                factory.createVariableDeclaration(
+                                  jIdent,
+                                  undefined,
+                                  undefined,
+                                  factory.createNumericLiteral(0),
+                                ),
+                              ],
+                              ts.NodeFlags.Let,
+                            ),
+                            factory.createBinaryExpression(
+                              jIdent,
+                              ts.SyntaxKind.LessThanToken,
+                              factory.createPropertyAccessExpression(
+                                factory.createPropertyAccessExpression(
+                                  factory.createIdentifier(
+                                    `_rel_targets${currentJoinLevel}_${queryParamName}`,
+                                  ),
+                                  factory.createIdentifier("dense"),
+                                ),
+                                factory.createIdentifier("length"),
+                              ),
+                            ),
+                            factory.createPostfixUnaryExpression(
+                              jIdent,
+                              ts.SyntaxKind.PlusPlusToken,
+                            ),
+                            factory.createBlock(
+                              [
+                                factory.createVariableStatement(
+                                  undefined,
+                                  factory.createVariableDeclarationList(
+                                    [
+                                      factory.createVariableDeclaration(
+                                        eIdent,
+                                        undefined,
+                                        undefined,
+                                        factory.createElementAccessExpression(
+                                          factory.createPropertyAccessExpression(
+                                            factory.createIdentifier(
+                                              `_rel_targets${currentJoinLevel}_${queryParamName}`,
+                                            ),
+                                            factory.createIdentifier("dense"),
+                                          ),
+                                          jIdent,
+                                        ),
+                                      ),
+                                    ],
+                                    ts.NodeFlags.Const,
+                                  ),
+                                ),
+                                ...innerBody,
+                              ],
+                              true,
+                            ),
+                          ),
+                        ],
+                        true,
+                      ),
+                    ),
+                  ],
+                  true,
+                ),
+              ),
+            ],
+            true,
+          ),
+          factory.createBlock(
+            [
+              factory.createForStatement(
+                factory.createVariableDeclarationList(
+                  [
+                    factory.createVariableDeclaration(
+                      iIdent,
+                      undefined,
+                      undefined,
+                      factory.createNumericLiteral(0),
+                    ),
+                  ],
+                  ts.NodeFlags.Let,
+                ),
+                factory.createBinaryExpression(
+                  iIdent,
+                  ts.SyntaxKind.LessThanToken,
+                  factory.createPropertyAccessExpression(
+                    factory.createPropertyAccessExpression(
+                      qIdent,
+                      factory.createIdentifier("nodes"),
+                    ),
+                    factory.createIdentifier("length"),
+                  ),
+                ),
+                factory.createPostfixUnaryExpression(
+                  iIdent,
+                  ts.SyntaxKind.PlusPlusToken,
+                ),
+                factory.createBlock(
+                  [
+                    factory.createVariableStatement(
+                      undefined,
+                      factory.createVariableDeclarationList(
+                        [
+                          factory.createVariableDeclaration(
+                            nIdent,
+                            undefined,
+                            undefined,
+                            factory.createElementAccessExpression(
+                              factory.createPropertyAccessExpression(
+                                qIdent,
+                                factory.createIdentifier("nodes"),
+                              ),
+                              iIdent,
+                            ),
+                          ),
+                        ],
+                        ts.NodeFlags.Const,
+                      ),
+                    ),
+                    entityIteration,
+                  ],
+                  true,
+                ),
+              ),
+            ],
+            true,
+          ),
+        ),
+      ]
     }
   }
 
   return generateRecursive(0, undefined)
+}
+
+function flattenTerms(terms: QueryTerm[]): QueryTerm[] {
+  const result: QueryTerm[] = []
+  const visit = (t: QueryTerm) => {
+    if (t.type === "rel" && t.subTerms) {
+      result.push(t)
+      t.subTerms.forEach(visit)
+    } else {
+      result.push(t)
+    }
+  }
+  terms.forEach(visit)
+  return result
+}
+
+function rewriteSystemFunction(
+  systemNode: ts.FunctionExpression | ts.ArrowFunction | ts.FunctionDeclaration,
+  queryInfos: ParamQueryInfo[],
+  context: ts.TransformationContext,
+): ts.Node {
+  const factory = context.factory
+  const newBody: ts.Statement[] = []
+  const newParams = [...systemNode.parameters]
+
+  queryInfos.forEach((info, index) => {
+    if (info.isUnique) {
+      const originalParam = systemNode.parameters.find(
+        (p) => p.name === info.paramName,
+      )
+      if (originalParam) {
+        const paramIdx = systemNode.parameters.indexOf(originalParam)
+        const uniqueName = factory.createUniqueName("_unique_query")
+        newParams[paramIdx] = factory.createParameterDeclaration(
+          originalParam.modifiers,
+          originalParam.dotDotDotToken,
+          uniqueName,
+          originalParam.questionToken,
+          originalParam.type,
+          originalParam.initializer,
+        )
+
+        // const [pos] = _unique_query_1.get()
+        newBody.push(
+          factory.createVariableStatement(
+            undefined,
+            factory.createVariableDeclarationList(
+              [
+                factory.createVariableDeclaration(
+                  info.paramName,
+                  undefined,
+                  undefined,
+                  factory.createCallExpression(
+                    factory.createPropertyAccessExpression(
+                      uniqueName,
+                      factory.createIdentifier("get"),
+                    ),
+                    undefined,
+                    [],
+                  ),
+                ),
+              ],
+              ts.NodeFlags.Const,
+            ),
+          ),
+        )
+      }
+    } else {
+      newBody.push(
+        ...generatePreamble(info.paramName.getText(), info.terms, factory),
+      )
+    }
+  })
+
+  let currentBody: ts.Statement[] = []
+  if (ts.isBlock(systemNode.body!)) {
+    currentBody = [...systemNode.body.statements]
+  } else {
+    currentBody = [
+      factory.createExpressionStatement(systemNode.body as ts.Expression),
+    ]
+  }
+
+  const visitor: ts.Visitor = (node: ts.Node): ts.Node | undefined => {
+    if (ts.isForOfStatement(node)) {
+      if (
+        ts.isArrayBindingPattern(node.initializer) ||
+        (ts.isVariableDeclarationList(node.initializer) &&
+          ts.isArrayBindingPattern(node.initializer.declarations[0]!.name))
+      ) {
+        const expression = node.expression
+        const queryName = expression.getText()
+        const info = queryInfos.find((i) => i.paramName.getText() === queryName)
+
+        if (info && !info.isUnique) {
+          const bindingPattern = ts.isVariableDeclarationList(node.initializer)
+            ? (node.initializer.declarations[0]!.name as ts.ArrayBindingPattern)
+            : (node.initializer as ts.ArrayBindingPattern)
+
+          const loopVariables = bindingPattern.elements as ts.BindingElement[]
+          const loopBody = ts.isBlock(node.statement)
+            ? [...node.statement.statements]
+            : [node.statement]
+
+          return factory.createBlock(
+            generateLoops(
+              queryName,
+              info.terms,
+              loopVariables,
+              loopBody,
+              factory,
+            ),
+            true,
+          )
+        }
+      }
+    }
+
+    return ts.visitEachChild(node, visitor, context)
+  }
+
+  const visitorResults = ts.visitNodes(
+    factory.createNodeArray(currentBody),
+    visitor,
+  ) as unknown as ts.Statement[]
+
+  const blockBody = factory.createBlock([...newBody, ...visitorResults], true)
+
+  if (ts.isFunctionDeclaration(systemNode)) {
+    return factory.updateFunctionDeclaration(
+      systemNode,
+      systemNode.modifiers,
+      systemNode.asteriskToken,
+      systemNode.name,
+      systemNode.typeParameters,
+      newParams,
+      systemNode.type,
+      blockBody,
+    )
+  } else if (ts.isFunctionExpression(systemNode)) {
+    return factory.updateFunctionExpression(
+      systemNode,
+      systemNode.modifiers,
+      systemNode.asteriskToken,
+      systemNode.name,
+      systemNode.typeParameters,
+      newParams,
+      systemNode.type,
+      blockBody,
+    )
+  } else {
+    return factory.updateArrowFunction(
+      systemNode,
+      systemNode.modifiers,
+      systemNode.typeParameters,
+      newParams,
+      systemNode.type,
+      systemNode.equalsGreaterThanToken,
+      blockBody,
+    )
+  }
+}
+
+export function createTransformer(
+  program: ts.Program,
+): ts.TransformerFactory<ts.SourceFile> {
+  const typeChecker = program.getTypeChecker()
+
+  return (context: ts.TransformationContext) => {
+    return (sourceFile: ts.SourceFile) => {
+      if (
+        sourceFile.isDeclarationFile ||
+        sourceFile.fileName.includes("node_modules") ||
+        sourceFile.fileName.includes("lib/glom-ecs/src")
+      ) {
+        return sourceFile
+      }
+      const visitor = (node: ts.Node): ts.Node => {
+        if (ts.isFunctionDeclaration(node)) {
+          const {isSystem, transformedNode, metadataObj, systemName} =
+            processSystem(node, context, typeChecker)
+          if (isSystem) {
+            return factoryWithMetadata(
+              transformedNode as ts.FunctionDeclaration,
+              metadataObj!,
+              systemName,
+              context.factory,
+            )
+          }
+        }
+
+        if (ts.isVariableStatement(node)) {
+          const declarations = node.declarationList.declarations
+          if (declarations.length === 1) {
+            const decl = declarations[0]!
+            if (
+              decl.initializer &&
+              (ts.isFunctionExpression(decl.initializer) ||
+                ts.isArrowFunction(decl.initializer))
+            ) {
+              const {isSystem, transformedNode, metadataObj, systemName} =
+                processSystem(decl.initializer, context, typeChecker)
+              if (isSystem) {
+                const newDecl = context.factory.updateVariableDeclaration(
+                  decl,
+                  decl.name,
+                  decl.exclamationToken,
+                  decl.type,
+                  transformedNode as ts.Expression,
+                )
+                const newStmt = context.factory.updateVariableStatement(
+                  node,
+                  node.modifiers,
+                  context.factory.updateVariableDeclarationList(
+                    node.declarationList,
+                    [newDecl],
+                  ),
+                )
+                return factoryWithMetadata(
+                  newStmt,
+                  metadataObj!,
+                  systemName,
+                  context.factory,
+                )
+              }
+            }
+          }
+        }
+
+        // Handle anonymous systems inside addSystem(...)
+        if (ts.isCallExpression(node)) {
+          const name = node.expression.getText()
+          if (name.endsWith("addSystem")) {
+            const systemArg = node.arguments[1]
+            if (
+              systemArg &&
+              (ts.isFunctionExpression(systemArg) ||
+                ts.isArrowFunction(systemArg))
+            ) {
+              const {isSystem, transformedNode, metadataObj} = processSystem(
+                systemArg,
+                context,
+                typeChecker,
+              )
+              if (isSystem) {
+                const wrapped = wrapWithMetadata(
+                  transformedNode as ts.Expression,
+                  metadataObj!,
+                  context.factory,
+                )
+                const newArgs = [...node.arguments]
+                newArgs[1] = wrapped
+                return context.factory.updateCallExpression(
+                  node,
+                  node.expression,
+                  node.typeParameters,
+                  newArgs,
+                )
+              }
+            }
+          }
+        }
+
+        return ts.visitEachChild(node, visitor, context)
+      }
+
+      return ts.visitNode(sourceFile, visitor) as ts.SourceFile
+    }
+  }
+}
+
+function processSystem(
+  systemNode: ts.FunctionExpression | ts.ArrowFunction | ts.FunctionDeclaration,
+  context: ts.TransformationContext,
+  typeChecker: ts.TypeChecker,
+) {
+  const params = systemNode.parameters
+  const paramDescriptors: ts.Expression[] = []
+  const allQueryInfos: ParamQueryInfo[] = []
+  let isGlomSystem = false
+
+  const systemName = ts.isFunctionDeclaration(systemNode)
+    ? systemNode.name?.text || "anonymous"
+    : ts.isVariableDeclaration(systemNode.parent)
+      ? systemNode.parent.name.getText()
+      : "anonymous"
+
+  for (const param of params) {
+    const type = typeChecker.getTypeAtLocation(param)
+    const typeNode = param.type
+    const actualName = getSymbolName(type)
+
+    const isAll = isGlomAllType(type)
+    const isUnique = actualName === "Unique" || !!type.getProperty("__unique")
+
+    if (isAll && typeNode && ts.isTypeReferenceNode(typeNode)) {
+      const terms = extractAllTermsFromNode(
+        typeNode,
+        context.factory,
+        typeChecker,
+      )
+      if (terms.length > 0) {
+        allQueryInfos.push({
+          paramName: param.name,
+          terms,
+          isUnique,
+        })
+      }
+    }
+
+    const desc = generateParamDescriptor(
+      typeNode,
+      type,
+      typeChecker,
+      context.factory,
+    )
+    if (desc) {
+      paramDescriptors.push(desc)
+      isGlomSystem = true
+    } else {
+      paramDescriptors.push(context.factory.createObjectLiteralExpression([]))
+    }
+  }
+
+  if (!isGlomSystem) {
+    return {
+      isSystem: false,
+      transformedNode: systemNode,
+      metadataObj: null,
+      systemName,
+    }
+  }
+
+  let transformedNode: ts.Node = systemNode
+  if (allQueryInfos.length > 0) {
+    transformedNode = rewriteSystemFunction(systemNode, allQueryInfos, context)
+  }
+
+  const metadataObj = context.factory.createObjectLiteralExpression(
+    [
+      context.factory.createPropertyAssignment(
+        context.factory.createIdentifier("params"),
+        context.factory.createArrayLiteralExpression(paramDescriptors, false),
+      ),
+      context.factory.createPropertyAssignment(
+        context.factory.createIdentifier("name"),
+        context.factory.createStringLiteral(systemName),
+      ),
+    ],
+    false,
+  )
+
+  return {
+    isSystem: true,
+    transformedNode,
+    metadataObj,
+    systemName,
+  }
+}
+
+function factoryWithMetadata(
+  node: ts.Statement | ts.FunctionDeclaration,
+  metadata: ts.ObjectLiteralExpression,
+  name: string,
+  factory: ts.NodeFactory,
+): ts.Node {
+  const defineProp = factory.createExpressionStatement(
+    factory.createCallExpression(
+      factory.createPropertyAccessExpression(
+        factory.createIdentifier("Object"),
+        factory.createIdentifier("defineProperty"),
+      ),
+      undefined,
+      [
+        factory.createIdentifier(name),
+        factory.createStringLiteral("__system_desc"),
+        factory.createObjectLiteralExpression(
+          [
+            factory.createPropertyAssignment("value", metadata),
+            factory.createPropertyAssignment("enumerable", factory.createFalse()),
+            factory.createPropertyAssignment("configurable", factory.createTrue()),
+          ],
+          false,
+        ),
+      ],
+    ),
+  )
+
+  if (ts.isFunctionDeclaration(node)) {
+    return factory.createNodeArray([node, defineProp]) as any
+  }
+
+  return factory.createNodeArray([node, defineProp]) as any
+}
+
+function wrapWithMetadata(
+  fnExpr: ts.Expression,
+  metadata: ts.ObjectLiteralExpression,
+  factory: ts.NodeFactory,
+): ts.Expression {
+  return factory.createCallExpression(
+    factory.createPropertyAccessExpression(
+      factory.createIdentifier("Object"),
+      factory.createIdentifier("defineProperty"),
+    ),
+    undefined,
+    [
+      fnExpr,
+      factory.createStringLiteral("__system_desc"),
+      factory.createObjectLiteralExpression(
+        [
+          factory.createPropertyAssignment("value", metadata),
+          factory.createPropertyAssignment("enumerable", factory.createFalse()),
+          factory.createPropertyAssignment("configurable", factory.createTrue()),
+        ],
+        false,
+      ),
+    ],
+  )
 }

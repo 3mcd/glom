@@ -1,5 +1,5 @@
 import type {ComponentLike} from "./component"
-import type {AnyAll, In, Out} from "./query/all"
+import type {AnyAll, In, Join, Out} from "./query/all"
 import type {
   Add,
   Despawn,
@@ -16,12 +16,13 @@ export type {Add, Despawn, Remove, Spawn}
 
 export type SystemArgument =
   | AnyAll
+  | Join<any, any, any>
   | Read<ComponentLike>
   | Write<ComponentLike>
   | Has<ComponentLike>
   | Not<ComponentLike>
   | World
-  | Spawn
+  | Spawn<any>
   | Despawn
   | Add<ComponentLike>
   | Remove<ComponentLike>

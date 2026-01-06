@@ -12,7 +12,7 @@ import {
   setComponentValue,
   getOrCreateIndex,
 } from "../world"
-import {spawn} from "../world_api"
+import {addComponent, spawn} from "../world_api"
 import {AllRuntime, makeAll, setupAll, teardownAll} from "./all_runtime"
 
 describe("allRuntime", () => {
@@ -183,22 +183,26 @@ describe("allRuntime", () => {
     expect(results[0]).toEqual([{val: 10}, undefined])
   })
 
-  test("iterator with Rel and Not filter", () => {
+  test("iterator with Join and Not filter", () => {
     const rel = defineRelation()
     const c3 = defineComponent<{val: number}>()
     const world = makeWorld({domainId: 0, schema: [rel, c3]})
 
-    const descWithRelNot: AllDescriptor = {
-      all: [{rel: [rel, {not: c3}]}],
+    const descWithJoinNot: JoinDescriptor = {
+      join: [{all: []}, {all: [{not: c3}]}, rel],
     }
 
-    const all = makeAll(descWithRelNot) as AllRuntime
+    const all = makeAll(descWithJoinNot) as AllRuntime
     setupAll(all, world)
 
     const obj1 = spawn(world, [])
     const obj2 = spawn(world, [{component: c3, value: {val: 30}}])
 
-    spawn(world, [rel(obj1), rel(obj2)])
+    const sub1 = spawn(world, [])
+    const sub2 = spawn(world, [])
+
+    addComponent(world, sub1, rel(obj1))
+    addComponent(world, sub2, rel(obj2))
 
     const results = []
     for (const r of all) {

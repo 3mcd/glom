@@ -370,6 +370,7 @@ function removeRelation(
   const nextNode = entityGraphFindOrCreateNode(world.entityGraph, nextVec)
   const prevNode = setEntityNode(world, entity, nextNode)
   recordGraphMove(world, entity, prevNode, nextNode)
+  unregisterIncomingRelation(world, entity, relationId, object)
 }
 
 export function addComponent(

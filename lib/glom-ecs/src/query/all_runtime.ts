@@ -1,8 +1,12 @@
 import {assertDefined} from "../assert"
 import type {ComponentLike} from "../component"
-import type {
-  AllDescriptor as RawAllDescriptor,
-  UniqueDescriptor as RawUniqueDescriptor,
+import {
+  isJoinDescriptor,
+  isInDescriptor,
+  isOutDescriptor,
+  type AllDescriptor as RawAllDescriptor,
+  type JoinDescriptor as RawJoinDescriptor,
+  type UniqueDescriptor as RawUniqueDescriptor,
 } from "../descriptors"
 import type {Entity} from "../entity"
 import {
@@ -11,6 +15,7 @@ import {
   entityGraphFindOrCreateNode,
   entityGraphNodeAddListener,
   entityGraphNodeRemoveListener,
+  entityGraphNodeTraverseRight,
 } from "../entity_graph"
 import {isRelationship, type Relation} from "../relation"
 import {getOrCreateVirtualId} from "../relation_registry"
@@ -46,40 +51,42 @@ export type TermInfo =
       componentId: number
       joinIndex: number
     }
-  | {
-      type: "rel"
-      relation: Relation
-      relationId: number
-      objectTerm: TermInfo
-      joinIndex: number
-      nextJoinIndex: number
-    }
 
 export class JoinLevel implements EntityGraphNodeListener {
   readonly nodes: EntityGraphNode[] = []
   readonly nodesMap = makeSparseMap<EntityGraphNode>()
   readonly requiredVec: Vec
   readonly excludedVecs: Vec[]
-  readonly joinOn?: {readonly id: number}
+  readonly joinOn?: Relation
+  readonly joinOnId?: number
   readonly anchorNode: EntityGraphNode
+  reactiveMode?: "in" | "out"
 
   constructor(
     world: World,
     required: ComponentLike[],
     excluded: ComponentLike[],
-    joinOn?: {readonly id: number},
+    joinOn?: Relation,
   ) {
     this.requiredVec = makeVec(required, world.componentRegistry)
     this.excludedVecs = excluded.map((c) =>
       makeVec([c], world.componentRegistry),
     )
     this.joinOn = joinOn
+    if (joinOn) {
+      this.joinOnId = world.componentRegistry.getId(joinOn)
+    }
 
     this.anchorNode = entityGraphFindOrCreateNode(
       world.entityGraph,
       this.requiredVec,
     )
     entityGraphNodeAddListener(this.anchorNode, this, true)
+
+    // Populate with existing nodes
+    entityGraphNodeTraverseRight(this.anchorNode, (node) => {
+      this.nodeCreated(node)
+    })
   }
 
   nodeCreated(node: EntityGraphNode): void {
@@ -136,7 +143,9 @@ export class AllRuntime implements AnyAll {
     return this.joins[0]?.anchorNode
   }
 
-  constructor(readonly desc: RawAllDescriptor) {}
+  constructor(
+    readonly desc: RawAllDescriptor | RawJoinDescriptor | RawUniqueDescriptor,
+  ) {}
 
   *[Symbol.iterator](): Iterator<unknown[]> {
     if (this.joins.length === 0) return
@@ -148,14 +157,119 @@ export class AllRuntime implements AnyAll {
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i] as EntityGraphNode
       const entities = node.entities.dense
-
       for (let j = 0; j < entities.length; j++) {
         const entity = entities[j] as Entity
-        yield* this._yield_entity(
+        yield* this._yield_at_level(
           entity,
           node,
           0,
           new Array(this._term_infos.length),
+        )
+      }
+    }
+  }
+
+  private *_yield_at_level(
+    entity: Entity,
+    node: EntityGraphNode,
+    joinLevel: number,
+    currentResult: unknown[],
+    termIdx = 0,
+  ): IterableIterator<unknown[]> {
+    const terms = this._term_infos.filter((t) => t.joinIndex === joinLevel)
+    yield* this._yield_terms_at_level(
+      entity,
+      node,
+      joinLevel,
+      terms,
+      termIdx,
+      currentResult,
+    )
+  }
+
+  private *_yield_terms_at_level(
+    entity: Entity,
+    node: EntityGraphNode,
+    joinLevel: number,
+    terms: TermInfo[],
+    termIdx: number,
+    currentResult: unknown[],
+  ): IterableIterator<unknown[]> {
+    if (termIdx === terms.length) {
+      // Finished all terms for this join level, move to next join or yield
+      const nextJoinLevel = joinLevel + 1
+      if (nextJoinLevel < this.joins.length) {
+        const nextJoin = this.joins[nextJoinLevel]
+        if (nextJoin?.joinOnId !== undefined) {
+          yield* this._yield_independent_level(nextJoinLevel, currentResult, entity)
+          return
+        } else {
+          yield* this._yield_independent_level(nextJoinLevel, currentResult)
+          return
+        }
+      }
+
+      yield [...currentResult]
+      return
+    }
+
+    const info = terms[termIdx] as TermInfo
+    const values = this._get_term_values(entity, info, node)
+
+    const termPos = this._term_infos.indexOf(info)
+    for (const val of values) {
+      currentResult[termPos] = val
+      yield* this._yield_terms_at_level(
+        entity,
+        node,
+        joinLevel,
+        terms,
+        termIdx + 1,
+        currentResult,
+      )
+    }
+  }
+
+  private *_yield_independent_level(
+    joinLevel: number,
+    currentResult: unknown[],
+    subjectEntity?: Entity,
+  ): IterableIterator<unknown[]> {
+    const join = this.joins[joinLevel]
+    if (!join) return
+
+    if (join.joinOnId !== undefined && subjectEntity !== undefined) {
+      const relationId = join.joinOnId
+      for (let i = 0; i < join.nodes.length; i++) {
+        const n = join.nodes[i] as EntityGraphNode
+        const relMap = n.relMaps[relationId]
+        if (!relMap) continue
+
+        const targets = relMap.subjectToObjects.get(subjectEntity as number)
+        if (!targets) continue
+
+        const targetEntities = targets.dense
+        for (let j = 0; j < targetEntities.length; j++) {
+          yield* this._yield_at_level(
+            targetEntities[j] as Entity,
+            n,
+            joinLevel,
+            currentResult,
+          )
+        }
+      }
+      return
+    }
+
+    for (let i = 0; i < join.nodes.length; i++) {
+      const node = join.nodes[i] as EntityGraphNode
+      const entities = node.entities.dense
+      for (let j = 0; j < entities.length; j++) {
+        yield* this._yield_at_level(
+          entities[j] as Entity,
+          node,
+          joinLevel,
+          currentResult,
         )
       }
     }
@@ -167,6 +281,8 @@ export class AllRuntime implements AnyAll {
     termIdx: number,
     currentResult: unknown[],
   ): IterableIterator<unknown[]> {
+    // This is now replaced by _yield_at_level/yield_terms_at_level
+    // but kept for compatibility if needed, though I've updated the iterator.
     if (termIdx === this._term_infos.length) {
       yield [...currentResult]
       return
@@ -214,33 +330,8 @@ export class AllRuntime implements AnyAll {
       if (info.type === "has") {
         return hasComponent ? [undefined] : []
       } else {
-        return hasComponent ? [] : [undefined]
+        return !hasComponent ? [undefined] : []
       }
-    }
-    if (info.type === "rel") {
-      const nextJoin = this.joins[info.nextJoinIndex]
-      if (!nextJoin) return []
-
-      const results: unknown[] = []
-      const relationId = info.relationId
-
-      for (let i = 0; i < nextJoin.nodes.length; i++) {
-        const n = nextJoin.nodes[i] as EntityGraphNode
-        const relMap = n.relMaps[relationId]
-        if (!relMap) continue
-
-        const targets = relMap.subjectToObjects.get(entity as number)
-        if (!targets) continue
-
-        const targetEntities = targets.dense
-        for (let j = 0; j < targetEntities.length; j++) {
-          const targetEntity = targetEntities[j] as Entity
-          results.push(
-            ...this._get_term_values(targetEntity, info.objectTerm, n),
-          )
-        }
-      }
-      return results
     }
     return []
   }
@@ -248,11 +339,6 @@ export class AllRuntime implements AnyAll {
   setup(world: World): void {
     this._world = world
     this.entityToIndex = world.index.entityToIndex
-
-    const context = {joinIndex: 0}
-    this._term_infos = this.desc.all.map((term: unknown) =>
-      this._resolve_term_info(term, world, 0, context),
-    )
 
     const joinConfigs: {
       required: ComponentLike[][]
@@ -264,29 +350,75 @@ export class AllRuntime implements AnyAll {
       joinOn: [],
     }
 
+    const context = {joinIndex: 0}
     const collectContext = {joinIndex: 0}
-    for (let i = 0; i < this.desc.all.length; i++) {
-      this._collect_join_components(
-        this.desc.all[i],
-        0,
-        joinConfigs,
-        world,
-        collectContext,
-      )
+    const reactiveLevels: Map<number, "in" | "out"> = new Map()
+
+    const processDescriptor = (
+      desc: any,
+      joinIndex: number,
+      rel?: Relation,
+    ) => {
+      if (rel) {
+        joinConfigs.joinOn[joinIndex] = rel
+      }
+
+      if (isInDescriptor(desc)) {
+        reactiveLevels.set(joinIndex, "in")
+        processDescriptor(desc.in, joinIndex)
+        return
+      }
+      if (isOutDescriptor(desc)) {
+        reactiveLevels.set(joinIndex, "out")
+        processDescriptor(desc.out, joinIndex)
+        return
+      }
+
+      if (isJoinDescriptor(desc)) {
+        const [left, right, joinRel] = desc.join
+        processDescriptor(left, joinIndex)
+
+        const baseRightJoinIndex = collectContext.joinIndex + 1
+        collectContext.joinIndex = baseRightJoinIndex
+        processDescriptor(right, baseRightJoinIndex, joinRel)
+      } else {
+        const terms =
+          (desc as RawAllDescriptor).all ||
+          (desc as RawUniqueDescriptor).unique
+        terms.forEach((term: unknown) => {
+          this._term_infos.push(
+            this._resolve_term_info(term, world, joinIndex, context),
+          )
+        })
+        for (let i = 0; i < terms.length; i++) {
+          this._collect_join_components(
+            terms[i],
+            joinIndex,
+            joinConfigs,
+            world,
+            collectContext,
+          )
+        }
+      }
     }
+
+    processDescriptor(this.desc, 0)
 
     for (let i = 0; i <= collectContext.joinIndex; i++) {
-      const joinOn = joinConfigs.joinOn[i]
-      this.joins.push(
-        new JoinLevel(
-          world,
-          joinConfigs.required[i] || [],
-          joinConfigs.excluded[i] || [],
-          joinOn ? {id: world.componentRegistry.getId(joinOn)} : undefined,
-        ),
+      const join = new JoinLevel(
+        world,
+        joinConfigs.required[i] || [],
+        joinConfigs.excluded[i] || [],
+        joinConfigs.joinOn[i],
       )
+      join.reactiveMode = reactiveLevels.get(i)
+      this.joins.push(join)
     }
 
+    this._collect_stores_recursive()
+  }
+
+  private _collect_stores_recursive() {
     this.stores.length = 0
     this._term_infos.forEach((info) => {
       this._collect_stores(info, this.stores)
@@ -299,94 +431,55 @@ export class AllRuntime implements AnyAll {
     currentJoinIndex: number,
     context: {joinIndex: number},
   ): TermInfo {
-    if ((typeof term !== "object" && typeof term !== "function") || term === null) {
-      throw new Error("Invalid term descriptor")
-    }
     const t = term as Record<string, unknown>
-
+    if ("in" in t) {
+      const inner = (t.in as any).all || (t.in as any).unique || t.in
+      return this._resolve_term_info(inner, world, currentJoinIndex, context)
+    }
+    if ("out" in t) {
+      const inner = (t.out as any).all || (t.out as any).unique || t.out
+      return this._resolve_term_info(inner, world, currentJoinIndex, context)
+    }
     if ("entity" in t) {
       return {type: "entity", joinIndex: currentJoinIndex}
     }
-    if ("rel" in t) {
-      const relTuple = t.rel as [Relation, unknown]
-      const nextJoinIndex = ++context.joinIndex
-      return {
-        type: "rel",
-        relation: relTuple[0],
-        relationId: world.componentRegistry.getId(relTuple[0]),
-        objectTerm: this._resolve_term_info(
-          relTuple[1],
-          world,
-          nextJoinIndex,
-          context,
-        ),
-        joinIndex: currentJoinIndex,
-        nextJoinIndex: nextJoinIndex,
-      }
+
+    let type: "component" | "has" | "not" = "component"
+    let termComp: unknown
+    if ("read" in t) {
+      termComp = t.read
+    } else if ("write" in t) {
+      termComp = t.write
+    } else if ("has" in t) {
+      termComp = t.has
+      type = "has"
+    } else if ("not" in t) {
+      termComp = t.not
+      type = "not"
+    } else {
+      termComp = term
     }
 
     let component: ComponentLike
-    let type: "component" | "has" | "not" = "component"
-
-    if ("has" in t) {
-      component = t.has as ComponentLike
-      type = "has"
-    } else if ("not" in t) {
-      component = t.not as ComponentLike
-      type = "not"
-    } else if ("read" in t) {
-      component = t.read as ComponentLike
-    } else if ("write" in t) {
-      component = t.write as ComponentLike
-    } else {
-      component = term as ComponentLike
-    }
-
-    if (isRelationship(component)) {
+    if (isRelationship(termComp)) {
       const vid = getOrCreateVirtualId(
         world,
-        component.relation,
-        component.object,
+        termComp.relation,
+        termComp.object,
       )
       component = world.componentRegistry.getVirtualComponent(vid)
-    }
-
-    if (
-      component &&
-      typeof component === "object" &&
-      "component" in (component as Record<string, unknown>)
-    ) {
-      component = (component as Record<string, unknown>)
-        .component as ComponentLike
+    } else {
+      component = termComp as ComponentLike
     }
 
     const componentId = world.componentRegistry.getId(component)
-
-    if (type === "has") {
-      return {
-        type: "has",
-        component,
-        componentId,
-        joinIndex: currentJoinIndex,
-      }
-    }
-    if (type === "not") {
-      return {
-        type: "not",
-        component,
-        componentId,
-        joinIndex: currentJoinIndex,
-      }
-    }
-
-    const store = getComponentStore(world, component)
     return {
-      type: "component",
+      type,
       component,
       componentId,
-      store,
+      store: type === "component" ? getComponentStore(world, component) : undefined,
       joinIndex: currentJoinIndex,
-    }
+    } as TermInfo
   }
 
   private _collect_join_components(
@@ -400,25 +493,63 @@ export class AllRuntime implements AnyAll {
     world: World,
     context: {joinIndex: number},
   ) {
-    if (typeof term !== "object" || term === null) return
-    const t = term as Record<string, unknown>
+    if (
+      typeof term !== "object" &&
+      typeof term !== "function"
+    )
+      return
+    if (term === null) return
+    const t = term as Record<string, any>
 
     if (!configs.required[currentJoinIndex]) {
       configs.required[currentJoinIndex] = []
       configs.excluded[currentJoinIndex] = []
     }
 
-    if ("rel" in t) {
-      const relTuple = t.rel as [Relation, unknown]
-      const nextJoinIndex = ++context.joinIndex
-      configs.joinOn[nextJoinIndex] = relTuple[0]
-      this._collect_join_components(
-        relTuple[1],
-        nextJoinIndex,
-        configs,
-        world,
-        context,
-      )
+    if ("in" in t) {
+      const inner = (t.in as any).all || (t.in as any).unique || t.in
+      if (Array.isArray(inner)) {
+        inner.forEach((item) =>
+          this._collect_join_components(
+            item,
+            currentJoinIndex,
+            configs,
+            world,
+            context,
+          ),
+        )
+      } else {
+        this._collect_join_components(
+          inner,
+          currentJoinIndex,
+          configs,
+          world,
+          context,
+        )
+      }
+      return
+    }
+    if ("out" in t) {
+      const inner = (t.out as any).all || (t.out as any).unique || t.out
+      if (Array.isArray(inner)) {
+        inner.forEach((item) =>
+          this._collect_join_components(
+            item,
+            currentJoinIndex,
+            configs,
+            world,
+            context,
+          ),
+        )
+      } else {
+        this._collect_join_components(
+          inner,
+          currentJoinIndex,
+          configs,
+          world,
+          context,
+        )
+      }
       return
     }
 
@@ -481,6 +612,29 @@ export class AllRuntime implements AnyAll {
     } else if (info.type === "rel") {
       this._collect_stores(info.objectTerm, stores)
     }
+  }
+
+  matches(entity: Entity): boolean {
+    const world = this._world
+    if (!world) return false
+
+    const node = sparseMapGet(world.entityGraph.byEntity, entity as number)
+    if (!node) return false
+
+    // Check if the entity's node matches the first join level
+    const join0 = this.joins[0]
+    if (!join0) return false
+    if (!sparseMapGet(join0.nodesMap, node.id)) return false
+
+    // Try to yield at least one result for this entity
+    const it = this._yield_at_level(
+      entity,
+      node,
+      0,
+      new Array(this._term_infos.length),
+    )
+    const {done} = it.next()
+    return !done
   }
 
   teardown(): void {

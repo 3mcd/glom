@@ -1,22 +1,29 @@
 import type {
   AllDescriptor,
   InDescriptor,
+  JoinDescriptor,
   OutDescriptor,
   UniqueDescriptor,
 } from "../descriptors"
 import type {EntityGraphNode} from "../entity_graph"
+import type {Relation} from "../relation"
 import type {Term, TermValue} from "./term"
 
-export type Join = {
+export type JoinLevelInfo = {
   readonly nodes: EntityGraphNode[]
   readonly joinOn?: {readonly id: number}
 }
 
 export interface AnyAll {
   readonly __all: true
-  readonly desc: AllDescriptor | InDescriptor | OutDescriptor | UniqueDescriptor
+  readonly desc:
+    | AllDescriptor
+    | InDescriptor
+    | OutDescriptor
+    | UniqueDescriptor
+    | JoinDescriptor
   readonly stores: unknown[][]
-  readonly joins: Join[]
+  readonly joins: JoinLevelInfo[]
   readonly entityToIndex: {
     readonly sparse: Map<number, number>
     readonly dense: number[]
@@ -95,8 +102,38 @@ export interface All<
   [Symbol.iterator](): Iterator<AllIterator<T0, T1, T2, T3, T4, T5, T6, T7>>
 }
 
+export type YieldType<T> = T extends {
+  [Symbol.iterator](): Iterator<infer U>
+}
+  ? U extends unknown[]
+    ? U
+    : []
+  : []
+
+export interface Join<
+  L extends AnyAll,
+  R extends AnyAll,
+  Rel extends Relation | undefined = undefined,
+> extends AnyAll {
+  readonly __join: [L, R, Rel]
+  readonly desc: JoinDescriptor<
+    L["desc"] extends AllDescriptor ? L["desc"] : never,
+    R["desc"] extends AllDescriptor ? R["desc"] : never,
+    Rel
+  >
+  [Symbol.iterator](): Iterator<[...YieldType<L>, ...YieldType<R>]>
+}
+
 export function All<T extends unknown[]>(...terms: T): {all: T} {
   return {all: terms}
+}
+
+export function Join<L extends AnyAll, R extends AnyAll, Rel extends Relation>(
+  left: L,
+  right: R,
+  rel?: Rel,
+): JoinDescriptor {
+  return {join: [left.desc as any, right.desc as any, rel]}
 }
 
 export function isAll(val: unknown): val is AnyAll {
@@ -108,7 +145,7 @@ export function isUnique(val: unknown): val is Unique<any> {
 }
 
 export interface In<
-  T0 extends Term = never,
+  T0 extends Term | AnyAll = never,
   T1 extends Term = never,
   T2 extends Term = never,
   T3 extends Term = never,
@@ -118,12 +155,20 @@ export interface In<
   T7 extends Term = never,
 > extends AnyAll {
   readonly __in: true
-  readonly desc: InDescriptor<AllDescriptor<T0, T1, T2, T3, T4, T5, T6, T7>>
-  [Symbol.iterator](): Iterator<AllIterator<T0, T1, T2, T3, T4, T5, T6, T7>>
+  readonly desc: InDescriptor<
+    T0 extends Join<any, any, any>
+      ? T0["desc"]
+      : AllDescriptor<T0 extends Term ? T0 : never, T1, T2, T3, T4, T5, T6, T7>
+  >
+  [Symbol.iterator](): Iterator<
+    T0 extends AnyAll
+      ? YieldType<T0>
+      : AllIterator<T0 extends Term ? T0 : never, T1, T2, T3, T4, T5, T6, T7>
+  >
 }
 
 export interface Out<
-  T0 extends Term = never,
+  T0 extends Term | AnyAll = never,
   T1 extends Term = never,
   T2 extends Term = never,
   T3 extends Term = never,
@@ -133,8 +178,16 @@ export interface Out<
   T7 extends Term = never,
 > extends AnyAll {
   readonly __out: true
-  readonly desc: OutDescriptor<AllDescriptor<T0, T1, T2, T3, T4, T5, T6, T7>>
-  [Symbol.iterator](): Iterator<AllIterator<T0, T1, T2, T3, T4, T5, T6, T7>>
+  readonly desc: OutDescriptor<
+    T0 extends Join<any, any, any>
+      ? T0["desc"]
+      : AllDescriptor<T0 extends Term ? T0 : never, T1, T2, T3, T4, T5, T6, T7>
+  >
+  [Symbol.iterator](): Iterator<
+    T0 extends AnyAll
+      ? YieldType<T0>
+      : AllIterator<T0 extends Term ? T0 : never, T1, T2, T3, T4, T5, T6, T7>
+  >
 }
 
 export function In<T extends unknown[]>(...terms: T): {in: {all: T}} {

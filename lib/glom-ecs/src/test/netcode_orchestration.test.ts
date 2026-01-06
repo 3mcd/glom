@@ -1,20 +1,14 @@
-import {sparseMapGet} from "../sparse_map"
 import {describe, expect, test} from "bun:test"
-import {defineComponent, defineTag} from "../component"
 import * as commands from "../command"
+import {defineComponent, defineTag} from "../component"
+import {All, type Join} from "../query/all"
 import * as replication from "../replication"
 import {Replicated} from "../replication_config"
-import {
-  makeSystemSchedule,
-  addSystem,
-  runSchedule,
-} from "../system_schedule"
+import {sparseMapGet} from "../sparse_map"
+import {defineSystem} from "../system"
+import {addSystem, makeSystemSchedule, runSchedule} from "../system_schedule"
 import {getComponentValue, makeWorld} from "../world"
-import type {World} from "../world"
 import {spawn} from "../world_api"
-import {All} from "../query/all"
-import {Rel, Read} from "../query/term"
-import {defineSystem, type DefinedSystem} from "../system"
 
 describe("netcode orchestration", () => {
   const Position = defineComponent<{x: number; y: number}>()
@@ -31,27 +25,27 @@ describe("netcode orchestration", () => {
 
     const jumpSystem = defineSystem(
       (
-        playerQuery: All<
-          typeof Position,
-          Rel<typeof commands.CommandOf, typeof Jump>
+        playerQuery: Join<
+          All<typeof Position>,
+          All<typeof Jump>,
+          typeof commands.CommandOf
         >,
       ) => {
         for (const [pos, _jump] of playerQuery) {
-
           ;(pos as any).y += 10
         }
       },
       {
         params: [
           {
-            all: [Position, {rel: [commands.CommandOf, Jump]}],
-          } as any,
+            join: [All(Position), All(Jump), commands.CommandOf],
+          },
         ],
         name: "jumpSystem",
       },
     )
 
-    addSystem(schedule, jumpSystem as any)
+    addSystem(schedule, jumpSystem)
 
     addSystem(schedule, commands.cleanupEphemeralCommands)
     addSystem(schedule, replication.commitPendingMutations)
@@ -59,7 +53,7 @@ describe("netcode orchestration", () => {
 
     commands.recordCommand(world, player, Jump, 0)
 
-    runSchedule(schedule, world as any)
+    runSchedule(schedule, world)
 
     expect(world.tick).toBe(1)
     expect(getComponentValue(world, player, Position)?.y).toBe(10)

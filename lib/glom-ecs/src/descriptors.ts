@@ -13,23 +13,24 @@ export type HasDescriptor<T extends ComponentLike = ComponentLike> = {
 export type NotDescriptor<T extends ComponentLike = ComponentLike> = {
   not: T
 }
-export type RelDescriptor<R extends Relation = Relation, T = unknown> = {
-  rel: [R, T]
-}
 export type EntityDescriptor = {entity: true}
 export type WorldDescriptor = {world: true}
-export type SpawnDescriptor = {spawn: true}
+export type SpawnDescriptor<T extends ComponentLike = any> = {spawn: T | true}
 export type DespawnDescriptor = {despawn: true}
 export type AddDescriptor<T extends ComponentLike = ComponentLike> = {add: T}
 export type RemoveDescriptor<T extends ComponentLike = ComponentLike> = {
   remove: T
 }
 
-export type InDescriptor<T extends AllDescriptor = AllDescriptor> = {
+export type InDescriptor<
+  T extends AllDescriptor | JoinDescriptor = AllDescriptor | JoinDescriptor,
+> = {
   in: T
 }
 
-export type OutDescriptor<T extends AllDescriptor = AllDescriptor> = {
+export type OutDescriptor<
+  T extends AllDescriptor | JoinDescriptor = AllDescriptor | JoinDescriptor,
+> = {
   out: T
 }
 
@@ -57,6 +58,20 @@ export type AllDescriptor<
   T7 = unknown,
 > = {
   all: unknown[]
+}
+
+export type JoinDescriptor<
+  L extends AllDescriptor | InDescriptor | OutDescriptor =
+    | AllDescriptor
+    | InDescriptor
+    | OutDescriptor,
+  R extends AllDescriptor | InDescriptor | OutDescriptor =
+    | AllDescriptor
+    | InDescriptor
+    | OutDescriptor,
+  Rel extends Relation | undefined = undefined,
+> = {
+  join: [L, R, Rel]
 }
 
 export function isReadDescriptor(desc: unknown): desc is ReadDescriptor {
@@ -91,14 +106,6 @@ export function isNotDescriptor(desc: unknown): desc is NotDescriptor {
   )
 }
 
-export function isRelDescriptor(desc: unknown): desc is RelDescriptor {
-  return (
-    typeof desc === "object" &&
-    desc !== null &&
-    "rel" in (desc as Record<string, unknown>)
-  )
-}
-
 export function isEntityDescriptor(desc: unknown): desc is EntityDescriptor {
   return (
     typeof desc === "object" &&
@@ -123,9 +130,7 @@ export function isSpawnDescriptor(desc: unknown): desc is SpawnDescriptor {
   )
 }
 
-export function isDespawnDescriptor(
-  desc: unknown,
-): desc is DespawnDescriptor {
+export function isDespawnDescriptor(desc: unknown): desc is DespawnDescriptor {
   return (
     typeof desc === "object" &&
     desc !== null &&
@@ -149,9 +154,7 @@ export function isRemoveDescriptor(desc: unknown): desc is RemoveDescriptor {
   )
 }
 
-export function isAllDescriptor(
-  desc: unknown,
-): desc is AllDescriptor<unknown> {
+export function isAllDescriptor(desc: unknown): desc is AllDescriptor<unknown> {
   return (
     typeof desc === "object" &&
     desc !== null &&
@@ -166,6 +169,14 @@ export function isUniqueDescriptor(
     typeof desc === "object" &&
     desc !== null &&
     "unique" in (desc as Record<string, unknown>)
+  )
+}
+
+export function isJoinDescriptor(desc: unknown): desc is JoinDescriptor {
+  return (
+    typeof desc === "object" &&
+    desc !== null &&
+    "join" in (desc as Record<string, unknown>)
   )
 }
 

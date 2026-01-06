@@ -72,32 +72,14 @@ function addLogicalSystems(schedule: g.SystemSchedule) {
 }
 
 const pulseSpawnerSystem = (
-  query: g.All<
-    g.Entity,
-    typeof Position,
-    g.Rel<typeof g.CommandOf, g.Has<typeof FireCommand>>
+  query: g.Join<
+    g.All<g.Entity, typeof Position>,
+    g.All<typeof g.IntentTick, g.Has<typeof FireCommand>>,
+    typeof g.CommandOf
   >,
   world: g.World,
 ) => {
-  for (const [playerEnt, pos] of query) {
-    const incoming = world.relations.objectToSubjects.get(playerEnt)
-    let intentTick = world.tick
-    if (incoming) {
-      for (const {subject, relationId} of incoming) {
-        if (relationId === world.componentRegistry.getId(g.CommandOf)) {
-          const it = g.getComponentValue(
-            world,
-            subject as g.Entity,
-            g.IntentTick,
-          )
-          if (it !== undefined) {
-            intentTick = it
-            break
-          }
-        }
-      }
-    }
-
+  for (const [playerEnt, pos, intentTick] of query) {
     g.spawn(
       world,
       [Position(pos), Pulse(5), PulseOf(playerEnt), g.Replicated],
@@ -108,10 +90,10 @@ const pulseSpawnerSystem = (
 }
 
 const movementSystem = (
-  query: g.All<
-    g.Entity,
-    typeof Position,
-    g.Rel<typeof g.CommandOf, typeof MoveCommand>
+  query: g.Join<
+    g.All<g.Entity, typeof Position>,
+    g.All<typeof MoveCommand>,
+    typeof g.CommandOf
   >,
   update: g.Add<typeof Position>,
 ) => {
@@ -144,10 +126,10 @@ const pulseSystem = (
 }
 
 const attachedPulseSystem = (
-  pulses: g.All<
-    g.Entity,
-    typeof Position,
-    g.Rel<typeof PulseOf, typeof Position>
+  pulses: g.Join<
+    g.All<g.Entity, typeof Position>,
+    g.All<typeof Position>,
+    typeof PulseOf
   >,
   update: g.Add<typeof Position>,
 ) => {

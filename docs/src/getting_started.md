@@ -98,26 +98,26 @@ The `movePlayers` system uses the `All` query to find entities that have both a 
 
 ### Collecting Items
 
-Our next system demonstrates a "cross-query" pattern. It iterates through all players and all items to check their proximity. When a player is close enough, we use the `Add` descriptor to tag the item as `Collected`. Adding this tag will move the item to a different node in the entity graph, which our reactive systems can then pick up.
+Our next system demonstrates a **cross-join** pattern. Instead of nesting two loops manually, we can use `Join` to iterate through all combinations of players and items. When a player is close enough, we use the `Add` descriptor to tag the item as `Collected`. 
 
 ```typescript
-import { Add, Entity, All } from "@glom/ecs"
+import { Add, Entity, All, Join } from "@glom/ecs"
 
 const collectItems = (
-  players: All<typeof Pos, typeof Player>,
-  items: All<Entity, typeof Pos, typeof Item>,
+  // iterate through all combinations of players and items
+  query: Join<All<typeof Pos, typeof Player>, All<Entity, typeof Pos, typeof Item>>,
   collect: Add<typeof Collected>
 ) => {
-  for (const [pPos] of players) {
-    for (const [item, iPos] of items) {
+  for (const [pPos, item, iPos] of query) {
       const dist = Math.hypot(pPos.x - iPos.x, pPos.y - iPos.y)
       if (dist < 1.0) {
         collect(item)
-      }
     }
   }
 }
 ```
+
+Adding this `Collected` tag moves the item to a different node in the entity graph, which our reactive systems can then pick up.
 
 ### Reactive Systems (In/Out Monitors)
 
@@ -163,14 +163,14 @@ const playPickupSfx = (
 
 ### Relationships and Related Queries
 
-To process the sound effects we just spawned, we can use the `Rel` query term. This allows us to find entities based on their relationships to other entities. Here, we find all `Sfx` entities that are linked to the `SfxManager` via the `PlaysOn` relation. After processing the sound, we despawn the ephemeral sound entity.
+To process the sound effects we just spawned, we can use a relational `Join`. This allows us to find entities based on their relationships to other entities. Here, we find all `Sfx` entities that are linked to the `SfxManager` via the `PlaysOn` relation. After processing the sound, we despawn the ephemeral sound entity.
 
 ```typescript
-import { Rel } from "@glom/ecs"
+import { Join } from "@glom/ecs"
 
 const processSfx = (
   // finds entities with Sfx that play on the SfxManager
-  query: All<Entity, typeof Sfx, Rel<typeof PlaysOn, typeof SfxManager>>,
+  query: Join<All<Entity, typeof Sfx>, All<typeof SfxManager>, typeof PlaysOn>,
   despawn: Despawn
 ) => {
   for (const [entity, sfx] of query) {

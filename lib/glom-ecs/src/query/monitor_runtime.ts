@@ -1,11 +1,18 @@
-import type {InDescriptor, OutDescriptor} from "../descriptors"
+import {
+  isJoinDescriptor,
+  isInDescriptor,
+  isOutDescriptor,
+  type InDescriptor,
+  type OutDescriptor,
+  type JoinDescriptor,
+} from "../descriptors"
 import type {Entity} from "../entity"
 import {
   type EntityGraphNode,
   entityGraphNodeAddListener,
   entityGraphNodeRemoveListener,
 } from "../entity_graph"
-import {sparseMapGet, sparseMapHas} from "../sparse_map"
+import {sparseMapGet} from "../sparse_map"
 import {
   makeSparseSet,
   sparseSetAdd,
@@ -23,12 +30,22 @@ export class MonitorRuntime extends AllRuntime {
   readonly removed = makeSparseSet<Entity>()
   private _mode: MonitorMode
   private _joinListeners: {node: EntityGraphNode; listener: any}[] = []
+  private _isTopLevel: boolean
 
-  constructor(desc: InDescriptor | OutDescriptor, mode: MonitorMode) {
+  constructor(
+    desc: InDescriptor | OutDescriptor | JoinDescriptor,
+    mode: MonitorMode,
+  ) {
+    const isTopLevel = isInDescriptor(desc) || isOutDescriptor(desc)
     super(
-      mode === "in" ? (desc as InDescriptor).in : (desc as OutDescriptor).out,
+      isInDescriptor(desc)
+        ? desc.in
+        : isOutDescriptor(desc)
+          ? desc.out
+          : (desc as JoinDescriptor),
     )
     this._mode = mode
+    this._isTopLevel = isTopLevel
   }
 
   override setup(world: World): void {
@@ -36,34 +53,68 @@ export class MonitorRuntime extends AllRuntime {
 
     for (let i = 0; i < this.joins.length; i++) {
       const join = this.joins[i]!
-      const listener = {
-        entitiesIn: (entities: Entity[], node: EntityGraphNode) =>
-          this.entitiesIn(entities, node, i),
-        entitiesOut: (entities: Entity[], node: EntityGraphNode) =>
-          this.entitiesOut(entities, node, i),
+      const levelMode =
+        join.reactiveMode || (this._isTopLevel ? this._mode : undefined)
+
+      if (levelMode !== undefined) {
+        const listener = {
+          entitiesIn: (entities: Entity[], node: EntityGraphNode) => {
+            if (levelMode === "in") this.entitiesIn(entities, node, i)
+          },
+          entitiesOut: (entities: Entity[], node: EntityGraphNode) => {
+            if (levelMode === "out") this.entitiesOut(entities, node, i)
+          },
+          relationAdded: (
+            subject: Entity,
+            relationId: number,
+            object: Entity,
+            node: EntityGraphNode,
+          ) => {
+            if (levelMode === "in")
+              this.relationAdded(subject, relationId, object, node, i)
+          },
+          relationRemoved: (
+            subject: Entity,
+            relationId: number,
+            object: Entity,
+            node: EntityGraphNode,
+          ) => {
+            if (levelMode === "out")
+              this.relationRemoved(subject, relationId, object, node, i)
+          },
+        }
+        entityGraphNodeAddListener(join.anchorNode, listener, true)
+        this._joinListeners.push({node: join.anchorNode, listener})
       }
-      entityGraphNodeAddListener(join.anchorNode, listener)
-      this._joinListeners.push({node: join.anchorNode, listener})
     }
   }
 
-  entitiesIn(entities: Entity[], _node: EntityGraphNode, joinIndex: number): void {
+  entitiesIn(
+    entities: Entity[],
+    _node: EntityGraphNode,
+    joinIndex: number,
+  ): void {
     const world = this._world
     if (!world) return
 
     if (joinIndex === 0) {
       for (let j = 0; j < entities.length; j++) {
         const e = entities[j]!
-        sparseSetAdd(this.added, e)
-        sparseSetDelete(this.removed, e)
+        if (this.matches(e)) {
+          sparseSetAdd(this.added, e)
+          sparseSetDelete(this.removed, e)
+        }
       }
     } else {
-      // Object moved in, find subjects
       this._propagate_relation_change(entities, joinIndex, "in")
     }
   }
 
-  entitiesOut(entities: Entity[], _node: EntityGraphNode, joinIndex: number): void {
+  entitiesOut(
+    entities: Entity[],
+    _node: EntityGraphNode,
+    joinIndex: number,
+  ): void {
     const world = this._world
     if (!world) return
 
@@ -74,8 +125,58 @@ export class MonitorRuntime extends AllRuntime {
         sparseSetDelete(this.added, e)
       }
     } else {
-      // Object moved out, find subjects
       this._propagate_relation_change(entities, joinIndex, "out")
+    }
+  }
+
+  relationAdded(
+    subject: Entity,
+    relationId: number,
+    _object: Entity,
+    _node: EntityGraphNode,
+    joinIndex: number,
+  ): void {
+    const join = this.joins[joinIndex]
+    if (join && join.joinOnId === relationId) {
+      if (this.matches(subject)) {
+        this._notify_entities([subject], joinIndex - 1, "in")
+      }
+    }
+  }
+
+  relationRemoved(
+    subject: Entity,
+    relationId: number,
+    _object: Entity,
+    _node: EntityGraphNode,
+    joinIndex: number,
+  ): void {
+    const join = this.joins[joinIndex]
+    if (join && join.joinOnId === relationId) {
+      if (!this.matches(subject)) {
+        this._notify_entities([subject], joinIndex - 1, "out")
+      }
+    }
+  }
+
+  private _notify_entities(
+    entities: Entity[],
+    joinIndex: number,
+    direction: "in" | "out",
+  ): void {
+    if (joinIndex === 0) {
+      for (let i = 0; i < entities.length; i++) {
+        const e = entities[i]!
+        if (direction === "in") {
+          sparseSetAdd(this.added, e)
+          sparseSetDelete(this.removed, e)
+        } else {
+          sparseSetAdd(this.removed, e)
+          sparseSetDelete(this.added, e)
+        }
+      }
+    } else {
+      this._propagate_relation_change(entities, joinIndex, direction)
     }
   }
 
@@ -87,63 +188,55 @@ export class MonitorRuntime extends AllRuntime {
     const world = this._world
     if (!world) return
 
-    // Find all rel terms that point to this joinIndex
-    for (const info of this._term_infos) {
-      this._find_and_propagate(info, entities, joinIndex, direction)
+    const join = this.joins[joinIndex]
+    if (join && join.joinOnId !== undefined && joinIndex > 0) {
+      this._notify_subjects(
+        entities,
+        join.joinOnId,
+        joinIndex - 1,
+        direction,
+      )
     }
   }
 
-  private _find_and_propagate(
-    info: TermInfo,
+  private _notify_subjects(
     entities: Entity[],
-    targetJoinIndex: number,
+    relationId: number,
+    subjectJoinIndex: number,
     direction: "in" | "out",
   ): void {
-    if (info.type !== "rel") return
+    const world = this._world!
+    const subjectsToNotify = new Set<Entity>()
 
-    if (info.nextJoinIndex === targetJoinIndex) {
-      const world = this._world!
-      const relationId = info.relationId
-      const subjectsToNotify = new Set<Entity>()
+    for (const entity of entities) {
+      const incoming = world.relations.objectToSubjects.get(entity)
+      if (!incoming) continue
 
-      for (const entity of entities) {
-        const incoming = world.relations.objectToSubjects.get(entity)
-        if (!incoming) continue
-
-        for (const rel of incoming) {
-          if (rel.relationId === relationId) {
-            subjectsToNotify.add(rel.subject as Entity)
-          }
+      for (const rel of incoming) {
+        if (rel.relationId === relationId) {
+          subjectsToNotify.add(rel.subject as Entity)
         }
       }
+    }
 
-      if (subjectsToNotify.size > 0) {
-        const subjectList = Array.from(subjectsToNotify)
-        if (info.joinIndex === 0) {
-          for (const s of subjectList) {
-            if (direction === "in") {
-              sparseSetAdd(this.added, s)
-              sparseSetDelete(this.removed, s)
-            } else {
-              sparseSetAdd(this.removed, s)
-              sparseSetDelete(this.added, s)
-            }
+    if (subjectsToNotify.size > 0) {
+      const subjectList = Array.from(subjectsToNotify)
+      const changedSubjects: Entity[] = []
+      for (const s of subjectList) {
+        if (direction === "in") {
+          if (this.matches(s)) {
+            changedSubjects.push(s)
           }
         } else {
-          this._propagate_relation_change(
-            subjectList,
-            info.joinIndex,
-            direction,
-          )
+          if (!this.matches(s)) {
+            changedSubjects.push(s)
+          }
         }
       }
-    } else {
-      this._find_and_propagate(
-        info.objectTerm,
-        entities,
-        targetJoinIndex,
-        direction,
-      )
+
+      if (changedSubjects.length > 0) {
+        this._notify_entities(changedSubjects, subjectJoinIndex, direction)
+      }
     }
   }
 
@@ -156,43 +249,161 @@ export class MonitorRuntime extends AllRuntime {
 
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i]!
-      yield* this._yield_entity_monitor(
+      const node = sparseMapGet(world.entityGraph.byEntity, entity as number)
+      if (!node && this._mode === "in") continue
+
+      yield* this._yield_at_level_monitor(
         entity,
+        node,
         0,
         new Array(this._term_infos.length),
       )
     }
   }
 
-  private *_yield_entity_monitor(
+  private *_yield_at_level_monitor(
     entity: Entity,
+    node: EntityGraphNode | undefined,
+    joinLevel: number,
+    currentResult: unknown[],
+  ): IterableIterator<unknown[]> {
+    const join = this.joins[joinLevel]
+    if (!join) return
+
+    const terms = this._term_infos.filter((t) => t.joinIndex === joinLevel)
+    yield* this._yield_terms_at_level_monitor(
+      entity,
+      node,
+      joinLevel,
+      terms,
+      0,
+      currentResult,
+    )
+  }
+
+  private *_yield_terms_at_level_monitor(
+    entity: Entity,
+    node: EntityGraphNode | undefined,
+    joinLevel: number,
+    terms: TermInfo[],
     termIdx: number,
     currentResult: unknown[],
   ): IterableIterator<unknown[]> {
-    const termInfos = this._term_infos
-    if (termIdx === termInfos.length) {
-      yield [...currentResult]
+    if (termIdx === terms.length) {
+      const nextJoinLevel = joinLevel + 1
+      if (nextJoinLevel < this.joins.length) {
+        yield* this._yield_independent_level_monitor(nextJoinLevel, currentResult, entity)
+      } else {
+        yield [...currentResult]
+      }
       return
     }
 
-    const info = termInfos[termIdx]
-    if (!info) return
+    const info = terms[termIdx]!
+    const values = this._get_term_values_monitor(entity, info, node)
 
-    const values = this._get_term_values_monitor(entity, info)
-
-    for (let i = 0; i < values.length; i++) {
-      const val = values[i]
-      currentResult[termIdx] = val
-      yield* this._yield_entity_monitor(entity, termIdx + 1, currentResult)
+    const termPos = this._term_infos.indexOf(info)
+    if (values.length === 0 && this._mode === "out") {
+      currentResult[termPos] = undefined
+      yield* this._yield_terms_at_level_monitor(
+        entity,
+        node,
+        joinLevel,
+        terms,
+        termIdx + 1,
+        currentResult,
+      )
+    } else {
+      for (const val of values) {
+        currentResult[termPos] = val
+        yield* this._yield_terms_at_level_monitor(
+          entity,
+          node,
+          joinLevel,
+          terms,
+          termIdx + 1,
+          currentResult,
+        )
+      }
     }
   }
 
-  private _get_term_values_monitor(entity: Entity, info: TermInfo): unknown[] {
+  private *_yield_independent_level_monitor(
+    joinLevel: number,
+    currentResult: unknown[],
+    subjectEntity?: Entity,
+  ): IterableIterator<unknown[]> {
+    const join = this.joins[joinLevel]
+    if (!join) return
+
+    let yielded = false
+    if (join.joinOnId !== undefined && subjectEntity !== undefined) {
+      const relationId = join.joinOnId
+      for (let i = 0; i < join.nodes.length; i++) {
+        const n = join.nodes[i] as EntityGraphNode
+        const relMap = n.relMaps[relationId]
+        if (!relMap) continue
+
+        const targets = relMap.subjectToObjects.get(subjectEntity as number)
+        if (!targets) continue
+
+        const targetEntities = targets.dense
+        for (let j = 0; j < targetEntities.length; j++) {
+          yielded = true
+          yield* this._yield_at_level_monitor(
+            targetEntities[j] as Entity,
+            n,
+            joinLevel,
+            currentResult,
+          )
+        }
+      }
+    } else {
+      for (let i = 0; i < join.nodes.length; i++) {
+        const node = join.nodes[i] as EntityGraphNode
+        const entities = node.entities.dense
+        for (let j = 0; j < entities.length; j++) {
+          yielded = true
+          yield* this._yield_at_level_monitor(
+            entities[j] as Entity,
+            node,
+            joinLevel,
+            currentResult,
+          )
+        }
+      }
+    }
+
+    if (!yielded && this._mode === "out") {
+      const terms = this._term_infos.filter((t) => t.joinIndex === joinLevel)
+      for (const t of terms) {
+        currentResult[this._term_infos.indexOf(t)] = undefined
+      }
+      const nextJoinLevel = joinLevel + 1
+      if (nextJoinLevel < this.joins.length) {
+        yield* this._yield_independent_level_monitor(nextJoinLevel, currentResult)
+      } else {
+        yield [...currentResult]
+      }
+    }
+  }
+
+  private _get_term_values_monitor(
+    entity: Entity,
+    info: TermInfo,
+    node?: EntityGraphNode,
+  ): unknown[] {
     const world = this._world
     if (!world) return []
 
     if (info.type === "entity") return [entity]
     if (info.type === "component") {
+      if (this._mode === "in") {
+        const actualNode =
+          node ?? sparseMapGet(world.entityGraph.byEntity, entity as number)
+        if (!actualNode || !actualNode.vec.sparse.has(info.componentId)) return []
+      }
+
       if (!info.store) return [undefined]
       const index = sparseMapGet(world.index.entityToIndex, entity as number)
       if (index === undefined) return []
@@ -200,76 +411,16 @@ export class MonitorRuntime extends AllRuntime {
       return val === undefined ? [] : [val]
     }
     if (info.type === "has" || info.type === "not") {
-      const node = sparseMapGet(world.entityGraph.byEntity, entity as number)
-      const hasComponent = node ? node.vec.sparse.has(info.componentId) : false
+      const actualNode =
+        node ?? sparseMapGet(world.entityGraph.byEntity, entity as number)
+      if (!actualNode) return info.type === "not" ? [undefined] : []
+
+      const hasComponent = actualNode.vec.sparse.has(info.componentId)
       if (info.type === "has") {
-        if (hasComponent) return [undefined]
-        if (this._mode === "out") return [undefined]
-        return []
+        return hasComponent ? [undefined] : []
       } else {
-        if (!hasComponent) return [undefined]
-        if (this._mode === "out") return [undefined]
-        return []
+        return !hasComponent ? [undefined] : []
       }
-    }
-    if (info.type === "rel") {
-      const nextJoin = this.joins[info.nextJoinIndex]
-      if (!nextJoin) return []
-
-      const results: unknown[] = []
-      const relationId = info.relationId
-
-      for (let i = 0; i < nextJoin.nodes.length; i++) {
-        const n = nextJoin.nodes[i] as EntityGraphNode
-        const relMap = n.relMaps[relationId]
-        if (!relMap) continue
-
-        const targets = relMap.subjectToObjects.get(entity as number)
-        if (!targets) continue
-
-        const targetEntities = targets.dense
-        for (let j = 0; j < targetEntities.length; j++) {
-          const targetEntity = targetEntities[j] as Entity
-          results.push(
-            ...this._get_term_values_monitor(targetEntity, info.objectTerm),
-          )
-        }
-      }
-
-      if (results.length === 0 && this._mode === "out") {
-        // For Out monitors, if we can't find the objects in the current join nodes,
-        // we should still try to yield something so the subject is matched.
-        // We look at the subject's own node to find ITS objects for this relation.
-        const subjectNode = sparseMapGet(
-          world.entityGraph.byEntity,
-          entity as number,
-        )
-        if (subjectNode) {
-          const relMap = subjectNode.relMaps[relationId]
-          if (relMap) {
-            const targets = relMap.subjectToObjects.get(entity as number)
-            if (targets) {
-              const targetEntities = targets.dense
-              for (let j = 0; j < targetEntities.length; j++) {
-                const targetEntity = targetEntities[j] as Entity
-                results.push(
-                  ...this._get_term_values_monitor(
-                    targetEntity,
-                    info.objectTerm,
-                  ),
-                )
-              }
-            }
-          }
-        }
-
-        // If still nothing, but it's an Out monitor, just yield undefined to satisfy the join.
-        if (results.length === 0) {
-          return [undefined]
-        }
-      }
-
-      return results
     }
     return []
   }

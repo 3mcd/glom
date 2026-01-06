@@ -140,12 +140,12 @@ describe("transformer", () => {
     )
   })
 
-  test("transforms Rel join query", () => {
+  test("transforms Join query", () => {
     const input = `
       import * as g from "@glom/ecs"
       const Position = g.defineComponent<{x: number; y: number}>()
       const TargetOf = g.defineRelation()
-      const follow = (q: g.All<g.Write<typeof Position>, g.Rel<typeof TargetOf, typeof Position>>) => {
+      const follow = (q: g.Join<g.All<g.Write<typeof Position>>, g.All<typeof Position>, typeof TargetOf>) => {
         for (const [pos, targetPos] of q) {
           pos.x = targetPos.x
         }
@@ -155,7 +155,7 @@ describe("transformer", () => {
     expect(output).toContain("_q0_q = q.joins[0]")
     expect(output).toContain("_q1_q = q.joins[1]")
     expect(output).toContain(
-      "params: [{ all: [{ write: Position }, { rel: [TargetOf, { read: Position }] }] }]",
+      "params: [{ join: [{ all: [{ write: Position }] }, { all: [{ read: Position }] }, TargetOf] }]",
     )
   })
 
@@ -298,5 +298,114 @@ describe("transformer", () => {
     `
     const output = transform(input)
     expect(output).toContain("world: true")
+  })
+
+  test("transforms Join query (Cartesian product)", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const Name = g.defineComponent<string>()
+      const system = (q: g.Join<g.All<typeof Position>, g.All<typeof Name>>) => {
+        for (const [pos, name] of q) {
+          console.log(pos, name)
+        }
+      }
+    `
+    const output = transform(input)
+    expect(output).toContain("_q0_q = q.joins[0]")
+    expect(output).toContain("_q1_q = q.joins[1]")
+    expect(output).toContain(
+      "params: [{ join: [{ all: [{ read: Position }] }, { all: [{ read: Name }] }, undefined] }]",
+    )
+    expect(output).toContain("joinOn")
+  })
+
+  test("transforms Join query (with relation)", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const Name = g.defineComponent<string>()
+      const ChildOf = g.defineRelation()
+      const system = (q: g.Join<g.All<typeof Position>, g.All<typeof Name>, typeof ChildOf>) => {
+        for (const [pos, name] of q) {
+          console.log(pos, name)
+        }
+      }
+    `
+    const output = transform(input)
+    expect(output).toContain("_q0_q = q.joins[0]")
+    expect(output).toContain("_q1_q = q.joins[1]")
+    expect(output).toContain(
+      "params: [{ join: [{ all: [{ read: Position }] }, { all: [{ read: Name }] }, ChildOf] }]",
+    )
+    expect(output).toContain("joinOn")
+  })
+
+  test("transforms Join query (partial In)", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const Name = g.defineComponent<string>()
+      const ChildOf = g.defineRelation()
+      const system = (q: g.Join<g.In<typeof Position>, g.All<typeof Name>, typeof ChildOf>) => {
+        for (const [pos, name] of q) {
+          console.log(pos, name)
+        }
+      }
+    `
+    const output = transform(input)
+    expect(output).toContain("_q0_q = q.joins[0]")
+    expect(output).toContain("_q1_q = q.joins[1]")
+    expect(output).toContain(
+      "params: [{ join: [{ in: { all: [{ read: Position }] } }, { all: [{ read: Name }] }, ChildOf] }]",
+    )
+  })
+
+  test("transforms In wrapping Join query", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const Name = g.defineComponent<string>()
+      const ChildOf = g.defineRelation()
+      const system = (added: g.In<g.Join<g.All<typeof Position>, g.All<typeof Name>, typeof ChildOf>>) => {
+        for (const [pos, name] of added) {
+          console.log(pos, name)
+        }
+      }
+    `
+    const output = transform(input)
+    expect(output).toContain("_q0_added = added.joins[0]")
+    expect(output).toContain("_q1_added = added.joins[1]")
+    expect(output).toContain(
+      "params: [{ in: { join: [{ all: [{ read: Position }] }, { all: [{ read: Name }] }, ChildOf] } }]",
+    )
+  })
+
+  test("transforms movementSystem from canvas example", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const MoveCommand = g.defineComponent<{dx: number; dy: number}>()
+      const SPEED = 1;
+      const movementSystem = (
+        query: g.Join<
+          g.All<g.Entity, typeof Position>,
+          g.All<typeof MoveCommand>,
+          typeof g.CommandOf
+        >,
+        update: g.Add<typeof Position>,
+      ) => {
+        for (const [entity, pos, move] of query) {
+          let nextX = pos.x + move.dx * SPEED
+          update(entity, {x: nextX, y: pos.y})
+        }
+      }
+    `
+    const output = transform(input)
+    expect(output).toContain("_q0_query = query.joins[0]")
+    expect(output).toContain("_q1_query = query.joins[1]")
+    expect(output).toContain("const pos = _store")
+    expect(output).toContain("const move = _store")
+    expect(output).toContain("params: [{ join: [")
   })
 })

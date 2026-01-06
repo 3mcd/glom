@@ -184,10 +184,14 @@ describe("monitorRuntime", () => {
 
     // 3. Define the query: Entity that EmitsFrom an entity that Has Attacking
     const query = {
-      all: [Entity, {rel: [EmitsFrom, {has: Attacking}]}],
+      join: [
+        {all: [Entity]},
+        {all: [{has: Attacking}]},
+        EmitsFrom,
+      ],
     }
 
-    const monitor = makeOut({out: query})
+    const monitor = makeOut({out: query as any})
     setupAll(monitor, world)
 
     // Initial state: beam matches, so it shouldn't be in Out monitor yet

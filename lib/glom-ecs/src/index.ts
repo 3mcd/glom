@@ -60,14 +60,13 @@ export {
   writeSnapshot,
   writeTransaction,
 } from "./protocol"
-export {All, In, Out, Unique} from "./query/all"
+export {All, In, Join, Out, Unique} from "./query/all"
 export {
   Add,
   Despawn,
   Has,
   Not,
   Read,
-  Rel,
   Remove,
   Spawn,
   World as WorldTerm,

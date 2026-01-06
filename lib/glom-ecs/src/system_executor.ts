@@ -19,6 +19,7 @@ import {
   isDespawnDescriptor,
   isHasDescriptor,
   isInDescriptor,
+  isJoinDescriptor,
   isNotDescriptor,
   isOutDescriptor,
   isReadDescriptor,
@@ -28,6 +29,7 @@ import {
   isWorldDescriptor,
   isWriteDescriptor,
   type SystemDescriptor,
+  type JoinDescriptor,
 } from "./system_descriptor"
 import type {World} from "./world"
 import {addComponent, despawn, removeComponent, spawn} from "./world_api"
@@ -54,6 +56,32 @@ export function runSystemExecutor<
   exec.fn.apply(undefined, exec.args)
 }
 
+function isReactiveJoinDescriptor(desc: any): boolean {
+  if (!isJoinDescriptor(desc)) return false
+  const [left, right] = (desc as JoinDescriptor).join
+  return (
+    isInDescriptor(left) ||
+    isOutDescriptor(left) ||
+    isInDescriptor(right) ||
+    isOutDescriptor(right) ||
+    isReactiveJoinDescriptor(left) ||
+    isReactiveJoinDescriptor(right)
+  )
+}
+
+function getReactiveJoinMode(desc: any): "in" | "out" {
+  if (isOutDescriptor(desc)) return "out"
+  if (isInDescriptor(desc)) return "in"
+  if (isJoinDescriptor(desc)) {
+    const [left, right] = (desc as JoinDescriptor).join
+    const leftMode = getReactiveJoinMode(left)
+    if (leftMode === "out") return "out"
+    const rightMode = getReactiveJoinMode(right)
+    if (rightMode === "out") return "out"
+  }
+  return "in"
+}
+
 export function setupSystemExecutor<
   T extends SystemArgument[] = SystemArgument[],
 >(exec: SystemExecutor<T>, world: World): void {
@@ -61,8 +89,13 @@ export function setupSystemExecutor<
   for (let i = 0; i < exec.desc.params.length; i++) {
     const desc = exec.desc.params[i]
     assertDefined(desc)
-    if (isAllDescriptor(desc)) {
-      const all = makeAll(desc)
+    if (isReactiveJoinDescriptor(desc)) {
+      const mode = getReactiveJoinMode(desc)
+      const monitor = new MonitorRuntime(desc as any, mode)
+      setupAll(monitor, world)
+      args[i] = monitor
+    } else if (isAllDescriptor(desc) || isJoinDescriptor(desc)) {
+      const all = makeAll(desc as any)
       setupAll(all, world)
       args[i] = all
     } else if (isUniqueDescriptor(desc)) {

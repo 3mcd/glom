@@ -48,10 +48,10 @@ const SPEED = 2
 
 const movementSystem = g.defineSystem(
   (
-    query: g.All<
-      g.Entity,
-      typeof Position,
-      g.Rel<typeof g.CommandOf, typeof MoveCommand>
+    query: g.Join<
+      g.All<g.Entity, typeof Position>,
+      g.All<typeof MoveCommand>,
+      typeof g.CommandOf
     >,
     update: g.Add<typeof Position>,
   ) => {
@@ -64,11 +64,13 @@ const movementSystem = g.defineSystem(
   },
   {
     params: [
-      g.All(
-        {entity: true},
-        Position,
-        g.Rel(g.CommandOf, MoveCommand),
-      ),
+      {
+        join: [
+          {all: [{entity: true}, Position]},
+          {all: [MoveCommand]},
+          g.CommandOf,
+        ],
+      },
       g.Add(Position),
     ],
     name: "movementSystem",
@@ -77,46 +79,14 @@ const movementSystem = g.defineSystem(
 
 const pulseSpawnerSystem = g.defineSystem(
   (
-    query: g.All<
-      g.Entity,
-      typeof Position,
-      g.Rel<typeof g.CommandOf, g.Has<typeof FireCommand>>
+    query: g.Join<
+      g.All<g.Entity, typeof Position>,
+      g.All<g.Has<typeof FireCommand>, typeof g.IntentTick>,
+      typeof g.CommandOf
     >,
     world: g.World,
   ) => {
-    for (const [playerEnt, pos] of query) {
-      let intentTick = world.tick
-      const node = g.entityGraphGetEntityNode(world.entityGraph, playerEnt)
-      if (node) {
-        for (const comp of node.vec.elements) {
-          const compId = world.componentRegistry.getId(comp)
-          const rel = world.relations.virtualToRel.get(compId)
-          if (
-            rel &&
-            rel.relationId === world.componentRegistry.getId(g.CommandOf)
-          ) {
-            const cmdEnt = rel.object as g.Entity
-            const cmdNode = g.entityGraphGetEntityNode(
-              world.entityGraph,
-              cmdEnt,
-            )
-            const fireCommandId = world.componentRegistry.getId(FireCommand)
-            if (
-              cmdNode?.vec.elements.some(
-                (c: g.ComponentLike) =>
-                  world.componentRegistry.getId(c) === fireCommandId,
-              )
-            ) {
-              const it = g.getComponentValue(world, cmdEnt, g.IntentTick)
-              if (it !== undefined) {
-                intentTick = it
-                break
-              }
-            }
-          }
-        }
-      }
-
+    for (const [playerEnt, pos, _hasFire, intentTick] of query) {
       g.spawn(
         world,
         [Position({...pos}), Pulse(5), PulseOf(playerEnt), g.Replicated],
@@ -127,11 +97,13 @@ const pulseSpawnerSystem = g.defineSystem(
   },
   {
     params: [
-      g.All(
-        {entity: true},
-        Position,
-        g.Rel(g.CommandOf, g.Has(FireCommand)),
-      ),
+      {
+        join: [
+          {all: [{entity: true}, Position]},
+          {all: [{has: FireCommand}, g.IntentTick]},
+          g.CommandOf,
+        ],
+      },
       g.WorldTerm(),
     ],
     name: "pulseSpawnerSystem",
@@ -140,10 +112,10 @@ const pulseSpawnerSystem = g.defineSystem(
 
 const attachedPulseSystem = g.defineSystem(
   (
-    pulses: g.All<
-      g.Entity,
-      typeof Position,
-      g.Rel<typeof PulseOf, typeof Position>
+    pulses: g.Join<
+      g.All<g.Entity, typeof Position>,
+      g.All<typeof Position>,
+      typeof PulseOf
     >,
     update: g.Add<typeof Position>,
   ) => {
@@ -156,7 +128,13 @@ const attachedPulseSystem = g.defineSystem(
   },
   {
     params: [
-      g.All({entity: true}, Position, g.Rel(PulseOf, Position)),
+      {
+        join: [
+          {all: [{entity: true}, Position]},
+          {all: [Position]},
+          PulseOf,
+        ],
+      },
       g.Add(Position),
     ],
     name: "attachedPulseSystem",

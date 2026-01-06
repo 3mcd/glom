@@ -40,10 +40,10 @@ const CanvasContext = g.defineComponent<CanvasRenderingContext2D>()
 const schema = [Position, Color, MoveCommand, CanvasContext]
 
 const movementSystem = (
-  query: g.All<
-    g.Entity,
-    typeof Position,
-    g.Rel<typeof g.CommandOf, typeof MoveCommand>
+  query: g.Join<
+    g.All<g.Entity, typeof Position>,
+    g.All<typeof MoveCommand>,
+    typeof g.CommandOf
   >,
   world: g.World,
 ) => {

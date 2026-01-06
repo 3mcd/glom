@@ -28,11 +28,9 @@ expect(pos).toEqual({x: 1, y: 2})
 ```typescript
 const Contact = defineRelation()
 
-const collide = (query: All<Entity, Pos>, spawn: Spawn) => {
-  for (const [a, aPos] of query) {
-    for (const [b, bPos] of query) {
-      if (intersects(aPos, bPos)) spawn([Contact(b)])
-    }
+const collide = (query: Join<All<Entity, Pos>, All<Entity, Pos>>, spawn: Spawn<typeof Contact>) => {
+  for (const [a, aPos, b, bPos] of query) {
+    if (a !== b && intersects(aPos, bPos)) spawn([Contact(b)])
   }
 }
 
@@ -77,4 +75,4 @@ while (i < count) {
 
 ## Getting Started
 
-Glom comes with many other neat things worth checking out, most of which are documented here. And you can hop straight to [the Getting Started guide](./getting_started) to start building.
+Glom comes with many other neat things worth checking out, most of which are documented here. And you can hop straight to [the Getting Started guide](./getting_started) to start building, or browse common [Recipes](./recipes) for query patterns.
