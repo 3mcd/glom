@@ -1,24 +1,26 @@
 import {describe, expect, test} from "bun:test"
+import {assertDefined} from "./assert"
 import {
-  recordCommand,
-  pruneCommands,
-  CommandOf,
   CommandBuffer,
+  CommandOf,
+  cleanupEphemeralCommands,
+  pruneCommands,
+  recordCommand,
+  spawnEphemeralCommands,
 } from "./command"
-import {defineComponent, defineTag, type ComponentResolver} from "./component"
-import {defineSystem} from "./system"
-import {sparseMapGet} from "./sparse_map"
-import {makeWorld, getComponentValue, getResource} from "./world"
-import type {World} from "./world"
-import type {Entity} from "./entity"
-import {spawn} from "./world_api"
-import {ByteReader, ByteWriter} from "./lib/binary"
-import {writeCommands, readCommands, readMessageHeader} from "./protocol"
 import type {ComponentSerde} from "./component"
+import {type ComponentResolver, defineComponent, defineTag} from "./component"
+import type {Entity} from "./entity"
+import {ByteReader, ByteWriter} from "./lib/binary"
+import {readCommands, readMessageHeader, writeCommands} from "./protocol"
 import {All} from "./query/all"
-import {Rel, Read, World as WorldTerm} from "./query/term"
-import {cleanupEphemeralCommands, spawnEphemeralCommands} from "./command"
-import {runSchedule, makeSystemSchedule, addSystem} from "./system_schedule"
+import {Read, Rel, World as WorldTerm} from "./query/term"
+import {sparseMapGet} from "./sparse_map"
+import {defineSystem} from "./system"
+import {addSystem, makeSystemSchedule, runSchedule} from "./system_schedule"
+import type {World} from "./world"
+import {getComponentValue, getResource, makeWorld} from "./world"
+import {spawn} from "./world_api"
 
 describe("command api", () => {
   const Jump = defineTag()
@@ -45,10 +47,7 @@ describe("command api", () => {
 
     const checkSystem = defineSystem(
       (_world: World) => {
-        const node = sparseMapGet(
-          world.entityGraph.byEntity,
-          player as number,
-        )
+        const node = sparseMapGet(world.entityGraph.byEntity, player as number)
         expect(node).toBeDefined()
         if (node) {
           for (const comp of node.vec.elements) {
@@ -92,8 +91,8 @@ describe("command api", () => {
     expect(moveVal).toEqual({x: 5, y: 10})
 
     expect(
-      sparseMapGet(world.entityGraph.byEntity, player as number)?.vec
-        .elements.length,
+      sparseMapGet(world.entityGraph.byEntity, player as number)?.vec.elements
+        .length,
     ).toBe(0)
   })
 
@@ -129,12 +128,16 @@ describe("command api", () => {
     const header = readMessageHeader(reader)
     const result = readCommands(reader, header.tick, resolver)
 
+    const [cmd0, cmd1] = result.commands
+    assertDefined(cmd0)
+    assertDefined(cmd1)
+
     expect(result.tick).toBe(50)
     expect(result.commands.length).toBe(2)
-    expect(result.commands[0].target).toBe(1)
-    expect(result.commands[0].componentId).toBe(100)
-    expect(result.commands[1].componentId).toBe(101)
-    expect((result.commands[1].data as {x: number}).x).toBeCloseTo(1.5, 5)
+    expect(cmd0.target).toBe(1)
+    expect(cmd0.componentId).toBe(100)
+    expect(cmd1.componentId).toBe(101)
+    expect((cmd1.data as {x: number}).x).toBeCloseTo(1.5, 5)
   })
 
   test("pruning", () => {

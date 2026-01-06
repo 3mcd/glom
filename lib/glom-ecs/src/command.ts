@@ -122,11 +122,7 @@ export const spawnEphemeralCommands = defineSystem(
           COMMAND_DOMAIN,
         )
       } else {
-        commandEntity = spawn(
-          world,
-          [comp, ...baseComponents],
-          COMMAND_DOMAIN,
-        )
+        commandEntity = spawn(world, [comp, ...baseComponents], COMMAND_DOMAIN)
       }
 
       addComponent(world, cmd.target, CommandOf(commandEntity))

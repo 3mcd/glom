@@ -77,9 +77,7 @@ describe("transformer", () => {
     `
     const output = transform(input)
     expect(output).toContain("_q0_removed = removed.joins[0]")
-    expect(output).toContain(
-      'Object.defineProperty(onRemoved, "__system_desc"',
-    )
+    expect(output).toContain('Object.defineProperty(onRemoved, "__system_desc"')
     expect(output).toContain("params: [{ out: { all: [{ read: Position }] } }]")
   })
 
@@ -159,5 +157,95 @@ describe("transformer", () => {
     expect(output).toContain(
       "params: [{ all: [{ write: Position }, { rel: [TargetOf, { read: Position }] }] }]",
     )
+  })
+
+  test("transforms function declaration", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>()
+      function move(q: g.All<g.Write<typeof Position>>) {
+        for (const [pos] of q) {
+          pos.x += 1
+        }
+      }
+    `
+    const output = transform(input)
+    expect(output).toContain("_q0_q = q.joins[0]")
+    expect(output).toContain('Object.defineProperty(move, "__system_desc"')
+    expect(output).toContain("params: [{ all: [{ write: Position }] }]")
+  })
+
+  test("transforms anonymous arrow function (wrapWithMetadata)", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const schedule = {} as any
+      g.addSystem(schedule, (q: g.All<g.Write<typeof Position>>) => {
+        for (const [pos] of q) {
+          pos.x += 1
+        }
+      })
+    `
+    const output = transform(input)
+    expect(output).toContain("Object.defineProperty((q")
+    expect(output).toContain('"__system_desc"')
+    expect(output).toContain("params: [{ all: [{ write: Position }] }]")
+  })
+
+  test("transforms Has, Not, and Entity terms", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const A = g.defineComponent<{}>()
+      const B = g.defineComponent<{}>()
+      const system = (q: g.All<g.Entity, g.Has<typeof A>, g.Not<typeof B>>) => {
+        for (const [entity] of q) {
+          console.log(entity)
+        }
+      }
+    `
+    const output = transform(input)
+    expect(output).toContain(
+      "params: [{ all: [{ entity: true }, { has: A }, { not: B }] }]",
+    )
+  })
+
+  test("transforms Add, Remove, Spawn, Despawn, and World parameters", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const A = g.defineComponent<{}>()
+      const system = (
+        world: g.World,
+        add: g.Add<typeof A>,
+        remove: g.Remove<typeof A>,
+        spawn: g.Spawn,
+        despawn: g.Despawn,
+        has: g.Has<typeof A>,
+        not: g.Not<typeof A>,
+        read: g.Read<typeof A>,
+        write: g.Write<typeof A>
+      ) => {}
+    `
+    const output = transform(input)
+    expect(output).toContain("world: true")
+    expect(output).toContain("add: A")
+    expect(output).toContain("remove: A")
+    expect(output).toContain("spawn: true")
+    expect(output).toContain("despawn: true")
+    expect(output).toContain("has: A")
+    expect(output).toContain("not: A")
+    expect(output).toContain("read: A")
+    expect(output).toContain("write: A")
+  })
+
+  test("transforms aliased World", () => {
+    const input = `
+      namespace g {
+        export type World = { __world: true };
+      }
+      type W = g.World;
+      const system = (world: W) => {}
+    `
+    const output = transform(input)
+    expect(output).toContain("world: true")
   })
 })
