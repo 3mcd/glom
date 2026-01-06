@@ -28,7 +28,20 @@ main() {
 	h_file="$src/_header.html"
 	f_file="$src/_footer.html"
 	test -f "$f_file" && FOOTER=$(cat "$f_file") && export FOOTER
-	test -f "$h_file" && HEADER=$(cat "$h_file") && export HEADER
+	if test -f "$h_file"; then
+		HEADER=$(cat "$h_file")
+		if test -f "$src/style.css"; then
+			# Minify CSS using Bun for robustness (handles multi-line comments and whitespace)
+			MINIFIED_CSS=$(bun -e "console.log(require('fs').readFileSync('$src/style.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ').replace(/\s*([{:;,])\s*/g, '\$1').trim())")
+			# Inject CSS into the header, replacing the external stylesheet link
+			export MINIFIED_CSS
+			HEADER=$(echo "$HEADER" | awk '{
+				gsub(/<link rel="stylesheet" href="style.css">/, "<style>" ENVIRON["MINIFIED_CSS"] "</style>")
+				print
+			}')
+		fi
+		export HEADER
+	fi
 
 	list_dirs "$src" | (cd "$src" && cpio -pdu "$dst")
 
@@ -55,7 +68,7 @@ main() {
 			fi
 		fi
 		echo "$fs" | grep '\.html$' | render_html_files "$src" "$dst" "$title"
-		echo "$fs" | grep -Ev '\.md$|\.html$' | (cd "$src" && cpio -pu "$dst")
+		echo "$fs" | grep -Ev '\.md$|\.html$|^./style\.css$' | (cd "$src" && cpio -pu "$dst")
 	fi
 
 	printf '[ssg] ' >&2
