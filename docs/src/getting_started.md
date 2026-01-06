@@ -72,7 +72,7 @@ The query then identifies the entities stored at those nodes and yields their co
 
 ## 3. Defining Components
 
-Components represent your game's state. In Glom, component instances can be any JavaScript data type. They work naturally with other libraries because they're just plain values without the need for wrappers or extra data copying.
+Components define the shape of game state. When you add a component to an entity, you need to provide a **component instance**. They can be any JavaScript data type.
 
 Each entity can have only one instance of a specific component type at a time. An entity can't have two `Position` components, for example.
 
@@ -80,9 +80,7 @@ Each entity can have only one instance of a specific component type at a time. A
 You can achieve something close to entities with multiple components with [relationships](./relationships).
 </aside>
 
-`defineComponent` creates a component that represents a value.
-
-Define a component that holds data, which you'll use to type-safely access and modify state in your systems.
+`defineComponent` creates a component that holds data, which you'll use to access and modify state in your systems.
 
 ```typescript
 import { defineComponent, defineTag } from "@glom/ecs"
@@ -99,26 +97,19 @@ const IsPlayer = defineTag()
 
 ## 4. Setting up the World
 
-The `World` is the container for all the entities and components in a simulation. You'll need to provide a domain ID and a schema when you create one.
+The `World` is the container for all the entities and components in an application.
 
-The domain ID is an integer that helps Glom manage entity creation in networked environments. Everyone can spawn entities at the same time without their IDs colliding by giving each peer their own ID. You can just set this to `0` if you're building a single-player game.
-
-The schema is a list of the components you plan to use. Glom needs this to pre-allocate storage for those components and to ensure they're identified the same way across different worlds.
-
-Create a world by calling `makeWorld` with a unique ID and an array of components it should understand.
+Create a world by calling `makeWorld`.
 
 ```typescript
 import { makeWorld } from "@glom/ecs"
 
-const schema = [Position, Velocity, IsPlayer]
-const world = makeWorld({ domainId: 0, schema }) // 0 is the domain ID
+const world = makeWorld()
 ```
 
 ## 5. Writing Systems (with Transformer)
 
-Systems are where you implement your logic. They are functions that receive entity queries as parameters. Declaring dependencies like `Read<Position>` allows the scheduler to determine execution order.
-
-Most systems are functions that request a query and iterate over the results.
+Systems are functions where you implement your logic. They receive entity queries as parameters, and declaring dependencies like `Read<Position>` allows the scheduler to determine execution order.
 
 ```typescript
 import { All, Read, Write } from "@glom/ecs"
@@ -135,11 +126,9 @@ const movementSystem = (
 
 ## 6. Scheduling and Running
 
-Systems are organized into a `SystemSchedule`.
+Systems are organized into a `SystemSchedule`, which uses `Read` and `Write` requirements to determine their execution order. Systems that write to a component are sorted to run before systems that read from the same component.
 
-The schedule uses the read and write requirements of each system to determine their execution order. Systems that write to a component are sorted to run before systems that read from the same component.
-
-Import `makeSystemSchedule` and add your systems to it before running the schedule in your main loop to organize your systems.
+Add your systems to a schedule and run it in your main loop:
 
 ```typescript
 import { addSystem, makeSystemSchedule, runSchedule } from "@glom/ecs"
@@ -153,11 +142,7 @@ runSchedule(schedule, world)
 
 ## 7. Spawning Entities
 
-Entities are discrete units, identified by a unique integer.
-
-Entities are integer IDs that associate components. `worldFlushGraphChanges` batches component additions and removals into a single pass to update the internal entity graph.
-
-Spawn an entity and attach components using this method; remember to call `worldFlushGraphChanges` to make the new entity visible to queries.
+Entities are unique integer IDs that associate components. When you spawn an entity or change its components, call `worldFlushGraphChanges` to update the internal entity graph and make those changes visible to queries.
 
 ```typescript
 import { addComponent, spawn, worldFlushGraphChanges } from "@glom/ecs"
@@ -215,11 +200,7 @@ const cleanupSystem = (
 
 ## Appendix: Without the Transformer
 
-You can define systems manually if you don't want to use a build step.
-
-Some workflows might not support a build-time transformer. `defineSystem` lets you provide the same metadata explicitly in your code.
-
-Use the `defineSystem` helper to manually define a system's metadata without using the transformer.
+If your workflow doesn't support a build-time transformer, you can use the `defineSystem` helper to provide metadata explicitly in your code.
 
 ```typescript
 import { All, Read, Write, defineSystem } from "@glom/ecs"

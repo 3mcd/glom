@@ -104,12 +104,12 @@ export type World<R extends ComponentLike = any> = {
 }
 
 export type WorldOptions = {
-  domainId: number
+  domainId?: number
   schema?: RegistrySchema | ComponentLike[]
 }
 
-export function makeWorld(options: WorldOptions): World {
-  const {domainId, schema = {}} = options
+export function makeWorld(options: WorldOptions = {}): World {
+  const {domainId = 0, schema = {}} = options
   const normalizedSchema: RegistrySchema = Array.isArray(schema)
     ? {network: schema}
     : schema

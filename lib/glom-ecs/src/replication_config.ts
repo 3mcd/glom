@@ -8,7 +8,7 @@ export const ReplicationConfig = defineComponent<{
   historyWindow?: number
   ghostCleanupWindow?: number
   snapshotComponents?: number[]
-  simulationSchedule?: SystemSchedule
+  reconcileSchedule?: SystemSchedule
 }>(
   {
     bytesPerElement: 0,

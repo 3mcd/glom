@@ -64,7 +64,7 @@ const schema = [
   CanvasContext,
 ]
 
-function addSimulationSystems(schedule: g.SystemSchedule) {
+function addLogicalSystems(schedule: g.SystemSchedule) {
   g.addSystem(schedule, movementSystem)
   g.addSystem(schedule, pulseSpawnerSystem)
   g.addSystem(schedule, pulseSystem)
@@ -195,7 +195,7 @@ function createServer() {
   g.addSystem(schedule, g.clearReplicationStream)
   g.addSystem(schedule, reconciliation.applyRemoteTransactions)
   g.addSystem(schedule, commands.spawnEphemeralCommands)
-  addSimulationSystems(schedule)
+  addLogicalSystems(schedule)
   g.addSystem(schedule, renderSystem)
   g.addSystem(schedule, commands.cleanupEphemeralCommands)
   g.addSystem(schedule, replication.commitPendingMutations)
@@ -205,10 +205,7 @@ function createServer() {
   return {world, schedule, timestep}
 }
 
-function createClient(
-  domainId: number,
-  reconcileSchedule: g.SystemSchedule,
-) {
+function createClient(domainId: number, reconcileSchedule: g.SystemSchedule) {
   const canvas = document.getElementById("canvasClient") as HTMLCanvasElement
   const ctx = canvas.getContext("2d") as CanvasRenderingContext2D
   const world = g.makeWorld({domainId, schema}) as g.World
@@ -228,14 +225,14 @@ function createClient(
     g.ReplicationConfig({
       historyWindow: 64,
       ghostCleanupWindow: 60,
-      simulationSchedule: reconcileSchedule,
+      reconcileSchedule: reconcileSchedule,
     }),
   )
 
   g.addSystem(schedule, reconciliation.performRollback)
   g.addSystem(schedule, reconciliation.cleanupGhosts)
   g.addSystem(schedule, commands.spawnEphemeralCommands)
-  addSimulationSystems(schedule)
+  addLogicalSystems(schedule)
   g.addSystem(schedule, reconciliation.applyRemoteTransactions)
   g.addSystem(schedule, renderSystem)
   g.addSystem(schedule, commands.cleanupEphemeralCommands)
@@ -264,7 +261,7 @@ function createClient(
 const server = createServer()
 const reconcileSchedule = g.makeSystemSchedule()
 g.addSystem(reconcileSchedule, commands.spawnEphemeralCommands)
-addSimulationSystems(reconcileSchedule)
+addLogicalSystems(reconcileSchedule)
 g.addSystem(reconcileSchedule, commands.cleanupEphemeralCommands)
 
 const client = createClient(1, reconcileSchedule)
@@ -336,8 +333,7 @@ function loop() {
     if (header.type === g.MessageType.Handshake) {
       const handshake = g.readHandshakeServer(reader)
       const latencyTicks = Math.ceil(LATENCY_MS / (1000 / HZ))
-      const targetTick =
-        handshake.tick + LAG_COMPENSATION_TICKS + latencyTicks
+      const targetTick = handshake.tick + LAG_COMPENSATION_TICKS + latencyTicks
 
       if (!client.isSynced) {
         client.world.tick = targetTick

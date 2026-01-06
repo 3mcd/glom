@@ -1,6 +1,6 @@
 # Server-Authoritative Architecture
 
-This guide explains how to structure a networked application where a server has authority over the simulation. This model prevents cheating and ensures all participants see a consistent state, while using prediction to keep the experience responsive for players.
+This guide explains how to structure a networked application where a server has authority over the world state. This model prevents cheating and ensures all participants see a consistent state, while using prediction to keep the experience responsive for players.
 
 ## Core Workflow
 
@@ -9,16 +9,16 @@ A server-authoritative app follows a specific loop for both the client and the s
 1.  **Client** records user intent as commands.
 2.  **Client** predicts the result of these commands immediately.
 3.  **Client** sends commands to the **Server**.
-4.  **Server** validates and executes commands in its own simulation.
+4.  **Server** validates and executes commands in its own world.
 5.  **Server** broadcasts the resulting state changes back to all **Clients**.
 6.  **Client** reconciles its predicted state with the authoritative state from the server.
 
-## 1. Shared Simulation
+## 1. Shared Logic
 
-Both the client and the server should run the same simulation logic. This ensures that the client's prediction matches the server's eventual result.
+Both the client and the server should run the same logic. This ensures that the client's prediction matches the server's eventual result.
 
 ```typescript
-function addSimulationSystems(schedule: g.SystemSchedule) {
+function addLogicalSystems(schedule: g.SystemSchedule) {
   g.addSystem(schedule, movementSystem)
   g.addSystem(schedule, combatSystem)
 }
@@ -39,7 +39,7 @@ const MoveCommand = g.defineComponent<{dx: number; dy: number}>({
 The server is responsible for receiving commands and broadcasting state. It uses the `ReplicationStream` resource to track what needs to be sent to clients.
 
 ```typescript
-const world = g.makeWorld({domainId: 0, schema})
+const world = g.makeWorld({ schema })
 const schedule = g.makeSystemSchedule()
 
 // Configure replication
@@ -50,7 +50,7 @@ g.addResource(world, g.CommandBuffer(new Map()))
 // Standard server schedule order:
 g.addSystem(schedule, g.clearReplicationStream)
 g.addSystem(schedule, commands.spawnEphemeralCommands)
-addSimulationSystems(schedule)
+addLogicalSystems(schedule)
 g.addSystem(schedule, commands.cleanupEphemeralCommands)
 g.addSystem(schedule, replication.commitPendingMutations)
 g.addSystem(schedule, replication.advanceWorldTick)
@@ -58,7 +58,7 @@ g.addSystem(schedule, replication.advanceWorldTick)
 
 ## 4. Client Setup
 
-The client needs a `history` buffer to store past states for reconciliation. It also requires a separate `reconcileSchedule` that only contains the simulation systems.
+The client needs a `history` buffer to store past states for reconciliation. It also requires a separate `reconcileSchedule` that only contains the systems.
 
 ```typescript
 const world = g.makeWorld({domainId: 1, schema})
@@ -70,17 +70,17 @@ g.addResource(world, g.IncomingSnapshots(new Map()))
 
 // The schedule used to "fast-forward" during reconciliation
 const reconcileSchedule = g.makeSystemSchedule()
-addSimulationSystems(reconcileSchedule)
+addLogicalSystems(reconcileSchedule)
 
 g.addResource(world, g.ReplicationConfig({
   historyWindow: 64,
-  simulationSchedule: reconcileSchedule
+  reconcileSchedule: reconcileSchedule
 }))
 
 // Standard client schedule order:
 g.addSystem(schedule, reconciliation.performRollback)
 g.addSystem(schedule, commands.spawnEphemeralCommands)
-addSimulationSystems(schedule)
+addLogicalSystems(schedule)
 g.addSystem(schedule, reconciliation.applyRemoteTransactions)
 g.addSystem(schedule, commands.cleanupEphemeralCommands)
 g.addSystem(schedule, replication.advanceWorldTick)
@@ -110,6 +110,6 @@ if (commands) {
 When the client receives a transaction from the server, it uses `receiveTransaction`. The `performRollback` system will then automatically detect if the server's state differs from what the client predicted. If it does, Glom will:
 
 1.  **Roll back** the world state to the tick where the discrepancy occurred.
-2.  **Re-simulate** every tick from that point up to the current predicted tick using the `simulationSchedule` and the local command history.
+2.  **Re-simulate** every tick from that point up to the current predicted tick using the `reconcileSchedule` and the local command history.
 3.  **Apply** the corrected state, ensuring the player's view remains accurate to the server's authority.
 

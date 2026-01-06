@@ -231,7 +231,7 @@ function setupClient(domainId: number) {
     g.ReplicationConfig({
       historyWindow: 64,
       ghostCleanupWindow: 20,
-      simulationSchedule: reconcileSchedule,
+      reconcileSchedule: reconcileSchedule,
     }),
   )
 

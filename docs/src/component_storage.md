@@ -1,6 +1,6 @@
 # Component Storage
 
-**Problem:** Storing state within heterogeneous entity objects prevents JavaScript engines from specializing functions and causes frequent "hidden class" transitions during simulation.
+**Problem:** Storing state within heterogeneous entity objects prevents JavaScript engines from specializing functions and causes frequent "hidden class" transitions during execution.
 
 ## Entity Indexing
 

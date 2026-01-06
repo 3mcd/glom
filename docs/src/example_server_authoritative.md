@@ -2,7 +2,7 @@
 
 This example demonstrates a server-authoritative model with client-side prediction and server reconciliation.
 
-The simulation below runs both a "Server" world and a "Client" world. The client sends movement commands to the server, predicts the results locally, and then reconciles its state when the authoritative server response arrives after a simulated latency.
+The example below runs both a "Server" world and a "Client" world. The client sends movement commands to the server, predicts the results locally, and then reconciles its state when the authoritative server response arrives after a simulated latency.
 
 <div class="example"><iframe src="examples/server-authoritative-canvas/" allow="pointer-lock"></iframe></div>
 

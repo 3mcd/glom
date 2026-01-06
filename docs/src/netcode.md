@@ -19,7 +19,7 @@ Alice is in Domain 1, Bob is in Domain 2. Alice spawns an entity with ID `(1, 1)
 
 Replication uses transactions. A transaction is a group of operations (spawn, despawn, set, remove) from a single domain.
 
-Conflicts are handled with Last-Write-Wins. Each update has a version (usually the simulation tick). The world keeps track of the version for every component to ensure newer data isn't overwritten by older data.
+Conflicts are handled with Last-Write-Wins. Each update has a version (usually the world tick). The world keeps track of the version for every component to ensure newer data isn't overwritten by older data.
 
 ## 4. Clock Synchronization
 
@@ -29,11 +29,11 @@ Glom uses an NTP-inspired handshake to calculate round-trip time and clock offse
 
 ## 5. Prediction and Reconciliation
 
-Glom supports predicted simulations with corrections. Snapshots for a tick represent the world state at the start of that tick, allowing the simulation to roll back, apply authoritative changes, and re-simulate to catch up. This enables optimistic spawning, where clients can instantly spawn entities in their own domain while the server or other peers receive these events later. If a client receives state that differs from its prediction, the reconciliation loop rewinds to the tick of the discrepancy, applies the correction, and fast-forwards by re-simulating up to the current tick.
+Glom provides network utilities that enable predicted simulation with corrections. Snapshots for a tick represent the world state at the start of that tick, allowing the world to roll back, apply authoritative changes, and re-simulate to catch up. This enables optimistic spawning, where clients can instantly spawn entities in their own domain while the server or other peers receive these events later. If a client receives state that differs from its prediction, the reconciliation loop rewinds to the tick of the discrepancy, applies the correction, and fast-forwards by re-simulating up to the current tick.
 
 ## 6. Predictive Shadowing
 
-When simulation logic is identical on client and server, entities are often spawned by systems. We let the server define the permanent ID in these cases. Transient entities are used when a client predicts a spawn it doesn't own; it uses a temporary ID in a reserved transient domain and tags the entity with a key derived from the intent tick. The client swaps the transient ID for the server's ID when the server's version arrives with the same key while keeping the component data.
+When logic is identical on client and server, entities are often spawned by systems. We let the server define the permanent ID in these cases. Transient entities are used when a client predicts a spawn it doesn't own; it uses a temporary ID in a reserved transient domain and tags the entity with a key derived from the intent tick. The client swaps the transient ID for the server's ID when the server's version arrives with the same key while keeping the component data.
 
 ## 7. Custom Protocol
 

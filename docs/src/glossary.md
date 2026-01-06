@@ -8,7 +8,7 @@
   <dd>a data structure representing a property or state of an entity</dd>
 
   <dt>Continuous Predicted Simulation</dt>
-  <dd>a networking model where clients run simulation logic immediately and correct it later if the server data is different</dd>
+  <dd>a networking model where clients run game logic immediately and correct it later if the server data is different</dd>
 
   <dt>DAG (Directed Acyclic Graph)</dt>
   <dd>a graph with no loops (Glom uses DAGs for ordering systems and organizing archetypes)</dd>
@@ -44,5 +44,5 @@
   <dd>a group of changes, such as spawning entities or updating components, that are applied together</dd>
 
   <dt>World</dt>
-  <dd>the container for all entities and components in a simulation</dd>
+  <dd>the container for all entities and components in a game</dd>
 </dl>

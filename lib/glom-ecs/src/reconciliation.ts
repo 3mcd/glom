@@ -262,8 +262,8 @@ export const applyRemoteSnapshots = defineSystem(
 
 export const performRollback = defineSystem(
   (config: Read<typeof ReplicationConfig>, world: World) => {
-    if (!config.simulationSchedule) return
-    performBatchReconciliation(world, config.simulationSchedule)
+    if (!config.reconcileSchedule) return
+    performBatchReconciliation(world, config.reconcileSchedule)
   },
   {
     params: [Read(ReplicationConfig), WorldTerm()],
