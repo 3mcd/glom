@@ -28,7 +28,7 @@
   --syntax-co: #666;
   --syntax-ot: #7ec7f8;
   --syntax-al: #ff8b78;
-  --syntax-fu: #6bcbf7;
+  --syntax-fu: #d6d6d6;
   --syntax-er: #ff8b78;
   --syntax-wa: #ffffff;
   --syntax-cn: #f4c1cf;
@@ -209,9 +209,8 @@ hr {
 /* Navigation (TOC) */
 
 .toc {
-  margin-bottom: 1.5rem;
+  margin: 1rem 0 1.5rem 0;
   border: 2px solid var(--border);
-  border-top: none;
 }
 
 .toc-grid {

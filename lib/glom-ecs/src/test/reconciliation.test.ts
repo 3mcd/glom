@@ -1,6 +1,8 @@
 import {describe, expect, test} from "bun:test"
 import {defineComponent} from "../component"
-import {HistoryBuffer, makeHistoryBuffer, pushSnapshot} from "../history"
+import {HistoryBuffer, pushSnapshot, type Snapshot} from "../history"
+import {All} from "../query/all"
+import {Add, Read} from "../query/term"
 import {
   applyRemoteSnapshots,
   applyRemoteTransactions,
@@ -10,20 +12,15 @@ import {
   receiveSnapshot,
   reconcileTransaction,
 } from "../reconciliation"
-import {
-  applyTransaction,
-  TRANSIENT_DOMAIN,
-  type Transaction,
-} from "../replication"
+import {TRANSIENT_DOMAIN, type Transaction} from "../replication"
 import {
   IncomingSnapshots,
   IncomingTransactions,
   InputBuffer,
 } from "../replication_config"
-import {getComponentValue, makeWorld} from "../world"
-import {Read, World as WorldTerm} from "../query/term"
 import {defineSystem} from "../system"
 import {addSystem, makeSystemSchedule, runSchedule} from "../system_schedule"
+import {getComponentValue, makeWorld} from "../world"
 import {
   addComponent,
   addResource,
@@ -38,7 +35,10 @@ describe("reconciliation", () => {
 
   test("reconcile late arriving transaction", () => {
     const world = makeWorld({domainId: 1, schema: [Position]})
-    const history = {snapshots: [], maxSize: 10}
+    const history: {snapshots: Snapshot[]; maxSize: number} = {
+      snapshots: [],
+      maxSize: 10,
+    }
     addResource(world, HistoryBuffer(history))
     const inputBuffer = new Map<number, unknown>()
     addResource(world, InputBuffer(inputBuffer))
@@ -81,7 +81,7 @@ describe("reconciliation", () => {
       ],
     }
 
-    const tickFn = (w: typeof world, input: any) => {
+    const tickFn = (w: typeof world, input: unknown) => {
       const pos = getComponentValue(w, entity, Position)
       const move = input as {dx: number} | undefined
       if (move && pos) {
@@ -100,7 +100,10 @@ describe("reconciliation", () => {
 
   test("prune buffers", () => {
     const world = makeWorld({domainId: 1, schema: [Position]})
-    const history = {snapshots: [], maxSize: 10}
+    const history: {snapshots: Snapshot[]; maxSize: number} = {
+      snapshots: [],
+      maxSize: 10,
+    }
     addResource(world, HistoryBuffer(history))
     const inputBuffer = new Map<number, unknown>()
     addResource(world, InputBuffer(inputBuffer))
@@ -126,8 +129,9 @@ describe("reconciliation", () => {
 
     expect(incomingTransactions.size).toBe(2)
     expect(history.snapshots.length).toBe(3)
-    if (history.snapshots.length > 0 && history.snapshots[0]) {
-      expect(history.snapshots[0].tick).toBe(3)
+    const firstSnapshot = history.snapshots[0]
+    if (firstSnapshot) {
+      expect(firstSnapshot.tick).toBe(3)
     }
   })
 
@@ -197,19 +201,24 @@ describe("reconciliation", () => {
       ],
     }
 
-    const incoming = getResource(world, IncomingTransactions)!
-    incoming.set(0, [transaction])
+    const incoming = getResource(world, IncomingTransactions)
+    if (incoming) {
+      incoming.set(0, [transaction])
+    }
 
     applyRemoteTransactions(world)
 
     const pos = getComponentValue(world, entity, Position)
     expect(pos).toEqual({x: 100, y: 200})
-    expect(incoming.has(0)).toBe(false)
+    expect(incoming?.has(0)).toBe(false)
   })
 
   test("performBatchReconciliation re-simulates multiple ticks", () => {
     const world = makeWorld({domainId: 1, schema: [Position]})
-    const history = {snapshots: [], maxSize: 10}
+    const history: {snapshots: Snapshot[]; maxSize: number} = {
+      snapshots: [],
+      maxSize: 10,
+    }
     addResource(world, HistoryBuffer(history))
     const incomingTransactions = new Map<number, Transaction[]>()
     addResource(world, IncomingTransactions(incomingTransactions))
@@ -221,7 +230,7 @@ describe("reconciliation", () => {
         }
       },
       {
-        params: [{all: [{entity: true}, {read: Position}]} as any, {add: Position} as any],
+        params: [All({entity: true}, Read(Position)), Add(Position)] as any,
         name: "move",
       },
     )
@@ -283,7 +292,10 @@ describe("reconciliation", () => {
 
   test("performBatchReconciliation handles transactions older than history", () => {
     const world = makeWorld({domainId: 1, schema: [Position]})
-    const history = {snapshots: [], maxSize: 2} // Small history
+    const history: {snapshots: Snapshot[]; maxSize: number} = {
+      snapshots: [],
+      maxSize: 2,
+    } // Small history
     addResource(world, HistoryBuffer(history))
     const incomingTransactions = new Map<number, Transaction[]>()
     addResource(world, IncomingTransactions(incomingTransactions))
@@ -298,8 +310,11 @@ describe("reconciliation", () => {
 
     // world.tick is 5. history should contain snapshots for tick 4 and 5 (or similar).
     // Let's check oldest tick in history
-    const oldestHistoryTick = history.snapshots[0]!.tick
-    expect(oldestHistoryTick).toBeGreaterThan(0)
+    const oldestHistorySnapshot = history.snapshots[0]
+    if (oldestHistorySnapshot) {
+      const oldestHistoryTick = oldestHistorySnapshot.tick
+      expect(oldestHistoryTick).toBeGreaterThan(0)
+    }
 
     // Inject a transaction for tick 0 (older than oldest snapshot)
     const oldTx: Transaction = {

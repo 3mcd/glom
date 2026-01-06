@@ -1,5 +1,9 @@
 import type {Component, ComponentLike} from "./component"
-import {Replicated, ReplicationConfig, ReplicationStream} from "./replication_config"
+import {
+  Replicated,
+  ReplicationConfig,
+  ReplicationStream,
+} from "./replication_config"
 export {Replicated, ReplicationConfig, ReplicationStream}
 
 import {CommandBuffer, type CommandInstance} from "./command"
@@ -13,7 +17,7 @@ import {
 import {getDomain, removeEntity} from "./entity_registry"
 import {addDomainEntity, removeDomainEntity} from "./entity_registry_domain"
 import {hashWord} from "./lib/hash"
-import {Read, Write, World as WorldTerm} from "./query/term"
+import {Read, World as WorldTerm, Write} from "./query/term"
 import {pruneBuffers} from "./reconciliation"
 import type {Relation} from "./relation"
 import {
@@ -34,7 +38,6 @@ import {
 } from "./world"
 import {
   addComponent,
-  addResource,
   advanceTick,
   commitTransaction,
   removeComponent,
@@ -137,9 +140,7 @@ export function rebindEntity(
     for (let i = 0; i < relationsToMove.length; i++) {
       const {subject, relationId} = relationsToMove[i] as RelationSubject
       const relation = ((object: Entity) => ({
-        relation: world.componentRegistry.getComponent(
-          relationId,
-        ) as Relation,
+        relation: world.componentRegistry.getComponent(relationId) as Relation,
         object,
       })) as unknown as (object: Entity) => ComponentLike
 
