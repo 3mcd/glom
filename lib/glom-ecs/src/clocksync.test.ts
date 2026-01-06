@@ -2,6 +2,7 @@ import {describe, expect, test} from "bun:test"
 import {
   addClocksyncSample,
   calculateOffsetAndRtt,
+  getAverageRtt,
   getConsensusOffset,
   makeClocksyncManager,
 } from "./clocksync"
@@ -37,5 +38,23 @@ describe("clocksync", () => {
     addClocksyncSample(manager, 2, 0, -45, 10)
 
     expect(getConsensusOffset(manager)).toBe(25)
+  })
+
+  test("average rtt across agents", () => {
+    const manager = makeClocksyncManager(5)
+
+    // Agent 1: RTT = 10 (110 - 100)
+    addClocksyncSample(manager, 1, 100, 150, 110)
+
+    // Agent 2: RTT = 50 (250 - 200)
+    addClocksyncSample(manager, 2, 200, 300, 250)
+
+    // Average RTT = (10 + 50) / 2 = 30
+    expect(getAverageRtt(manager)).toBe(30)
+  })
+
+  test("getAverageRtt returns 0 when no agents", () => {
+    const manager = makeClocksyncManager(5)
+    expect(getAverageRtt(manager)).toBe(0)
   })
 })

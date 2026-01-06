@@ -361,4 +361,106 @@ describe("replication", () => {
 
     expect(worldClient.transientRegistry.size).toBe(1)
   })
+
+  test("relationship object rebinding", () => {
+    const world = makeWorld({domainId: 1, schema})
+    const causalKey = 54321
+
+    // A predicted parent entity
+    const transientParent = spawn(
+      world,
+      [Position({x: 10, y: 10}), Replicated],
+      TRANSIENT_DOMAIN,
+    )
+    world.transientRegistry.set(causalKey, {
+      entity: transientParent,
+      tick: world.tick,
+    })
+
+    // A child of the predicted parent
+    const child = spawn(world, [ChildOf(transientParent), Replicated])
+    commitTransaction(world)
+
+    expect(world.relations.objectToSubjects.has(transientParent)).toBe(true)
+
+    // Server sends authoritative parent spawn with same causalKey
+    const authoritativeParent = ((0 << 20) | 99) as Entity
+    const transaction: Transaction = {
+      domainId: 0,
+      seq: 1,
+      tick: 100,
+      ops: [
+        {
+          type: "spawn",
+          entity: authoritativeParent,
+          causalKey: causalKey,
+          components: [
+            {
+              id: world.componentRegistry.getId(Position),
+              data: {x: 10, y: 10},
+            },
+          ],
+        },
+      ],
+    }
+
+    applyTransaction(world, transaction)
+
+    // The relation should now point to the authoritative parent
+    expect(world.relations.objectToSubjects.has(transientParent)).toBe(false)
+    expect(world.relations.objectToSubjects.has(authoritativeParent)).toBe(true)
+    const incoming = world.relations.objectToSubjects.get(authoritativeParent)
+    expect(Array.from(incoming || []).some(r => r.subject === child && r.relationId === world.componentRegistry.getId(ChildOf))).toBe(true)
+  })
+
+  test("relationship in set op", () => {
+    const world = makeWorld({domainId: 1, schema})
+    const parent = spawn(world, [Position({x: 1, y: 1}), Replicated])
+    const child = spawn(world, [Position({x: 0, y: 0}), Replicated])
+    commitTransaction(world)
+
+    const childOfParentId = 1000000 // A virtual ID
+    
+    const tx: Transaction = {
+      domainId: 1,
+      seq: getDomain(world.registry, 1).opSeq,
+      tick: 10,
+      ops: [
+        {
+          type: "set",
+          entity: child,
+          componentId: childOfParentId,
+          data: undefined,
+          rel: {relationId: world.componentRegistry.getId(ChildOf), object: parent},
+        },
+      ],
+    }
+
+    applyTransaction(world, tx)
+
+    expect(world.relations.objectToSubjects.has(parent)).toBe(true)
+    expect(world.relations.virtualToRel.has(childOfParentId)).toBe(true)
+  })
+
+  test("relationship cleanup on despawn", () => {
+    const world = makeWorld({domainId: 1, schema})
+    const parent = spawn(world, [Position({x: 1, y: 1}), Replicated])
+    const child = spawn(world, [ChildOf(parent), Replicated])
+    commitTransaction(world)
+
+    expect(world.relations.objectToSubjects.has(parent)).toBe(true)
+    const childOfParentId = Array.from(world.relations.virtualToRel.keys())[0]!
+    expect(world.relations.virtualToRel.has(childOfParentId)).toBe(true)
+
+    const tx: Transaction = {
+      domainId: 1,
+      seq: getDomain(world.registry, 1).opSeq,
+      tick: 10,
+      ops: [{type: "despawn", entity: child}],
+    }
+
+    applyTransaction(world, tx)
+
+    expect(world.relations.objectToSubjects.has(parent)).toBe(false)
+  })
 })

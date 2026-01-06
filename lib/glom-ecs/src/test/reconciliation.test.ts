@@ -2,8 +2,11 @@ import {describe, expect, test} from "bun:test"
 import {defineComponent} from "../component"
 import {HistoryBuffer, makeHistoryBuffer, pushSnapshot} from "../history"
 import {
+  applyRemoteSnapshots,
+  applyRemoteTransactions,
   cleanupTransientEntities,
   pruneBuffers,
+  receiveSnapshot,
   reconcileTransaction,
 } from "../reconciliation"
 import {
@@ -22,6 +25,7 @@ import {
   addResource,
   advanceTick,
   commitTransaction,
+  getResource,
   spawn,
 } from "../world_api"
 
@@ -136,5 +140,66 @@ describe("reconciliation", () => {
 
     expect(world.transientRegistry.size).toBe(0)
     expect(getComponentValue(world, entity, Position)).toBeUndefined()
+  })
+
+  test("receive and apply remote snapshots", () => {
+    const world = makeWorld({domainId: 1, schema: [Position]})
+    addResource(world, IncomingSnapshots(new Map()))
+
+    const entity = spawn(world, [])
+    commitTransaction(world)
+
+    const snapshot = {
+      tick: 0,
+      blocks: [
+        {
+          componentId: world.componentRegistry.getId(Position),
+          entities: [entity],
+          data: [{x: 42, y: 43}],
+        },
+      ],
+    }
+
+    receiveSnapshot(world, snapshot)
+    const incoming = getResource(world, IncomingSnapshots)
+    expect(incoming?.has(0)).toBe(true)
+    expect(incoming?.get(0)).toContain(snapshot)
+
+    applyRemoteSnapshots(world)
+
+    const pos = getComponentValue(world, entity, Position)
+    expect(pos).toEqual({x: 42, y: 43})
+    expect(incoming?.has(0)).toBe(false)
+  })
+
+  test("apply remote transactions", () => {
+    const world = makeWorld({domainId: 1, schema: [Position]})
+    addResource(world, IncomingTransactions(new Map()))
+
+    const entity = spawn(world, [])
+    commitTransaction(world)
+
+    const transaction: Transaction = {
+      domainId: 0,
+      seq: 1,
+      tick: 0,
+      ops: [
+        {
+          type: "set",
+          entity,
+          componentId: world.componentRegistry.getId(Position),
+          data: {x: 100, y: 200},
+        },
+      ],
+    }
+
+    const incoming = getResource(world, IncomingTransactions)!
+    incoming.set(0, [transaction])
+
+    applyRemoteTransactions(world)
+
+    const pos = getComponentValue(world, entity, Position)
+    expect(pos).toEqual({x: 100, y: 200})
+    expect(incoming.has(0)).toBe(false)
   })
 })

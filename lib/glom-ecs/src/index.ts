@@ -17,6 +17,11 @@ export {
   defineComponent,
   defineTag,
 } from "./component"
+export {
+  type EntityGraph,
+  type EntityGraphNode,
+  entityGraphGetEntityNode,
+} from "./entity_graph"
 export {Entity, getDomainId, getLocalId} from "./entity"
 export {getDomain} from "./entity_registry"
 export {

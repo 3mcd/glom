@@ -314,15 +314,11 @@ export function hasResource<T extends ComponentLike>(
   resource: ComponentLike,
 ): boolean {
   const component = resource as Component<unknown>
+  const componentId = world.componentRegistry.getId(component)
   if (component.isTag) {
-    return world.components.resourceTags.has(
-      world.componentRegistry.getId(component),
-    )
+    return world.components.resourceTags.has(componentId)
   }
-  const index = sparseMapGet(world.index.entityToIndex, RESOURCE_ENTITY)
-  if (index === undefined) return false
-  const store = world.components.storage.get(
-    world.componentRegistry.getId(component),
-  )
+  const index = 0 // Resource entity is always index 0
+  const store = world.components.storage.get(componentId)
   return store !== undefined && store[index] !== undefined
 }
