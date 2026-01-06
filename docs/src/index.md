@@ -1,6 +1,6 @@
 # Introduction
 
-Glom is an Entity-Component System written in TypeScript. It aims to be a fast, networkable, and testable foundation for games with dynamic needs.
+Glom is an Entity-Component System written in TypeScript. It aims to be a fast, networkable, and testable foundation for games with dynamic behavior.
 
 ## Features
 
