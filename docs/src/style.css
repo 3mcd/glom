@@ -372,10 +372,10 @@ footer {
 }
 
 /* lists */
-ul, ol {
+ul,
+ol {
   padding-left: 3rem;
 }
-
 
 /* Definitions (DL, DT, DD) */
 
@@ -438,7 +438,8 @@ pre code {
   padding: 0;
 }
 
-/* Remove underlines from links inside code blocks (Pandoc line anchors) */
+/* Images */
+img {
   width: 100%;
   height: auto;
   display: block;

@@ -12,7 +12,7 @@ import {resimulateWithTransactions} from "./reconciliation"
 import {defineRelation} from "./relation"
 import {InputBuffer} from "./replication_config"
 import {sparseMapGet} from "./sparse_map"
-import {getComponentValue, getResource, makeWorld} from "./world"
+import {getComponentValue, makeWorld} from "./world"
 import {
   addComponent,
   addResource,

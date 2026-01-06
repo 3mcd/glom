@@ -1,10 +1,10 @@
 import type {ComponentLike} from "./component"
 import type {Relation} from "./relation"
 
-export type ReadDescriptor<T = unknown> = {
+export type ReadDescriptor = {
   read: ComponentLike
 }
-export type WriteDescriptor<T = unknown> = {
+export type WriteDescriptor = {
   write: ComponentLike
 }
 export type HasDescriptor<T extends ComponentLike = ComponentLike> = {
@@ -15,60 +15,52 @@ export type NotDescriptor<T extends ComponentLike = ComponentLike> = {
 }
 export type EntityDescriptor = {entity: true}
 export type WorldDescriptor = {world: true}
-export type SpawnDescriptor<T extends ComponentLike = any> = {spawn: T | true}
+export type SpawnDescriptor<T extends ComponentLike = any> = {
+  spawn: T | true
+}
 export type DespawnDescriptor = {despawn: true}
 export type AddDescriptor<T extends ComponentLike = ComponentLike> = {add: T}
 export type RemoveDescriptor<T extends ComponentLike = ComponentLike> = {
   remove: T
 }
 
-export type InDescriptor<
-  T extends AllDescriptor | JoinDescriptor = AllDescriptor | JoinDescriptor,
-> = {
+export type InDescriptor<T extends AllDescriptor | JoinDescriptor = any> = {
   in: T
 }
 
-export type OutDescriptor<
-  T extends AllDescriptor | JoinDescriptor = AllDescriptor | JoinDescriptor,
-> = {
+export type OutDescriptor<T extends AllDescriptor | JoinDescriptor = any> = {
   out: T
 }
 
 export type UniqueDescriptor<
-  T0 = unknown,
-  T1 = unknown,
-  T2 = unknown,
-  T3 = unknown,
-  T4 = unknown,
-  T5 = unknown,
-  T6 = unknown,
-  T7 = unknown,
+  T0 = any,
+  T1 = any,
+  T2 = any,
+  T3 = any,
+  T4 = any,
+  T5 = any,
+  T6 = any,
+  T7 = any,
 > = {
   unique: unknown[]
 }
 
 export type AllDescriptor<
-  T0 = unknown,
-  T1 = unknown,
-  T2 = unknown,
-  T3 = unknown,
-  T4 = unknown,
-  T5 = unknown,
-  T6 = unknown,
-  T7 = unknown,
+  T0 = any,
+  T1 = any,
+  T2 = any,
+  T3 = any,
+  T4 = any,
+  T5 = any,
+  T6 = any,
+  T7 = any,
 > = {
   all: unknown[]
 }
 
 export type JoinDescriptor<
-  L extends AllDescriptor | InDescriptor | OutDescriptor =
-    | AllDescriptor
-    | InDescriptor
-    | OutDescriptor,
-  R extends AllDescriptor | InDescriptor | OutDescriptor =
-    | AllDescriptor
-    | InDescriptor
-    | OutDescriptor,
+  L extends AllDescriptor | InDescriptor | OutDescriptor = any,
+  R extends AllDescriptor | InDescriptor | OutDescriptor = any,
   Rel extends Relation | undefined = undefined,
 > = {
   join: [L, R, Rel]

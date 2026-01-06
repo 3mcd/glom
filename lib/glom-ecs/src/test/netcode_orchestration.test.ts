@@ -32,7 +32,7 @@ describe("netcode orchestration", () => {
         >,
       ) => {
         for (const [pos, _jump] of playerQuery) {
-          ;(pos as any).y += 10
+          ;(pos as {y: number}).y += 10
         }
       },
       {

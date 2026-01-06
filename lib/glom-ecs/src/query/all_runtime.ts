@@ -1,9 +1,11 @@
 import {assertDefined} from "../assert"
 import type {ComponentLike} from "../component"
 import {
-  isJoinDescriptor,
+  type InDescriptor,
   isInDescriptor,
+  isJoinDescriptor,
   isOutDescriptor,
+  type OutDescriptor,
   type AllDescriptor as RawAllDescriptor,
   type JoinDescriptor as RawJoinDescriptor,
   type UniqueDescriptor as RawUniqueDescriptor,
@@ -57,8 +59,7 @@ export class JoinLevel implements EntityGraphNodeListener {
   readonly nodesMap = makeSparseMap<EntityGraphNode>()
   readonly requiredVec: Vec
   readonly excludedVecs: Vec[]
-  readonly joinOn?: Relation
-  readonly joinOnId?: number
+  readonly joinOn?: {readonly id: number}
   readonly anchorNode: EntityGraphNode
   reactiveMode?: "in" | "out"
 
@@ -72,9 +73,8 @@ export class JoinLevel implements EntityGraphNodeListener {
     this.excludedVecs = excluded.map((c) =>
       makeVec([c], world.componentRegistry),
     )
-    this.joinOn = joinOn
     if (joinOn) {
-      this.joinOnId = world.componentRegistry.getId(joinOn)
+      this.joinOn = {id: world.componentRegistry.getId(joinOn)}
     }
 
     this.anchorNode = entityGraphFindOrCreateNode(
@@ -87,6 +87,10 @@ export class JoinLevel implements EntityGraphNodeListener {
     entityGraphNodeTraverseRight(this.anchorNode, (node) => {
       this.nodeCreated(node)
     })
+  }
+
+  get joinOnId(): number | undefined {
+    return this.joinOn?.id
   }
 
   nodeCreated(node: EntityGraphNode): void {
@@ -201,7 +205,11 @@ export class AllRuntime implements AnyAll {
       if (nextJoinLevel < this.joins.length) {
         const nextJoin = this.joins[nextJoinLevel]
         if (nextJoin?.joinOnId !== undefined) {
-          yield* this._yield_independent_level(nextJoinLevel, currentResult, entity)
+          yield* this._yield_independent_level(
+            nextJoinLevel,
+            currentResult,
+            entity,
+          )
           return
         } else {
           yield* this._yield_independent_level(nextJoinLevel, currentResult)
@@ -355,7 +363,12 @@ export class AllRuntime implements AnyAll {
     const reactiveLevels: Map<number, "in" | "out"> = new Map()
 
     const processDescriptor = (
-      desc: any,
+      desc:
+        | RawAllDescriptor
+        | RawJoinDescriptor
+        | RawUniqueDescriptor
+        | InDescriptor
+        | OutDescriptor,
       joinIndex: number,
       rel?: Relation,
     ) => {
@@ -383,8 +396,7 @@ export class AllRuntime implements AnyAll {
         processDescriptor(right, baseRightJoinIndex, joinRel)
       } else {
         const terms =
-          (desc as RawAllDescriptor).all ||
-          (desc as RawUniqueDescriptor).unique
+          (desc as RawAllDescriptor).all || (desc as RawUniqueDescriptor).unique
         terms.forEach((term: unknown) => {
           this._term_infos.push(
             this._resolve_term_info(term, world, joinIndex, context),
@@ -477,7 +489,8 @@ export class AllRuntime implements AnyAll {
       type,
       component,
       componentId,
-      store: type === "component" ? getComponentStore(world, component) : undefined,
+      store:
+        type === "component" ? getComponentStore(world, component) : undefined,
       joinIndex: currentJoinIndex,
     } as TermInfo
   }
@@ -493,11 +506,7 @@ export class AllRuntime implements AnyAll {
     world: World,
     context: {joinIndex: number},
   ) {
-    if (
-      typeof term !== "object" &&
-      typeof term !== "function"
-    )
-      return
+    if (typeof term !== "object" && typeof term !== "function") return
     if (term === null) return
     const t = term as Record<string, any>
 
@@ -509,15 +518,15 @@ export class AllRuntime implements AnyAll {
     if ("in" in t) {
       const inner = (t.in as any).all || (t.in as any).unique || t.in
       if (Array.isArray(inner)) {
-        inner.forEach((item) =>
+        inner.forEach((item) => {
           this._collect_join_components(
             item,
             currentJoinIndex,
             configs,
             world,
             context,
-          ),
-        )
+          )
+        })
       } else {
         this._collect_join_components(
           inner,
@@ -532,15 +541,15 @@ export class AllRuntime implements AnyAll {
     if ("out" in t) {
       const inner = (t.out as any).all || (t.out as any).unique || t.out
       if (Array.isArray(inner)) {
-        inner.forEach((item) =>
+        inner.forEach((item) => {
           this._collect_join_components(
             item,
             currentJoinIndex,
             configs,
             world,
             context,
-          ),
-        )
+          )
+        })
       } else {
         this._collect_join_components(
           inner,
@@ -609,8 +618,6 @@ export class AllRuntime implements AnyAll {
   private _collect_stores(info: TermInfo, stores: unknown[][]) {
     if (info.type === "component") {
       stores.push(info.store || [])
-    } else if (info.type === "rel") {
-      this._collect_stores(info.objectTerm, stores)
     }
   }
 
@@ -651,7 +658,7 @@ export class AllRuntime implements AnyAll {
 export class UniqueRuntime extends AllRuntime {
   readonly __unique = true
 
-  constructor(readonly desc: RawUniqueDescriptor) {
+  constructor(override readonly desc: RawUniqueDescriptor) {
     super({all: desc.unique})
   }
 

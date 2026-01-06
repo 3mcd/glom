@@ -202,7 +202,7 @@ describe("protocol serialization", () => {
         }
         return undefined
       },
-      isTag: (id) => false,
+      isTag: (_id) => false,
     }
 
     const transaction: Transaction = {

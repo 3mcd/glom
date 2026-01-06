@@ -9,6 +9,7 @@ import {
 import type {Entity} from "../entity"
 import {
   type EntityGraphNode,
+  type EntityGraphNodeListener,
   entityGraphNodeAddListener,
   entityGraphNodeRemoveListener,
 } from "../entity_graph"
@@ -29,7 +30,10 @@ export class MonitorRuntime extends AllRuntime {
   readonly added = makeSparseSet<Entity>()
   readonly removed = makeSparseSet<Entity>()
   private _mode: MonitorMode
-  private _joinListeners: {node: EntityGraphNode; listener: any}[] = []
+  private _joinListeners: {
+    node: EntityGraphNode
+    listener: EntityGraphNodeListener
+  }[] = []
   private _isTopLevel: boolean
 
   constructor(
