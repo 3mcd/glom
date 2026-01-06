@@ -1,9 +1,18 @@
 import {describe, expect, test} from "bun:test"
 import {defineComponent} from "./component"
-import {HistoryBuffer, pushSnapshot, rollbackToTick} from "./history"
+import {defineRelation} from "./relation"
+import {
+  HistoryBuffer,
+  captureSnapshot,
+  makeHistoryBuffer,
+  pushSnapshot,
+  rollbackToSnapshot,
+  rollbackToTick,
+} from "./history"
 import {resimulateWithTransactions} from "./reconciliation"
 import {InputBuffer} from "./replication_config"
 import {getComponentValue, getResource, makeWorld} from "./world"
+import {sparseMapGet} from "./sparse_map"
 import {
   addComponent,
   addResource,
@@ -130,5 +139,60 @@ describe("history", () => {
     if (pos2) {
       expect(pos2.x).toBe(2)
     }
+  })
+
+  test("makeHistoryBuffer", () => {
+    const buffer = makeHistoryBuffer(100)
+    expect(buffer.maxSize).toBe(100)
+    expect(buffer.snapshots).toEqual([])
+  })
+
+  test("capture and rollback relations", () => {
+    const ChildOf = defineRelation()
+    const world = makeWorld({domainId: 1, schema: [Position, ChildOf]})
+    
+    const parent = spawn(world, [Position({x: 0, y: 0})])
+    const child = spawn(world, [ChildOf(parent)])
+    commitTransaction(world)
+    
+    const snapshot = captureSnapshot(world)
+    expect(snapshot.relations.objectToSubjects.has(parent)).toBe(true)
+    
+    despawn(world, child)
+    commitTransaction(world)
+    expect(world.relations.objectToSubjects.has(parent)).toBe(false)
+    
+    rollbackToSnapshot(world, snapshot)
+    expect(world.relations.objectToSubjects.has(parent)).toBe(true)
+    
+    const node = sparseMapGet(world.entityGraph.byEntity, parent as number)
+    expect(node?.relMaps[world.componentRegistry.getId(ChildOf)]).toBeDefined()
+  })
+
+  test("rollbackToSnapshot restores missing domain", () => {
+    const world = makeWorld({domainId: 1, schema: [Position]})
+    const snapshot = captureSnapshot(world)
+    
+    // Simulate a snapshot from another world or a world that had an extra domain
+    const extraDomain = {
+      domainId: 5,
+      entityId: 100,
+      opSeq: 10,
+      entityCount: 1,
+      dense: [100],
+      sparse: new Map([[100, 0]]),
+    }
+    
+    const modifiedSnapshot = {
+      ...snapshot,
+      registryDomains: [...snapshot.registryDomains]
+    }
+    modifiedSnapshot.registryDomains[5] = extraDomain
+    
+    rollbackToSnapshot(world, modifiedSnapshot)
+    
+    expect(world.registry.domains[5]).toBeDefined()
+    expect(world.registry.domains[5]?.domainId).toBe(5)
+    expect(world.registry.domains[5]?.opSeq).toBe(10)
   })
 })
