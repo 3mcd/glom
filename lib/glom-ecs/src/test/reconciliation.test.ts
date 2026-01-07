@@ -140,7 +140,11 @@ describe("reconciliation", () => {
     const world = makeWorld({domainId: 1, schema: [Position]})
 
     world.tick = 10
-    const entity = spawnInDomain(world, [Position({x: 0, y: 0})], TRANSIENT_DOMAIN)
+    const entity = spawnInDomain(
+      world,
+      [Position({x: 0, y: 0})],
+      TRANSIENT_DOMAIN,
+    )
     expect(world.transientRegistry.size).toBe(1)
 
     world.tick = 20

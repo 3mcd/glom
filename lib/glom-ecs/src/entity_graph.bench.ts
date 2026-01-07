@@ -14,9 +14,7 @@ import {makeVec} from "./vec"
 import {makeComponentRegistry} from "./registry"
 
 const componentCount = 200
-const components = Array.from({length: componentCount}, () =>
-  defineComponent(),
-)
+const components = Array.from({length: componentCount}, () => defineComponent())
 const componentRegistry = makeComponentRegistry({local: components})
 const nodeCount = 100
 const nodes: EntityGraphNode[] = []
@@ -27,9 +25,7 @@ for (let i = 0; i < nodeCount; i++) {
   const nodeComponents = []
   const count = 3 + Math.floor(Math.random() * 6)
   for (let j = 0; j < count; j++) {
-    nodeComponents.push(
-      components[Math.floor(Math.random() * componentCount)]!,
-    )
+    nodeComponents.push(components[Math.floor(Math.random() * componentCount)]!)
   }
   nodes.push(
     entityGraphFindOrCreateNode(
@@ -58,12 +54,7 @@ group("entity operations", () => {
 
   bench("remove 10,000 entities (move to root)", () => {
     for (let i = 0; i < entityCount; i++) {
-      entityGraphSetEntityNode(
-        entityGraph,
-        entities[i]!,
-        entityGraph.root,
-        i,
-      )
+      entityGraphSetEntityNode(entityGraph, entities[i]!, entityGraph.root, i)
     }
   })
 })

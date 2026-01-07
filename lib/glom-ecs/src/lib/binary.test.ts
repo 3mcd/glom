@@ -69,10 +69,10 @@ describe("binary utils", () => {
     writer.reset()
     expect(writer.getLength()).toBe(0)
     writer.writeUint32(200)
-    
+
     const reader = new ByteReader(writer.getBytes())
     expect(reader.readUint32()).toBe(200)
-    
+
     const newData = new Uint8Array([10, 20])
     reader.reset(newData)
     expect(reader.getCursor()).toBe(0)

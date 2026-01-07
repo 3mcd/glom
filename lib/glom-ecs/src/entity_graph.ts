@@ -578,11 +578,7 @@ export const emitSpawnedEntities = (batch: EntityGraphBatch) => {
   const target = batch.nextNode
   assertDefined(target)
   entityGraphNodeTraverseLeft(target, (node) => {
-    entityGraphNodeEmitEntitiesIn(
-      node,
-      target,
-      sparseSetValues(batch.entities),
-    )
+    entityGraphNodeEmitEntitiesIn(node, target, sparseSetValues(batch.entities))
   })
 }
 

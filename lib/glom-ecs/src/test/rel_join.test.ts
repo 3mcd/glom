@@ -15,7 +15,11 @@ describe("relation integration", () => {
     const results: [{x: number}, {x: number}][] = []
     const system = g.defineSystem(
       (
-        query: g.Join<g.All<typeof Position>, g.All<typeof Position>, typeof ChildOf>,
+        query: g.Join<
+          g.All<typeof Position>,
+          g.All<typeof Position>,
+          typeof ChildOf
+        >,
       ) => {
         for (const [pos, parentPos] of query) {
           results.push([pos, parentPos])
@@ -45,7 +49,11 @@ describe("relation integration", () => {
     const results: unknown[][] = []
     const system = g.defineSystem(
       (
-        query: g.Join<g.All<typeof Position>, g.All<typeof Position>, typeof ChildOf>,
+        query: g.Join<
+          g.All<typeof Position>,
+          g.All<typeof Position>,
+          typeof ChildOf
+        >,
       ) => {
         for (const res of query) {
           results.push(res)
@@ -72,7 +80,11 @@ describe("relation integration", () => {
     const results: [{x: number}, {x: number}][] = []
     const system = g.defineSystem(
       (
-        query: g.Join<g.All<typeof Position>, g.All<typeof Position>, typeof ChildOf>,
+        query: g.Join<
+          g.All<typeof Position>,
+          g.All<typeof Position>,
+          typeof ChildOf
+        >,
       ) => {
         for (const [pos, parentPos] of query) {
           results.push([pos, parentPos])
@@ -119,11 +131,7 @@ describe("relation integration", () => {
             join: [
               {all: [Name]},
               {
-                join: [
-                  {all: [Name]},
-                  {all: [Name]},
-                  ChildOf,
-                ],
+                join: [{all: [Name]}, {all: [Name]}, ChildOf],
               },
               ChildOf,
             ],

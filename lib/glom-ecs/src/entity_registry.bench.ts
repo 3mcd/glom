@@ -1,9 +1,5 @@
 import {bench, group, run} from "mitata"
-import {
-  allocEntity,
-  makeEntityRegistry,
-  removeEntity,
-} from "./entity_registry"
+import {allocEntity, makeEntityRegistry, removeEntity} from "./entity_registry"
 
 group("entityRegistry", () => {
   const entityCount = 10000

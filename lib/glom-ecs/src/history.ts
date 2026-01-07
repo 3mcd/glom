@@ -1,9 +1,6 @@
 import {defineComponent} from "./component"
 import type {Entity} from "./entity"
-import {
-  type EntityGraphNode,
-  entityGraphNodeAddRelation,
-} from "./entity_graph"
+import {type EntityGraphNode, entityGraphNodeAddRelation} from "./entity_graph"
 import type {RelationPair, RelationSubject} from "./relation_registry"
 import {
   sparseMapClear,
@@ -14,7 +11,7 @@ import {
 import {sparseSetAdd, sparseSetClear, sparseSetSize} from "./sparse_set"
 import type {World} from "./world"
 
-import {addResource, getResource} from "./world_api"
+import {getResource} from "./world_api"
 
 export type RegistryDomainSnapshot = {
   readonly domainId: number
@@ -251,9 +248,7 @@ export function rollbackToSnapshot(world: World, snapshot: Snapshot) {
     }
     world.relations.objectToSubjects.set(obj, restoredSubjects)
   }
-  world.componentRegistry.setNextVirtualId(
-    snapshot.relations.nextVirtualId,
-  )
+  world.componentRegistry.setNextVirtualId(snapshot.relations.nextVirtualId)
 
   for (const node of world.entityGraph.byHash.values()) {
     if (sparseSetSize(node.entities) > 0) {
@@ -320,8 +315,7 @@ export function rollbackToTick(
   history: HistoryBuffer | Component<HistoryBuffer>,
   tick: number,
 ): boolean {
-  const buffer =
-    "snapshots" in history ? history : getResource(world, history)
+  const buffer = "snapshots" in history ? history : getResource(world, history)
   if (!buffer) return false
 
   const snapshot = buffer.snapshots.find((s) => s.tick === tick)

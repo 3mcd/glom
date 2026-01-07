@@ -467,6 +467,8 @@ describe("transformer", () => {
     const output = transform(input)
     expect(output).toContain("_q0_q = q.joins[0]")
     expect(output).toContain("_q1_q = q.joins[1]")
-    expect(output).toContain("params: [{ join: [{ all: [{ read: Pos }] }, { all: [{ read: Pos }] }, undefined] }]")
+    expect(output).toContain(
+      "params: [{ join: [{ all: [{ read: Pos }] }, { all: [{ read: Pos }] }, undefined] }]",
+    )
   })
 })

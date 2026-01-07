@@ -9,16 +9,12 @@ import {
 } from "./entity_graph"
 import {type EntityRegistry, makeEntityRegistry} from "./entity_registry"
 import {HistoryBuffer} from "./history"
-import type {SnapshotMessage, Transaction} from "./net_types"
 import {
   type ComponentRegistry,
   makeComponentRegistry,
   type RegistrySchema,
 } from "./registry"
-import {
-  makeRelationRegistry,
-  type RelationRegistry,
-} from "./relation_registry"
+import {makeRelationRegistry, type RelationRegistry} from "./relation_registry"
 import type {ReplicationOp} from "./replication"
 import {
   IncomingSnapshots,
@@ -153,10 +149,7 @@ export function makeWorld(options: WorldOptions = {}): World {
   return world
 }
 
-export function getOrCreateIndex(
-  world: World<any>,
-  entity: number,
-): number {
+export function getOrCreateIndex(world: World<any>, entity: number): number {
   if (entity === RESOURCE_ENTITY) {
     return 0
   }
@@ -234,9 +227,7 @@ export function getComponentValue<T>(
   if (world.pendingDeletions.has(entity as Entity)) {
     return undefined
   }
-  const pendingRemovals = world.pendingComponentRemovals.get(
-    entity as Entity,
-  )
+  const pendingRemovals = world.pendingComponentRemovals.get(entity as Entity)
   const componentId = world.componentRegistry.getId(component)
   if (
     pendingRemovals?.some(
@@ -294,12 +285,7 @@ export function addResource<T extends ComponentLike, V>(
   world: World<T>,
   resource: ComponentInstance<V>,
 ): asserts world is World<T | Component<V>> {
-  setComponentValue(
-    world,
-    RESOURCE_ENTITY,
-    resource.component,
-    resource.value,
-  )
+  setComponentValue(world, RESOURCE_ENTITY, resource.component, resource.value)
 }
 
 export function getResource<T extends ComponentLike, V>(

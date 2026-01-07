@@ -2,16 +2,9 @@ import {describe, expect, test} from "bun:test"
 import {defineComponent, defineTag} from "../component"
 import type {AllDescriptor} from "../descriptors"
 import {Entity, makeEntity} from "../entity"
-import {
-  type EntityGraphNode,
-  entityGraphSetEntityNode,
-} from "../entity_graph"
+import {type EntityGraphNode, entityGraphSetEntityNode} from "../entity_graph"
 import {defineRelation} from "../relation"
-import {
-  makeWorld,
-  setComponentValue,
-  getOrCreateIndex,
-} from "../world"
+import {makeWorld, setComponentValue, getOrCreateIndex} from "../world"
 import {addComponent, spawn} from "../world_api"
 import {AllRuntime, makeAll, setupAll, teardownAll} from "./all_runtime"
 
@@ -170,7 +163,8 @@ describe("allRuntime", () => {
     setupAll(all, world)
 
     spawn(world, {component: c1, value: {val: 10}})
-    spawn(world, 
+    spawn(
+      world,
       {component: c1, value: {val: 20}},
       {component: c3, value: {val: 30}},
     )

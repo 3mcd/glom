@@ -5,7 +5,7 @@
     <title>Glom P2P Canvas Example</title>
     <script>
         if (!window.location.pathname.endsWith('/') && !window.location.pathname.endsWith('.html')) {
-            window.location.assign(window.location.pathname + '/' + window.location.search + window.location.hash);
+            window.location.assign(`${window.location.pathname}/${window.location.search}${window.location.hash}`);
         }
     </script>
     <style>

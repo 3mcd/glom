@@ -23,10 +23,7 @@ export function makeEntityRegistryDomain(
   }
 }
 
-export function addDomainEntity(
-  domain: EntityRegistryDomain,
-  entity: Entity,
-) {
+export function addDomainEntity(domain: EntityRegistryDomain, entity: Entity) {
   const localId = getLocalId(entity)
   if (domain.sparse.has(localId)) {
     return

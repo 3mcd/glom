@@ -27,7 +27,10 @@ describe("replication", () => {
   const ChildOf = defineRelation()
   const schema = [Position, Velocity, IsStatic, ChildOf]
 
-  function sync(world: ReturnType<typeof makeWorld>, target: ReturnType<typeof makeWorld>) {
+  function sync(
+    world: ReturnType<typeof makeWorld>,
+    target: ReturnType<typeof makeWorld>,
+  ) {
     const stream = getResource(world, ReplicationStream)
     if (stream) {
       for (const tx of stream.transactions) {
@@ -81,14 +84,9 @@ describe("replication", () => {
     commitTransaction(worldA)
     sync(worldA, worldB)
 
-    const nodeB = sparseMapGet(
-      worldB.entityGraph.byEntity,
-      entityA as number,
-    )
+    const nodeB = sparseMapGet(worldB.entityGraph.byEntity, entityA as number)
     expect(nodeB).toBeDefined()
-    expect(nodeB?.vec.ids).toContain(
-      worldB.componentRegistry.getId(IsStatic),
-    )
+    expect(nodeB?.vec.ids).toContain(worldB.componentRegistry.getId(IsStatic))
   })
 
   test("relationship replication", () => {
@@ -303,9 +301,7 @@ describe("replication", () => {
 
     applyTransaction(world, transaction)
 
-    expect(
-      getComponentValue(world, transientEntity, Position),
-    ).toBeUndefined()
+    expect(getComponentValue(world, transientEntity, Position)).toBeUndefined()
 
     const posServer = getComponentValue(world, serverEntity, Position)
     if (posServer) {
@@ -318,7 +314,10 @@ describe("replication", () => {
   test("automatic causal key generation and rebinding", () => {
     const worldClient = makeWorld({domainId: 1, schema})
     const worldServer = makeWorld({domainId: 0, schema})
-    addResource(worldServer, ReplicationStream({transactions: [], snapshots: []}))
+    addResource(
+      worldServer,
+      ReplicationStream({transactions: [], snapshots: []}),
+    )
 
     worldClient.tick = 100
     worldServer.tick = 100
@@ -337,7 +336,8 @@ describe("replication", () => {
     )
 
     commitTransaction(worldServer)
-    const serverTransaction = getResource(worldServer, ReplicationStream)?.transactions[0]
+    const serverTransaction = getResource(worldServer, ReplicationStream)
+      ?.transactions[0]
 
     expect(serverTransaction).toBeDefined()
     const op = serverTransaction?.ops[0]
@@ -413,7 +413,13 @@ describe("replication", () => {
     expect(world.relations.objectToSubjects.has(transientParent)).toBe(false)
     expect(world.relations.objectToSubjects.has(authoritativeParent)).toBe(true)
     const incoming = world.relations.objectToSubjects.get(authoritativeParent)
-    expect(Array.from(incoming || []).some(r => r.subject === child && r.relationId === world.componentRegistry.getId(ChildOf))).toBe(true)
+    expect(
+      Array.from(incoming || []).some(
+        (r) =>
+          r.subject === child &&
+          r.relationId === world.componentRegistry.getId(ChildOf),
+      ),
+    ).toBe(true)
   })
 
   test("relationship in set op", () => {
@@ -423,7 +429,7 @@ describe("replication", () => {
     commitTransaction(world)
 
     const childOfParentId = 1000000 // A virtual ID
-    
+
     const tx: Transaction = {
       domainId: 1,
       seq: getDomain(world.registry, 1).opSeq,
@@ -434,7 +440,10 @@ describe("replication", () => {
           entity: child,
           componentId: childOfParentId,
           data: undefined,
-          rel: {relationId: world.componentRegistry.getId(ChildOf), object: parent},
+          rel: {
+            relationId: world.componentRegistry.getId(ChildOf),
+            object: parent,
+          },
         },
       ],
     }

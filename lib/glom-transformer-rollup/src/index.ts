@@ -28,7 +28,7 @@ export function glomRollupPlugin(
 
       program = ts.createProgram(parsedConfig.fileNames, parsedConfig.options)
     },
-    transform(code: string, id: string) {
+    transform(_code: string, id: string) {
       if (!id.endsWith(".ts") || id.endsWith(".d.ts")) return null
 
       if (!program || !program.getSourceFile(id)) {

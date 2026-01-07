@@ -1,7 +1,5 @@
 import {assertDefined} from "./assert"
 import type {ComponentLike} from "./component"
-import type {System} from "./system"
-import type {SystemArgument} from "./system_argument"
 import {
   isAddDescriptor,
   isAllDescriptor,

@@ -15,8 +15,18 @@ export type QueryTerm =
       joinIndex: number
       runtimeExpr?: ts.Expression
     }
-  | {type: "has"; component: any; joinIndex: number; runtimeExpr?: ts.Expression}
-  | {type: "not"; component: any; joinIndex: number; runtimeExpr?: ts.Expression}
+  | {
+      type: "has"
+      component: any
+      joinIndex: number
+      runtimeExpr?: ts.Expression
+    }
+  | {
+      type: "not"
+      component: any
+      joinIndex: number
+      runtimeExpr?: ts.Expression
+    }
   | {type: "entity"; joinIndex: number}
   | {
       type: "rel"
@@ -190,14 +200,9 @@ function extractAllTermsFromNode(
         type.getProperty("__component_brand") ||
         ts.isTypeQueryNode(resolvedNode) ||
         (name === "Component" &&
-          ![
-            "Read",
-            "Write",
-            "Has",
-            "Not",
-            "Entity",
-            "EntityTerm",
-          ].includes(name || ""))
+          !["Read", "Write", "Has", "Not", "Entity", "EntityTerm"].includes(
+            name || "",
+          ))
       ) {
         return {
           type: "read",
@@ -312,7 +317,10 @@ function generateParamDescriptor(
   const resolvedNode = resolveTypeNode(node, typeChecker)
   const name = getSymbolName(type)
 
-  if (ts.isTypeQueryNode(resolvedNode) || type.getProperty("__component_brand")) {
+  if (
+    ts.isTypeQueryNode(resolvedNode) ||
+    type.getProperty("__component_brand")
+  ) {
     const componentExpr = extractRuntimeExpr(factory, resolvedNode)
     if (componentExpr) {
       return factory.createObjectLiteralExpression([
@@ -934,7 +942,9 @@ function generateLoops(
                                     factory.createIdentifier(
                                       `_rel_map${currentJoinLevel}_${queryParamName}`,
                                     ),
-                                    factory.createIdentifier("subjectToObjects"),
+                                    factory.createIdentifier(
+                                      "subjectToObjects",
+                                    ),
                                   ),
                                   factory.createIdentifier("get"),
                                 ),
@@ -1114,7 +1124,7 @@ function rewriteSystemFunction(
   const newBody: ts.Statement[] = []
   const newParams = [...systemNode.parameters]
 
-  queryInfos.forEach((info, index) => {
+  queryInfos.forEach((info, _index) => {
     if (info.isUnique) {
       const originalParam = systemNode.parameters.find(
         (p) => p.name === info.paramName,
@@ -1177,7 +1187,7 @@ function rewriteSystemFunction(
       if (
         ts.isArrayBindingPattern(node.initializer) ||
         (ts.isVariableDeclarationList(node.initializer) &&
-          ts.isArrayBindingPattern(node.initializer.declarations[0]!.name))
+          ts.isArrayBindingPattern(node.initializer.declarations[0]?.name))
       ) {
         const expression = node.expression
         const queryName = expression.getText()
@@ -1185,7 +1195,7 @@ function rewriteSystemFunction(
 
         if (info && !info.isUnique) {
           const bindingPattern = ts.isVariableDeclarationList(node.initializer)
-            ? (node.initializer.declarations[0]!.name as ts.ArrayBindingPattern)
+            ? (node.initializer.declarations[0]?.name as ts.ArrayBindingPattern)
             : (node.initializer as ts.ArrayBindingPattern)
 
           const loopVariables = bindingPattern.elements as ts.BindingElement[]
@@ -1468,8 +1478,14 @@ function factoryWithMetadata(
         factory.createObjectLiteralExpression(
           [
             factory.createPropertyAssignment("value", metadata),
-            factory.createPropertyAssignment("enumerable", factory.createFalse()),
-            factory.createPropertyAssignment("configurable", factory.createTrue()),
+            factory.createPropertyAssignment(
+              "enumerable",
+              factory.createFalse(),
+            ),
+            factory.createPropertyAssignment(
+              "configurable",
+              factory.createTrue(),
+            ),
           ],
           false,
         ),
@@ -1502,7 +1518,10 @@ function wrapWithMetadata(
         [
           factory.createPropertyAssignment("value", metadata),
           factory.createPropertyAssignment("enumerable", factory.createFalse()),
-          factory.createPropertyAssignment("configurable", factory.createTrue()),
+          factory.createPropertyAssignment(
+            "configurable",
+            factory.createTrue(),
+          ),
         ],
         false,
       ),

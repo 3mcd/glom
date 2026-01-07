@@ -36,9 +36,6 @@ export function removeEntity(registry: EntityRegistry, entity: Entity) {
   removeDomainEntity(getDomain(registry, getDomainId(entity)), entity)
 }
 
-export function nextOpSeq(
-  registry: EntityRegistry,
-  domainId: number,
-): number {
+export function nextOpSeq(registry: EntityRegistry, domainId: number): number {
   return getDomain(registry, domainId).opSeq++
 }

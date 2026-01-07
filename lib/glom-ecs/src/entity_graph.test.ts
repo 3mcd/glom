@@ -19,7 +19,6 @@ import {
 } from "./entity_graph"
 import {makeVec, makeVecSorted} from "./vec"
 import {makeComponentRegistry} from "./registry"
-import {sparseSetSize} from "./sparse_set"
 
 describe("entityGraph", () => {
   const c1 = defineComponent(undefined, 1)
@@ -73,12 +72,7 @@ describe("entityGraph", () => {
     expect(entityGraphNodeHasEntity(n1, entity)).toBe(true)
 
     const n12 = entityGraphFindOrCreateNode(graph, v12)
-    entityGraphSetEntityNode(
-      graph,
-      entity,
-      n12,
-      entity as unknown as number,
-    )
+    entityGraphSetEntityNode(graph, entity, n12, entity as unknown as number)
     expect(entityGraphGetEntityNode(graph, entity)).toBe(n12)
     expect(entityGraphNodeHasEntity(n1, entity)).toBe(false)
     expect(entityGraphNodeHasEntity(n12, entity)).toBe(true)
@@ -130,11 +124,7 @@ describe("entityGraph", () => {
 
   test("node pruning when empty", () => {
     const graph = makeEntityGraph(registry)
-    const n1 = entityGraphFindOrCreateNode(
-      graph,
-      v1,
-      PruneStrategy.WhenEmpty,
-    )
+    const n1 = entityGraphFindOrCreateNode(graph, v1, PruneStrategy.WhenEmpty)
     const entity = 1 as Entity
 
     entityGraphSetEntityNode(graph, entity, n1, entity as unknown as number)
@@ -153,23 +143,14 @@ describe("entityGraph", () => {
   test("neighbor reconnection after pruning", () => {
     const graph = makeEntityGraph(registry)
     const n1 = entityGraphFindOrCreateNode(graph, v1)
-    const n12 = entityGraphFindOrCreateNode(
-      graph,
-      v12,
-      PruneStrategy.WhenEmpty,
-    )
+    const n12 = entityGraphFindOrCreateNode(graph, v12, PruneStrategy.WhenEmpty)
     const n123 = entityGraphFindOrCreateNode(graph, v123)
 
     expect(n1.nextNodes.dense).toContain(n12)
     expect(n123.prevNodes.dense).toContain(n12)
 
     const entity = 1 as Entity
-    entityGraphSetEntityNode(
-      graph,
-      entity,
-      n12,
-      entity as unknown as number,
-    )
+    entityGraphSetEntityNode(graph, entity, n12, entity as unknown as number)
 
     entityGraphSetEntityNode(
       graph,
@@ -209,11 +190,7 @@ describe("entityGraph", () => {
 
   test("nodeDestroyed callback when pruned", () => {
     const graph = makeEntityGraph(registry)
-    const n1 = entityGraphFindOrCreateNode(
-      graph,
-      v1,
-      PruneStrategy.WhenEmpty,
-    )
+    const n1 = entityGraphFindOrCreateNode(graph, v1, PruneStrategy.WhenEmpty)
     const entity = 1 as Entity
 
     let destroyedNode: EntityGraphNode | null = null

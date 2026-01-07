@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {defineComponent} from "../component"
-import {applyTransaction, type Transaction} from "../replication"
+import {applyTransaction} from "../replication"
 import {Replicated, ReplicationStream} from "../replication_config"
 import {addResource, getComponentValue, getResource, makeWorld} from "../world"
 import {addComponent, commitTransaction, despawn, spawn} from "../world_api"

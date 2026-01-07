@@ -1,0 +1,17 @@
+{
+  "name": "getting-started-vite",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "latest",
+    "typescript": "latest",
+    "@glom/transformer-rollup": "workspace:*"
+  },
+  "dependencies": {
+    "@glom/ecs": "workspace:*"
+  }
+}

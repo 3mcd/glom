@@ -8,7 +8,7 @@ import {
 
 const size = 1000
 const sparseSet = makeSparseSet()
-const keys = Array.from({length: size}, (_, i) => i)
+const _keys = Array.from({length: size}, (_, i) => i)
 const randomKeys = Array.from({length: size}, () =>
   Math.floor(Math.random() * size * 2),
 )

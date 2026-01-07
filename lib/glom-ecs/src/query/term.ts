@@ -9,10 +9,8 @@ import type {
   SpawnDescriptor,
   WorldDescriptor,
   WriteDescriptor,
-  UniqueDescriptor,
 } from "../descriptors"
 import type {Entity} from "../entity"
-import type {Relation} from "../relation"
 
 export interface Spawn<T extends ComponentLike = never> {
   readonly __spawn: T | true

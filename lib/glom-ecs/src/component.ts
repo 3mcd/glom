@@ -44,9 +44,9 @@ export function defineComponent<T>(
     value,
   })) as unknown as Record<string, unknown>
 
-  if (id !== undefined) component["id"] = id
-  component["serde"] = serde
-  component["__component_brand"] = true
+  if (id !== undefined) component.id = id
+  component.serde = serde
+  component.__component_brand = true
 
   return component as unknown as Component<T>
 }
@@ -57,9 +57,9 @@ export function defineTag(id?: number): Component<void> {
     value,
   })) as unknown as Record<string, unknown>
 
-  if (id !== undefined) component["id"] = id
-  component["isTag"] = true
-  component["__component_brand"] = true
+  if (id !== undefined) component.id = id
+  component.isTag = true
+  component.__component_brand = true
 
   return component as unknown as Component<void>
 }

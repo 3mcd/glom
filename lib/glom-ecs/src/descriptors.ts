@@ -33,27 +33,27 @@ export type OutDescriptor<T extends AllDescriptor | JoinDescriptor = any> = {
 }
 
 export type UniqueDescriptor<
-  T0 = any,
-  T1 = any,
-  T2 = any,
-  T3 = any,
-  T4 = any,
-  T5 = any,
-  T6 = any,
-  T7 = any,
+  _T0 = any,
+  _T1 = any,
+  _T2 = any,
+  _T3 = any,
+  _T4 = any,
+  _T5 = any,
+  _T6 = any,
+  _T7 = any,
 > = {
   unique: unknown[]
 }
 
 export type AllDescriptor<
-  T0 = any,
-  T1 = any,
-  T2 = any,
-  T3 = any,
-  T4 = any,
-  T5 = any,
-  T6 = any,
-  T7 = any,
+  _T0 = any,
+  _T1 = any,
+  _T2 = any,
+  _T3 = any,
+  _T4 = any,
+  _T5 = any,
+  _T6 = any,
+  _T7 = any,
 > = {
   all: unknown[]
 }

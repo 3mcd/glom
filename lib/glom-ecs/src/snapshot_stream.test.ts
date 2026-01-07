@@ -1,11 +1,11 @@
 import {describe, expect, test} from "bun:test"
-import {type ComponentResolver, defineComponent, defineTag} from "./component"
+import {defineComponent} from "./component"
 import {ByteReader, ByteWriter} from "./lib/binary"
 import {readMessageHeader, readSnapshot, writeSnapshot} from "./protocol"
 import {Replicated} from "./replication_config"
 import {applySnapshotStream, captureSnapshotStream} from "./snapshot_stream"
 import {getComponentValue, makeWorld} from "./world"
-import {addComponent, advanceTick, spawn} from "./world_api"
+import {spawn} from "./world_api"
 
 describe("snapshot streaming", () => {
   const Position = defineComponent<{x: number; y: number}>({

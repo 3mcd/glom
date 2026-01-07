@@ -12,10 +12,7 @@ export function makeSparseMap<T = unknown>(): SparseMap<T> {
   }
 }
 
-export function sparseMapGet<T>(
-  map: SparseMap<T>,
-  key: number,
-): T | undefined {
+export function sparseMapGet<T>(map: SparseMap<T>, key: number): T | undefined {
   const denseIndex = map.sparse.get(key)
   if (denseIndex === undefined) {
     return undefined

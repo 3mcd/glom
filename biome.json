@@ -1,9 +1,16 @@
 {
+  "files": {
+    "includes": ["**", "!**/dist", "!**/node_modules", "!**/docs"]
+  },
   "linter": {
     "rules": {
       "suspicious": {
         "noAssignInExpressions": "off",
-        "noConfusingVoidType": "off"
+        "noConfusingVoidType": "off",
+        "noExplicitAny": "off"
+      },
+      "style": {
+        "noNonNullAssertion": "off"
       }
     }
   },

@@ -13,8 +13,7 @@ import {type ComponentResolver, defineComponent, defineTag} from "./component"
 import type {Entity} from "./entity"
 import {ByteReader, ByteWriter} from "./lib/binary"
 import {readCommands, readMessageHeader, writeCommands} from "./protocol"
-import {All} from "./query/all"
-import {Read, World as WorldTerm} from "./query/term"
+import {World as WorldTerm} from "./query/term"
 import {sparseMapGet} from "./sparse_map"
 import {defineSystem} from "./system"
 import {addSystem, makeSystemSchedule, runSchedule} from "./system_schedule"
@@ -65,8 +64,7 @@ describe("command api", () => {
               )
               const jumpId = world.componentRegistry.getId(Jump)
               if (
-                cmdNode &&
-                cmdNode.vec.elements.some(
+                cmdNode?.vec.elements.some(
                   (c) => world.componentRegistry.getId(c) === jumpId,
                 )
               ) {

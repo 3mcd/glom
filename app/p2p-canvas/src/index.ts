@@ -121,7 +121,8 @@ function createPeer(
     world,
     schedule,
     spawnPlayer: () => {
-      return g.spawn(world, 
+      return g.spawn(
+        world,
         Position({x: domainId * 60, y: 125}),
         Color(domainId),
         g.Replicated,

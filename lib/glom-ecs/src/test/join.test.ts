@@ -75,10 +75,10 @@ describe("join query", () => {
     expect(results.length).toBe(2)
 
     const r1 = results.find((r) => r[0].x === 1)
-    expect(r1![1]).toBe("Parent1")
+    expect(r1?.[1]).toBe("Parent1")
 
     const r2 = results.find((r) => r[0].x === 2)
-    expect(r2![1]).toBe("Parent2")
+    expect(r2?.[1]).toBe("Parent2")
   })
 
   test("Reactive Join (partial In)", () => {

@@ -18,7 +18,7 @@ import {applySnapshotStream} from "./snapshot_stream"
 import {defineSystem} from "./system"
 import {runSchedule, type SystemSchedule} from "./system_schedule"
 import type {World} from "./world"
-import {addResource, getResource} from "./world"
+import {getResource} from "./world"
 import {
   advanceTick,
   commitTransaction,

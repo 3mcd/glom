@@ -26,7 +26,7 @@ describe("worldStorage", () => {
 
     const index = getOrCreateIndex(world, entity)
     const store = getComponentStore(world, Position)
-    expect(store![index]).toEqual({x: 1, y: 2})
+    expect(store?.[index]).toEqual({x: 1, y: 2})
   })
 
   test("handle ID collisions across domains via dense mapping", () => {

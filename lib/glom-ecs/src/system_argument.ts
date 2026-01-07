@@ -1,5 +1,5 @@
 import type {ComponentLike} from "./component"
-import type {AnyAll, In, Join, Out} from "./query/all"
+import type {AnyAll, Join} from "./query/all"
 import type {
   Add,
   Despawn,

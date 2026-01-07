@@ -1,10 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {getDomainId, getLocalId} from "./entity"
-import {
-  allocEntity,
-  makeEntityRegistry,
-  removeEntity,
-} from "./entity_registry"
+import {allocEntity, makeEntityRegistry, removeEntity} from "./entity_registry"
 
 describe("entityRegistry", () => {
   test("makeEntityRegistry", () => {

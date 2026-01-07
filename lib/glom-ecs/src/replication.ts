@@ -263,11 +263,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
           deleteComponentValue(world, op.entity, comp)
         }
 
-        const prevNode = setEntityNode(
-          world,
-          op.entity,
-          world.entityGraph.root,
-        )
+        const prevNode = setEntityNode(world, op.entity, world.entityGraph.root)
         if (prevNode) {
           world.pendingNodePruning.add(prevNode)
         }

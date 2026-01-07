@@ -1,5 +1,4 @@
 import {
-  isJoinDescriptor,
   isInDescriptor,
   isOutDescriptor,
   type InDescriptor,
@@ -194,12 +193,7 @@ export class MonitorRuntime extends AllRuntime {
 
     const join = this.joins[joinIndex]
     if (join && join.joinOnId !== undefined && joinIndex > 0) {
-      this._notify_subjects(
-        entities,
-        join.joinOnId,
-        joinIndex - 1,
-        direction,
-      )
+      this._notify_subjects(entities, join.joinOnId, joinIndex - 1, direction)
     }
   }
 
@@ -296,7 +290,11 @@ export class MonitorRuntime extends AllRuntime {
     if (termIdx === terms.length) {
       const nextJoinLevel = joinLevel + 1
       if (nextJoinLevel < this.joins.length) {
-        yield* this._yield_independent_level_monitor(nextJoinLevel, currentResult, entity)
+        yield* this._yield_independent_level_monitor(
+          nextJoinLevel,
+          currentResult,
+          entity,
+        )
       } else {
         yield [...currentResult]
       }
@@ -385,7 +383,10 @@ export class MonitorRuntime extends AllRuntime {
       }
       const nextJoinLevel = joinLevel + 1
       if (nextJoinLevel < this.joins.length) {
-        yield* this._yield_independent_level_monitor(nextJoinLevel, currentResult)
+        yield* this._yield_independent_level_monitor(
+          nextJoinLevel,
+          currentResult,
+        )
       } else {
         yield [...currentResult]
       }
@@ -405,7 +406,8 @@ export class MonitorRuntime extends AllRuntime {
       if (this._mode === "in") {
         const actualNode =
           node ?? sparseMapGet(world.entityGraph.byEntity, entity as number)
-        if (!actualNode || !actualNode.vec.sparse.has(info.componentId)) return []
+        if (!actualNode || !actualNode.vec.sparse.has(info.componentId))
+          return []
       }
 
       if (!info.store) return [undefined]

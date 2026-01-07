@@ -184,11 +184,7 @@ describe("monitorRuntime", () => {
 
     // 3. Define the query: Entity that EmitsFrom an entity that Has Attacking
     const query = {
-      join: [
-        {all: [Entity]},
-        {all: [{has: Attacking}]},
-        EmitsFrom,
-      ],
+      join: [{all: [Entity]}, {all: [{has: Attacking}]}, EmitsFrom],
     }
 
     const monitor = makeOut({out: query as any})

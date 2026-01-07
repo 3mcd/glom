@@ -129,11 +129,7 @@ const attachedPulseSystem = g.defineSystem(
   {
     params: [
       {
-        join: [
-          {all: [{entity: true}, Position]},
-          {all: [Position]},
-          PulseOf,
-        ],
+        join: [{all: [{entity: true}, Position]}, {all: [Position]}, PulseOf],
       },
       g.Add(Position),
     ],
