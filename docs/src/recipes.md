@@ -70,7 +70,12 @@ Use `Join` with two `All` queries to find all combinations of two sets of entiti
 ```typescript
 import { Join, All, Entity, Read } from "@glom/ecs"
 
-const collide = (query: Join<All<Entity, typeof Pos>, All<Entity, typeof Pos>>) => {
+type Query = Join<
+  All<Entity, typeof Pos>,
+  All<Entity, typeof Pos>
+>
+
+const collide = (query: Query) => {
   for (const [e1, p1, e2, p2] of query) {
     if (e1 === e2) continue // skip self-collision
     const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y)
@@ -89,7 +94,13 @@ import { Join, All, Entity, defineRelation } from "@glom/ecs"
 
 const ChildOf = defineRelation()
 
-const updateChildren = (query: Join<All<typeof Position>, All<typeof Position>, typeof ChildOf>) => {
+type Query = Join<
+  All<typeof Position>,
+  All<typeof Position>,
+  typeof ChildOf
+>
+
+const updateChildren = (query: Query) => {
   for (const [childPos, parentPos] of query) {
     childPos.absoluteX = parentPos.x + childPos.relativeX
     childPos.absoluteY = parentPos.y + childPos.relativeY
@@ -110,7 +121,7 @@ const cleanupBeams = (
   removed: Out<Join<All<Entity>, All<Has<typeof Attacking>>, typeof EmitsFrom>>,
   despawn: Despawn
 ) => {
-  // This triggers if the player stops attacking, or if either entity is despawned
+  // triggers if the player stops attacking, or if either entity is despawned
   for (const [beam] of removed) {
     despawn(beam)
   }

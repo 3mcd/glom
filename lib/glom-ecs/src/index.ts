@@ -179,4 +179,5 @@ export {
   setDomainId,
   setTick,
   spawn,
+  spawnInDomain,
 } from "./world_api"
