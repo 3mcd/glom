@@ -55,26 +55,47 @@ function isGlomAllType(type: ts.Type): boolean {
   )
 }
 
+function resolveTypeNode(
+  node: ts.TypeNode,
+  typeChecker: ts.TypeChecker,
+): ts.TypeNode {
+  if (ts.isTypeReferenceNode(node) && !node.typeArguments) {
+    const type = typeChecker.getTypeAtLocation(node)
+    const symbol = type.aliasSymbol || type.getSymbol()
+    const name = symbol?.getName()
+    if (
+      name === "All" ||
+      name === "In" ||
+      name === "Out" ||
+      name === "Unique" ||
+      name === "Join" ||
+      name === "Entity" ||
+      name === "EntityTerm" ||
+      name === "Read" ||
+      name === "Write" ||
+      name === "Has" ||
+      name === "Not" ||
+      name === "World" ||
+      name === "Spawn" ||
+      name === "Despawn" ||
+      name === "Add" ||
+      name === "Remove"
+    ) {
+      return node
+    }
+    const decl = symbol?.declarations?.[0]
+    if (decl && ts.isTypeAliasDeclaration(decl)) {
+      return resolveTypeNode(decl.type, typeChecker)
+    }
+  }
+  return node
+}
+
 function extractAllTermsFromNode(
-  typeNode: ts.TypeReferenceNode,
+  typeNode: ts.TypeNode,
   factory: ts.NodeFactory,
   typeChecker: ts.TypeChecker,
 ): QueryTerm[] {
-  if (typeNode.typeArguments === undefined) {
-    const type = typeChecker.getTypeAtLocation(typeNode)
-    const symbol = type.aliasSymbol || type.getSymbol()
-    if (symbol) {
-      const decl = symbol.declarations?.[0]
-      if (
-        decl &&
-        ts.isTypeAliasDeclaration(decl) &&
-        ts.isTypeReferenceNode(decl.type)
-      ) {
-        return extractAllTermsFromNode(decl.type, factory, typeChecker)
-      }
-    }
-  }
-
   let storeIndex = 0
   let joinIndex = 0
 
@@ -82,13 +103,14 @@ function extractAllTermsFromNode(
     node: ts.TypeNode,
     currentJoinIndex: number,
   ): QueryTerm | QueryTerm[] | undefined => {
-    const type = typeChecker.getTypeAtLocation(node)
+    const resolvedNode = resolveTypeNode(node, typeChecker)
+    const type = typeChecker.getTypeAtLocation(resolvedNode)
     const name = getSymbolName(type)
 
-    if (ts.isTypeReferenceNode(node) || type.aliasSymbol) {
+    if (ts.isTypeReferenceNode(resolvedNode)) {
       if (name === "Join" || type.getProperty("__join")) {
-        const leftArg = node.typeArguments?.[0]
-        const rightArg = node.typeArguments?.[1]
+        const leftArg = resolvedNode.typeArguments?.[0]
+        const rightArg = resolvedNode.typeArguments?.[1]
 
         const leftTerms = leftArg
           ? extractTerm(leftArg, currentJoinIndex)
@@ -119,8 +141,8 @@ function extractAllTermsFromNode(
         type.getProperty("__unique")
       ) {
         const results: QueryTerm[] = []
-        if (node.typeArguments) {
-          for (const arg of node.typeArguments) {
+        if (resolvedNode.typeArguments) {
+          for (const arg of resolvedNode.typeArguments) {
             const term = extractTerm(arg, currentJoinIndex)
             if (Array.isArray(term)) results.push(...term)
             else if (term) results.push(term)
@@ -132,7 +154,7 @@ function extractAllTermsFromNode(
       if (name === "Read" || name === "Write") {
         const componentExpr = extractRuntimeExpr(
           factory,
-          node.typeArguments?.[0],
+          resolvedNode.typeArguments?.[0],
         )
         return {
           type: name === "Read" ? "read" : "write",
@@ -145,7 +167,7 @@ function extractAllTermsFromNode(
       if (name === "Has" || name === "Not") {
         const componentExpr = extractRuntimeExpr(
           factory,
-          node.typeArguments?.[0],
+          resolvedNode.typeArguments?.[0],
         )
         return {
           type: name === "Has" ? "has" : "not",
@@ -162,11 +184,11 @@ function extractAllTermsFromNode(
       }
     }
 
-    const componentExpr = extractRuntimeExpr(factory, node)
+    const componentExpr = extractRuntimeExpr(factory, resolvedNode)
     if (componentExpr) {
       if (
         type.getProperty("__component_brand") ||
-        ts.isTypeQueryNode(node) ||
+        ts.isTypeQueryNode(resolvedNode) ||
         (name === "Component" &&
           ![
             "Read",
@@ -287,10 +309,11 @@ function generateParamDescriptor(
 ): ts.Expression | null {
   if (!node) return null
 
+  const resolvedNode = resolveTypeNode(node, typeChecker)
   const name = getSymbolName(type)
 
-  if (ts.isTypeQueryNode(node) || type.getProperty("__component_brand")) {
-    const componentExpr = extractRuntimeExpr(factory, node)
+  if (ts.isTypeQueryNode(resolvedNode) || type.getProperty("__component_brand")) {
+    const componentExpr = extractRuntimeExpr(factory, resolvedNode)
     if (componentExpr) {
       return factory.createObjectLiteralExpression([
         factory.createPropertyAssignment("read", componentExpr),
@@ -305,8 +328,8 @@ function generateParamDescriptor(
   }
 
   if (name === "In" || type.getProperty("__in")) {
-    if (ts.isTypeReferenceNode(node)) {
-      const innerType = node.typeArguments?.[0]
+    if (ts.isTypeReferenceNode(resolvedNode)) {
+      const innerType = resolvedNode.typeArguments?.[0]
       if (innerType) {
         const innerTypeResolved = typeChecker.getTypeAtLocation(innerType)
         const innerName = getSymbolName(innerTypeResolved)
@@ -329,7 +352,7 @@ function generateParamDescriptor(
       factory.createPropertyAssignment(
         "in",
         generateAllDescriptor(
-          extractAllTermsFromNode(node as ts.TypeReferenceNode, factory, typeChecker),
+          extractAllTermsFromNode(resolvedNode, factory, typeChecker),
           factory,
         ),
       ),
@@ -337,8 +360,8 @@ function generateParamDescriptor(
   }
 
   if (name === "Out" || type.getProperty("__out")) {
-    if (ts.isTypeReferenceNode(node)) {
-      const innerType = node.typeArguments?.[0]
+    if (ts.isTypeReferenceNode(resolvedNode)) {
+      const innerType = resolvedNode.typeArguments?.[0]
       if (innerType) {
         const innerTypeResolved = typeChecker.getTypeAtLocation(innerType)
         const innerName = getSymbolName(innerTypeResolved)
@@ -361,7 +384,7 @@ function generateParamDescriptor(
       factory.createPropertyAssignment(
         "out",
         generateAllDescriptor(
-          extractAllTermsFromNode(node as ts.TypeReferenceNode, factory, typeChecker),
+          extractAllTermsFromNode(resolvedNode, factory, typeChecker),
           factory,
         ),
       ),
@@ -370,17 +393,17 @@ function generateParamDescriptor(
 
   if (name === "Unique" || type.getProperty("__unique")) {
     return generateAllDescriptor(
-      extractAllTermsFromNode(node as ts.TypeReferenceNode, factory, typeChecker),
+      extractAllTermsFromNode(resolvedNode, factory, typeChecker),
       factory,
       "unique",
     )
   }
 
   if (name === "Join" || type.getProperty("__join")) {
-    if (ts.isTypeReferenceNode(node)) {
-      const leftArg = node.typeArguments?.[0]
-      const rightArg = node.typeArguments?.[1]
-      const relArg = node.typeArguments?.[2]
+    if (ts.isTypeReferenceNode(resolvedNode)) {
+      const leftArg = resolvedNode.typeArguments?.[0]
+      const rightArg = resolvedNode.typeArguments?.[1]
+      const relArg = resolvedNode.typeArguments?.[2]
 
       const leftDesc = leftArg
         ? generateParamDescriptor(
@@ -418,13 +441,13 @@ function generateParamDescriptor(
 
   if (isGlomAllType(type)) {
     return generateAllDescriptor(
-      extractAllTermsFromNode(node as ts.TypeReferenceNode, factory, typeChecker),
+      extractAllTermsFromNode(resolvedNode, factory, typeChecker),
       factory,
     )
   }
 
-  if (ts.isTypeReferenceNode(node)) {
-    const typeName = node.typeName
+  if (ts.isTypeReferenceNode(resolvedNode)) {
+    const typeName = resolvedNode.typeName
     const nodeName = ts.isIdentifier(typeName)
       ? typeName.text
       : ts.isQualifiedName(typeName)
@@ -441,7 +464,7 @@ function generateParamDescriptor(
         return factory.createObjectLiteralExpression([
           factory.createPropertyAssignment(
             nodeName.toLowerCase(),
-            extractRuntimeExpr(factory, node.typeArguments?.[0]) ||
+            extractRuntimeExpr(factory, resolvedNode.typeArguments?.[0]) ||
               factory.createIdentifier("unknown"),
           ),
         ])
@@ -449,7 +472,7 @@ function generateParamDescriptor(
         return factory.createObjectLiteralExpression([
           factory.createPropertyAssignment(
             "spawn",
-            extractRuntimeExpr(factory, node.typeArguments?.[0]) ||
+            extractRuntimeExpr(factory, resolvedNode.typeArguments?.[0]) ||
               factory.createTrue(),
           ),
         ])
@@ -1361,7 +1384,7 @@ function processSystem(
     const isAll = isGlomAllType(type)
     const isUnique = actualName === "Unique" || !!type.getProperty("__unique")
 
-    if (isAll && typeNode && ts.isTypeReferenceNode(typeNode)) {
+    if (isAll && typeNode) {
       const terms = extractAllTermsFromNode(
         typeNode,
         context.factory,

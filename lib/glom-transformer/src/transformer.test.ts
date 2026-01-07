@@ -408,4 +408,65 @@ describe("transformer", () => {
     expect(output).toContain("const move = _store")
     expect(output).toContain("params: [{ join: [")
   })
+
+  test("transforms aliased movementSystem from canvas example", () => {
+    const input = `
+      namespace g {
+        export type All<T0, T1=any, T2=any, T3=any, T4=any, T5=any, T6=any, T7=any> = { __all: true };
+        export type Join<L, R, Rel=undefined> = { __join: true };
+        export type Entity = { entity: true };
+        export type Add<T> = { add: T };
+        export const defineComponent = <T>() => ({ __component_brand: true } as any);
+        export const CommandOf = { __component_brand: true } as any;
+      }
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const MoveCommand = g.defineComponent<{dx: number; dy: number}>()
+      type Query = g.Join<
+        g.All<g.Entity, typeof Position>,
+        g.All<typeof MoveCommand>,
+        typeof g.CommandOf
+      >;
+      const SPEED = 1;
+      const movementSystem = (
+        query: Query,
+        update: g.Add<typeof Position>,
+      ) => {
+        for (const [entity, pos, move] of query) {
+          let nextX = pos.x + move.dx * SPEED
+          update(entity, {x: nextX, y: pos.y})
+        }
+      }
+    `
+    const output = transform(input)
+    expect(output).toContain("_q0_query = query.joins[0]")
+    expect(output).toContain("_q1_query = query.joins[1]")
+    expect(output).toContain("const pos = _store")
+    expect(output).toContain("const move = _store")
+    expect(output).toContain("g.CommandOf")
+    expect(output).toContain("params: [{ join: [")
+  })
+
+  test("transforms doubly aliased Join query", () => {
+    const input = `
+      namespace g {
+        export type All<T0, T1=any, T2=any, T3=any, T4=any, T5=any, T6=any, T7=any> = { __all: true };
+        export type Join<L, R, Rel=undefined> = { __join: true };
+        export const defineComponent = <T>() => ({ __component_brand: true } as any);
+      }
+      const Pos = g.defineComponent<{x: number}>();
+      type PosAll = g.All<typeof Pos>;
+      type BaseQuery = g.Join<PosAll, PosAll>;
+      type FinalQuery = BaseQuery;
+      
+      const system = (q: FinalQuery) => {
+        for (const [p1, p2] of q) {
+          console.log(p1, p2);
+        }
+      };
+    `
+    const output = transform(input)
+    expect(output).toContain("_q0_q = q.joins[0]")
+    expect(output).toContain("_q1_q = q.joins[1]")
+    expect(output).toContain("params: [{ join: [{ all: [{ read: Pos }] }, { all: [{ read: Pos }] }, undefined] }]")
+  })
 })
