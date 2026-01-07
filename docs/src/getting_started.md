@@ -103,11 +103,13 @@ Our next system demonstrates a **cross-join** pattern. Instead of nesting two lo
 ```typescript
 import { Add, Entity, All, Join } from "@glom/ecs"
 
-const collectItems = (
-  // iterate through all combinations of players and items
-  query: Join<All<typeof Pos, typeof Player>, All<Entity, typeof Pos, typeof Item>>,
-  collect: Add<typeof Collected>
-) => {
+// iterate through all combinations of players and items
+type Query = Join<
+  All<typeof Pos, typeof Player>,
+  All<Entity, typeof Pos, typeof Item>
+>
+
+const collectItems = (query: Query, collect: Add<typeof Collected>) => {
   for (const [pPos, item, iPos] of query) {
       const dist = Math.hypot(pPos.x - iPos.x, pPos.y - iPos.y)
       if (dist < 1.0) {

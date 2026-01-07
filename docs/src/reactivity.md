@@ -72,9 +72,11 @@ const onAttackStarted = (
   }
 }
 
+type Query = Out<Join<All<Entity>, All<Has<typeof Attacking>>, typeof EmitsFrom>>
+
 // find the beam and despawn it
 const onAttackStopped = (
-  removed: Out<Join<All<Entity>, All<Has<typeof Attacking>>, typeof EmitsFrom>>,
+  removed: Query,
   despawn: Despawn
 ) => {
   for (const [beam] of removed) {

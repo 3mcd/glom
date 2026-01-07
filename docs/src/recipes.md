@@ -117,10 +117,15 @@ import { Out, Join, All, Entity, Has, Despawn, defineRelation, defineTag } from 
 const Attacking = defineTag()
 const EmitsFrom = defineRelation()
 
-const cleanupBeams = (
-  removed: Out<Join<All<Entity>, All<Has<typeof Attacking>>, typeof EmitsFrom>>,
-  despawn: Despawn
-) => {
+type Query = Out<
+  Join<
+    All<Entity>,
+    All<Has<typeof Attacking>>,
+    typeof EmitsFrom
+  >
+>
+
+const cleanupBeams = (removed: Query, despawn: Despawn) => {
   // triggers if the player stops attacking, or if either entity is despawned
   for (const [beam] of removed) {
     despawn(beam)
