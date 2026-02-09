@@ -220,11 +220,34 @@ export function readSnapshot(
   }
 }
 
+/**
+ * Like readSnapshot but defers decoding: captures the remaining snapshot body
+ * as a raw Uint8Array. When the returned SnapshotMessage is later passed to
+ * applySnapshotStream / applySnapshotStreamVersioned, it will be decoded and
+ * applied in a single pass — avoiding all intermediate SnapshotBlock allocations.
+ *
+ * Assumes the reader's remaining bytes are entirely the snapshot body
+ * (one message per buffer). For multi-message buffers, use readSnapshot instead.
+ */
+export function readSnapshotLazy(
+  reader: ByteReader,
+  tick: number,
+): SnapshotMessage {
+  const raw = reader.buffer.slice(reader.cursor)
+  reader.cursor = reader.buffer.byteLength
+  return {
+    tick,
+    blocks: [],
+    _raw: raw,
+  }
+}
+
 enum OpCode {
   Spawn = 1,
   Despawn = 2,
   Set = 3,
   Remove = 4,
+  Add = 5,
 }
 
 export function writeTransaction(
@@ -302,6 +325,28 @@ export function writeTransaction(
         writer.writeUint8(OpCode.Remove)
         writer.writeVarint(op.entity as number)
         writer.writeVarint(op.componentId)
+        break
+
+      case "add":
+        writer.writeUint8(OpCode.Add)
+        writer.writeVarint(op.entity as number)
+        writer.writeVarint(op.componentId)
+        if (!resolver.isTag(op.componentId) && op.data !== undefined) {
+          writer.writeUint8(1)
+          const serde = resolver.getSerde(op.componentId)
+          if (serde) {
+            serde.encode(op.data, writer)
+          }
+        } else {
+          writer.writeUint8(0)
+        }
+        if (op.rel) {
+          writer.writeUint8(1)
+          writer.writeVarint(op.rel.relationId)
+          writer.writeVarint(op.rel.object)
+        } else {
+          writer.writeUint8(0)
+        }
         break
     }
   }
@@ -383,6 +428,26 @@ export function readTransaction(
         const entity = reader.readVarint() as Entity
         const componentId = reader.readVarint()
         ops.push({type: "remove", entity, componentId})
+        break
+      }
+      case OpCode.Add: {
+        const entity = reader.readVarint() as Entity
+        const componentId = reader.readVarint()
+        let data: unknown
+        if (reader.readUint8() === 1) {
+          const serde = resolver.getSerde(componentId)
+          if (serde) {
+            data = serde.decode(reader, undefined as unknown)
+          }
+        }
+        let rel: RelationPair | undefined
+        if (reader.readUint8() === 1) {
+          rel = {
+            relationId: reader.readVarint(),
+            object: reader.readVarint() as Entity,
+          }
+        }
+        ops.push({type: "add", entity, componentId, data, rel})
         break
       }
     }

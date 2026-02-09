@@ -1,9 +1,9 @@
 import {
+  type InDescriptor,
   isInDescriptor,
   isOutDescriptor,
-  type InDescriptor,
-  type OutDescriptor,
   type JoinDescriptor,
+  type OutDescriptor,
 } from "../descriptors"
 import type {Entity} from "../entity"
 import {
@@ -414,7 +414,25 @@ export class MonitorRuntime extends AllRuntime {
       const index = sparseMapGet(world.index.entityToIndex, entity as number)
       if (index === undefined) return []
       const val = info.store[index]
-      return val === undefined ? [] : [val]
+      if (val === undefined) return []
+
+      if (info.isWrite) {
+        const componentId = info.componentId
+        let versions = world.components.versions.get(componentId)
+        if (!versions) {
+          versions = new Uint32Array(1024)
+          world.components.versions.set(componentId, versions)
+        }
+        if (index >= versions.length) {
+          const next = new Uint32Array(Math.max(versions.length * 2, index + 1))
+          next.set(versions)
+          versions = next
+          world.components.versions.set(componentId, versions)
+        }
+        versions[index] = world.tick
+      }
+
+      return [val]
     }
     if (info.type === "has" || info.type === "not") {
       const actualNode =

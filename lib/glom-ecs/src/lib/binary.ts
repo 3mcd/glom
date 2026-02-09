@@ -67,6 +67,11 @@ export class ByteWriter {
     return this.buffer.subarray(0, this.cursor)
   }
 
+  /** Return a copy of the written bytes (safe to use after writer reuse). */
+  toBytes(): Uint8Array {
+    return this.buffer.slice(0, this.cursor)
+  }
+
   getLength(): number {
     return this.cursor
   }
@@ -74,6 +79,30 @@ export class ByteWriter {
   public reset() {
     this.cursor = 0
   }
+
+  /** Write a uint16 value at a specific cursor position (for patching). */
+  patchUint16(position: number, val: number) {
+    this.view.setUint16(position, val, true)
+  }
+}
+
+// --- ByteWriter pool ---
+
+const _writerPool: ByteWriter[] = []
+
+/** Acquire a ByteWriter from the pool (or create one). Call releaseWriter when done. */
+export function acquireWriter(initialCapacity = 1024): ByteWriter {
+  const w = _writerPool.pop()
+  if (w) {
+    w.reset()
+    return w
+  }
+  return new ByteWriter(initialCapacity)
+}
+
+/** Return a ByteWriter to the pool for reuse. */
+export function releaseWriter(w: ByteWriter): void {
+  _writerPool.push(w)
 }
 
 export class ByteReader {

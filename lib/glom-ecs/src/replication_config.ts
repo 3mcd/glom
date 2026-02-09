@@ -8,7 +8,14 @@ export const ReplicationConfig = defineComponent<{
   historyWindow?: number
   ghostCleanupWindow?: number
   snapshotComponents?: number[]
+  snapshotInterval?: number
   reconcileSchedule?: SystemSchedule
+  /** When true, commitTransaction emits "set" ops for value-only changes (P2P). */
+  emitValueTransactions?: boolean
+  /** Controls snapshot application during reconciliation.
+   *  "authoritative" (default): force-overwrite via forceSetComponentValue.
+   *  "versioned": version-checked via setComponentValue (P2P). */
+  snapshotStrategy?: "authoritative" | "versioned"
 }>(
   {
     bytesPerElement: 0,
@@ -21,11 +28,13 @@ export const ReplicationConfig = defineComponent<{
 export const ReplicationStream = defineComponent<{
   transactions: Transaction[]
   snapshots: SnapshotMessage[]
+  /** Pre-serialized snapshot packets (output of writeSnapshotDirect). */
+  rawSnapshots: Uint8Array[]
 }>(
   {
     bytesPerElement: 0,
     encode: () => {},
-    decode: () => ({transactions: [], snapshots: []}),
+    decode: () => ({transactions: [], snapshots: [], rawSnapshots: []}),
   },
   2,
 )

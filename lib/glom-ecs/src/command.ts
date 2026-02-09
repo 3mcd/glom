@@ -14,6 +14,7 @@ import {
   removeComponent,
   spawnInDomain,
 } from "./world_api"
+import {COMMAND_DOMAIN} from "./replication"
 
 export const CommandOf = defineRelation(2)
 export const CommandEntity = defineTag(3)
@@ -85,7 +86,6 @@ export function recordCommand<T>(
   }
 }
 
-export const COMMAND_DOMAIN = 2047
 
 export function pruneCommands(world: World, minTick: number) {
   const commandBuffer = getResource(world, CommandBuffer)

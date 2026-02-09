@@ -25,19 +25,29 @@ export {
 } from "./entity_graph"
 export {getDomain} from "./entity_registry"
 export {
+  applyUndoLog,
+  captureCheckpoint,
   captureSnapshot,
   HistoryBuffer,
+  type Checkpoint,
   makeHistoryBuffer,
+  pushCheckpoint,
   pushSnapshot,
+  restoreCheckpoint,
+  rollbackToCheckpoint,
   rollbackToSnapshot,
   rollbackToTick,
   type Snapshot,
+  type UndoEntry,
+  type UndoOp,
 } from "./history"
 export {
   ByteReader,
   ByteWriter,
+  acquireWriter,
+  releaseWriter,
 } from "./lib/binary"
-export type {SnapshotBlock, SnapshotMessage} from "./net_types"
+export type {AddOp, SnapshotBlock, SnapshotMessage} from "./net_types"
 export {
   type Clocksync,
   type CommandMessage,
@@ -51,6 +61,7 @@ export {
   readHandshakeServer,
   readMessageHeader,
   readSnapshot,
+  readSnapshotLazy,
   readTransaction,
   writeClocksync,
   writeCommands,
@@ -74,10 +85,12 @@ export {
 } from "./query/term"
 export {
   applyRemoteSnapshots,
+  applyRemoteSnapshotsVersioned,
   applyRemoteTransactions,
   cleanupGhosts,
   cleanupTransientEntities,
   performBatchReconciliation,
+  performReconciliation,
   performRollback,
   pruneBuffers,
   receiveSnapshot,
@@ -117,7 +130,9 @@ export {
 } from "./replication_config"
 export {
   applySnapshotStream,
+  applySnapshotStreamVersioned,
   captureSnapshotStream,
+  writeSnapshotDirect,
 } from "./snapshot_stream"
 export {
   makeSparseMap,
@@ -157,11 +172,17 @@ export {
 export {
   addResource,
   deleteComponentValue,
+  forceSetComponentValue,
+  forceSetComponentValueById,
   getComponentValue,
+  getComponentValueById,
   getResource,
+  getVersionDomainId,
+  getVersionTick,
+  makeVersion,
   makeWorld,
-  type SnapshotEmitter,
   setComponentValue,
+  setComponentValueById,
   type World,
   type WorldOptions,
 } from "./world"

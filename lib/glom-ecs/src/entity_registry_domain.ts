@@ -8,6 +8,7 @@ export type EntityRegistryDomain = {
   entityCount: number
   dense: number[]
   sparse: Map<number, number>
+  freeIds: number[]
 }
 
 export function makeEntityRegistryDomain(
@@ -20,6 +21,7 @@ export function makeEntityRegistryDomain(
     entityCount: 0,
     dense: [],
     sparse: new Map(),
+    freeIds: [],
   }
 }
 
@@ -48,10 +50,15 @@ export function removeDomainEntity(
   domain.sparse.set(getLocalId(lastEntity), index)
   domain.sparse.delete(localId)
   domain.entityCount--
+  domain.freeIds.push(localId)
 }
 
 export function allocDomainEntity(domain: EntityRegistryDomain): Entity {
-  const entity = makeEntity(domain.entityId++, domain.domainId)
+  const localId =
+    domain.freeIds.length > 0
+      ? (domain.freeIds.pop() as number)
+      : domain.entityId++
+  const entity = makeEntity(localId, domain.domainId)
   addDomainEntity(domain, entity)
   return entity
 }

@@ -8,7 +8,8 @@
     "@glom/transformer-rollup": "workspace:*"
   },
   "dependencies": {
-    "@glom/ecs": "workspace:*"
+    "@glom/ecs": "workspace:*",
+    "@glom/devtools": "workspace:*"
   },
   "scripts": {
     "dev": "vite"

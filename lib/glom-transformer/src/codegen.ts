@@ -44,9 +44,72 @@ export function generatePreamble(
     ),
   )
 
+  // Check if any write terms exist — if so, extract _world and _writeVersions
+  const hasWriteTerms = allTerms.some((t) => t.type === "write")
+  if (hasWriteTerms) {
+    // const _world_query = query._world
+    statements.push(
+      factory.createVariableStatement(
+        undefined,
+        factory.createVariableDeclarationList(
+          [
+            factory.createVariableDeclaration(
+              `_world_${queryParamName}`,
+              undefined,
+              undefined,
+              factory.createPropertyAccessExpression(
+                factory.createIdentifier(queryParamName),
+                factory.createIdentifier("_world"),
+              ),
+            ),
+          ],
+          ts.NodeFlags.Const,
+        ),
+      ),
+    )
+  }
+
+  // Extract write version arrays for each write term
+  const writeTermIndices: number[] = []
+  allTerms.forEach((t, idx) => {
+    if (t.type === "write" && t.storeIndex !== undefined) {
+      writeTermIndices.push(idx)
+      // const _wverN_query = _world_query.components.versions.get(query._term_infos[N].componentId)
+      // We extract versions lazily at the term level using a simpler approach:
+      // const _wcompIdN_query = query._term_infos[idx].componentId
+      statements.push(
+        factory.createVariableStatement(
+          undefined,
+          factory.createVariableDeclarationList(
+            [
+              factory.createVariableDeclaration(
+                `_wcompId${idx}_${queryParamName}`,
+                undefined,
+                undefined,
+                factory.createPropertyAccessExpression(
+                  factory.createElementAccessExpression(
+                    factory.createPropertyAccessExpression(
+                      factory.createIdentifier(queryParamName),
+                      factory.createIdentifier("_term_infos"),
+                    ),
+                    factory.createNumericLiteral(idx),
+                  ),
+                  factory.createIdentifier("componentId"),
+                ),
+              ),
+            ],
+            ts.NodeFlags.Const,
+          ),
+        ),
+      )
+    }
+  })
+
   const usedStores = new Set<number>()
   allTerms.forEach((t) => {
-    if (t.storeIndex !== undefined) usedStores.add(t.storeIndex)
+    if ((t.type === "read" || t.type === "write") && t.storeIndex !== undefined) {
+      usedStores.add(t.storeIndex)
+    }
   })
 
   usedStores.forEach((idx) => {
@@ -177,6 +240,7 @@ export function generateLoops(
               )
 
         const valExpr =
+          (term.type === "read" || term.type === "write") &&
           term.storeIndex !== undefined
             ? factory.createElementAccessExpression(
                 factory.createIdentifier(
@@ -205,7 +269,119 @@ export function generateLoops(
           )
         }
       })
-      innerBody = [...varMappings, ...loopBody]
+
+      // Generate version bump statements for write terms
+      const versionBumps: ts.Statement[] = []
+      loopVariables.forEach((_v, i) => {
+        let term = terms[i]
+        if (!term) return
+
+        while (term.type === "rel" && term.subTerms && term.subTerms[0]) {
+          term = term.subTerms[0]
+        }
+
+        if (term.type !== "write") return
+
+        // Find the flat index of this term in allTerms
+        const flatIdx = allTerms.indexOf(term)
+        if (flatIdx === -1) return
+
+        const level = term.joinIndex
+        const targetIdx =
+          level === 0
+            ? factory.createIdentifier(`_idx${level}_${queryParamName}`)
+            : factory.createElementAccessExpression(
+                factory.createPropertyAccessExpression(
+                  eToIIdent,
+                  factory.createIdentifier("dense"),
+                ),
+                factory.createCallExpression(
+                  factory.createPropertyAccessExpression(
+                    factory.createPropertyAccessExpression(
+                      eToIIdent,
+                      factory.createIdentifier("sparse"),
+                    ),
+                    factory.createIdentifier("get"),
+                  ),
+                  undefined,
+                  [
+                    factory.createIdentifier(
+                      `_e${level}_${queryParamName}`,
+                    ),
+                  ],
+                ),
+              )
+
+        // { let _wv = _world_query.components.versions.get(_wcompIdN_query);
+        //   if (_wv) { if (targetIdx < _wv.length) _wv[targetIdx] = _world_query.tick; } }
+        const wvIdent = factory.createIdentifier(
+          `_wv${flatIdx}_${queryParamName}`,
+        )
+        const worldIdent = factory.createIdentifier(
+          `_world_${queryParamName}`,
+        )
+        const compIdIdent = factory.createIdentifier(
+          `_wcompId${flatIdx}_${queryParamName}`,
+        )
+
+        versionBumps.push(
+          factory.createBlock(
+            [
+              factory.createVariableStatement(
+                undefined,
+                factory.createVariableDeclarationList(
+                  [
+                    factory.createVariableDeclaration(
+                      wvIdent,
+                      undefined,
+                      undefined,
+                      factory.createCallExpression(
+                        factory.createPropertyAccessExpression(
+                          factory.createPropertyAccessExpression(
+                            factory.createPropertyAccessExpression(
+                              worldIdent,
+                              factory.createIdentifier("components"),
+                            ),
+                            factory.createIdentifier("versions"),
+                          ),
+                          factory.createIdentifier("get"),
+                        ),
+                        undefined,
+                        [compIdIdent],
+                      ),
+                    ),
+                  ],
+                  ts.NodeFlags.Const,
+                ),
+              ),
+              factory.createIfStatement(
+                wvIdent,
+                factory.createBlock(
+                  [
+                    factory.createExpressionStatement(
+                      factory.createBinaryExpression(
+                        factory.createElementAccessExpression(
+                          wvIdent,
+                          targetIdx,
+                        ),
+                        ts.SyntaxKind.EqualsToken,
+                        factory.createPropertyAccessExpression(
+                          worldIdent,
+                          factory.createIdentifier("tick"),
+                        ),
+                      ),
+                    ),
+                  ],
+                  true,
+                ),
+              ),
+            ],
+            true,
+          ),
+        )
+      })
+
+      innerBody = [...varMappings, ...versionBumps, ...loopBody]
     } else {
       innerBody = generateRecursive(currentJoinLevel + 1, eIdent)
     }

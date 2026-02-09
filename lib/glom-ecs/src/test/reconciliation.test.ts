@@ -36,9 +36,12 @@ describe("reconciliation", () => {
 
   test("reconcile late arriving transaction", () => {
     const world = makeWorld({domainId: 1, schema: [Position]})
-    const history: {snapshots: Snapshot[]; maxSize: number} = {
-      snapshots: [],
+    const history = {
+      snapshots: [] as Snapshot[],
+      checkpoints: [] as Snapshot[],
+      undoLog: [] as any[],
       maxSize: 10,
+      checkpointInterval: 1,
     }
     addResource(world, HistoryBuffer(history))
     const inputBuffer = new Map<number, unknown>()
@@ -101,9 +104,12 @@ describe("reconciliation", () => {
 
   test("prune buffers", () => {
     const world = makeWorld({domainId: 1, schema: [Position]})
-    const history: {snapshots: Snapshot[]; maxSize: number} = {
-      snapshots: [],
+    const history = {
+      snapshots: [] as Snapshot[],
+      checkpoints: [] as Snapshot[],
+      undoLog: [] as any[],
       maxSize: 10,
+      checkpointInterval: 1,
     }
     addResource(world, HistoryBuffer(history))
     const inputBuffer = new Map<number, unknown>()
@@ -120,7 +126,7 @@ describe("reconciliation", () => {
 
     expect(inputBuffer.size).toBe(5)
     expect(incomingTransactions.size).toBe(5)
-    expect(history.snapshots.length).toBe(5)
+    expect(history.checkpoints.length).toBe(5)
 
     pruneBuffers(world, 3)
 
@@ -129,10 +135,10 @@ describe("reconciliation", () => {
     expect(inputBuffer.has(4)).toBe(true)
 
     expect(incomingTransactions.size).toBe(2)
-    expect(history.snapshots.length).toBe(3)
-    const firstSnapshot = history.snapshots[0]
-    if (firstSnapshot) {
-      expect(firstSnapshot.tick).toBe(3)
+    expect(history.checkpoints.length).toBe(3)
+    const firstCheckpoint = history.checkpoints[0]
+    if (firstCheckpoint) {
+      expect(firstCheckpoint.tick).toBe(3)
     }
   })
 
@@ -220,9 +226,12 @@ describe("reconciliation", () => {
 
   test("performBatchReconciliation re-simulates multiple ticks", () => {
     const world = makeWorld({domainId: 1, schema: [Position]})
-    const history: {snapshots: Snapshot[]; maxSize: number} = {
-      snapshots: [],
+    const history = {
+      snapshots: [] as Snapshot[],
+      checkpoints: [] as Snapshot[],
+      undoLog: [] as any[],
       maxSize: 10,
+      checkpointInterval: 1,
     }
     addResource(world, HistoryBuffer(history))
     const incomingTransactions = new Map<number, Transaction[]>()
@@ -280,26 +289,30 @@ describe("reconciliation", () => {
     // Perform batch reconciliation
     performBatchReconciliation(world, schedule)
 
-    // Results of performBatchReconciliation:
+    // Results of performBatchReconciliation (new order: transactions → systems):
     // 1. rollBackToTick(1): world.tick = 1, state = x:1 (start of tick 1)
     // 2. Loop world.tick=1 < 3:
-    //    - runSchedule: x becomes 2
     //    - applyTransaction(tick 1): x becomes 10 (teleport)
+    //    - runSchedule: x becomes 11
     //    - advanceTick: world.tick = 2
     // 3. Loop world.tick=2 < 3:
-    //    - runSchedule: x becomes 11
+    //    - no transactions
+    //    - runSchedule: x becomes 12
     //    - advanceTick: world.tick = 3
     // 4. End.
     expect(world.tick).toBe(3)
-    expect(getComponentValue(world, entity, Position)?.x).toBe(11)
+    expect(getComponentValue(world, entity, Position)?.x).toBe(12)
     expect(incomingTransactions.has(1)).toBe(false)
   })
 
   test("performBatchReconciliation handles transactions older than history", () => {
     const world = makeWorld({domainId: 1, schema: [Position]})
-    const history: {snapshots: Snapshot[]; maxSize: number} = {
-      snapshots: [],
+    const history = {
+      snapshots: [] as Snapshot[],
+      checkpoints: [] as Snapshot[],
+      undoLog: [] as any[],
       maxSize: 2,
+      checkpointInterval: 1,
     } // Small history
     addResource(world, HistoryBuffer(history))
     const incomingTransactions = new Map<number, Transaction[]>()

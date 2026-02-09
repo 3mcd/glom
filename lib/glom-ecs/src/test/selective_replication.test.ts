@@ -38,22 +38,22 @@ describe("selective replication", () => {
     expect(totalTransactionCount).toBe(1)
     expect(getComponentValue(worldB, e1, Position)).toBeDefined()
 
+    // Value-only changes no longer emit transactions (values go via snapshots)
     addComponent(worldA, e1, Position({x: 10, y: 10}))
     commitTransaction(worldA)
     sync()
-    expect(totalTransactionCount).toBe(2)
-    expect(getComponentValue(worldB, e1, Position)?.x).toBe(10)
+    expect(totalTransactionCount).toBe(1) // no transaction for value change
 
     const e2 = spawn(worldA, Position({x: 100, y: 100}), Replicated)
     commitTransaction(worldA)
     sync()
-    expect(totalTransactionCount).toBe(3)
+    expect(totalTransactionCount).toBe(2)
     expect(getComponentValue(worldB, e2, Position)?.x).toBe(100)
 
     despawn(worldA, e2)
     commitTransaction(worldA)
     sync()
-    expect(totalTransactionCount).toBe(4)
+    expect(totalTransactionCount).toBe(3)
     expect(getComponentValue(worldB, e2, Position)).toBeUndefined()
   })
 })

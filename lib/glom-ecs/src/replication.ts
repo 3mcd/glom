@@ -7,7 +7,7 @@ import {
 export {Replicated, ReplicationConfig, ReplicationStream}
 
 import {CommandBuffer, type CommandInstance} from "./command"
-import type {Entity} from "./entity"
+import {type Entity, getDomainId, getLocalId} from "./entity"
 import {
   entityGraphFindOrCreateNode,
   entityGraphGetEntityNode,
@@ -26,12 +26,14 @@ import {
   registerIncomingRelation,
   unregisterIncomingRelation,
 } from "./relation_registry"
-import {captureSnapshotStream} from "./snapshot_stream"
+import {captureSnapshotStream, writeSnapshotDirect} from "./snapshot_stream"
+import {acquireWriter} from "./lib/binary"
 import {sparseMapDelete, sparseMapGet, sparseMapSet} from "./sparse_map"
 import {defineSystem} from "./system"
 import {makeVec, vecDifference, vecSum} from "./vec"
 import {
   deleteComponentValue,
+  getComponentValue,
   getResource,
   setComponentValue,
   type World,
@@ -45,6 +47,7 @@ import {
 } from "./world_api"
 
 export const TRANSIENT_DOMAIN = 2046
+export const COMMAND_DOMAIN = 2047
 
 export type SpawnComponent = {
   id: number
@@ -72,7 +75,15 @@ export type SetOp = {
 
 export type RemoveOp = {type: "remove"; entity: Entity; componentId: number}
 
-export type ReplicationOp = SpawnOp | DespawnOp | SetOp | RemoveOp
+export type AddOp = {
+  type: "add"
+  entity: Entity
+  componentId: number
+  data?: unknown
+  rel?: RelationPair
+}
+
+export type ReplicationOp = SpawnOp | DespawnOp | SetOp | RemoveOp | AddOp
 
 export type Transaction = {
   domainId: number
@@ -114,6 +125,8 @@ export function rebindEntity(
   authoritative: Entity,
 ) {
   if (transient === authoritative) return
+
+
 
   const index = sparseMapGet(world.index.entityToIndex, transient)
   if (index === undefined) {
@@ -195,6 +208,20 @@ export function applyTransaction(world: World, transaction: Transaction) {
         }
 
         addDomainEntity(domain, entity)
+
+        // Ensure the entity's actual domain (encoded in the entity ID) has
+        // its entityId counter advanced past this entity's localId.  Without
+        // this, a client that later allocates entities in the same domain
+        // (e.g. TRANSIENT_DOMAIN) can produce a colliding entity ID.
+        const entityDomainId = getDomainId(entity)
+        if (entityDomainId !== transaction.domainId) {
+          const entityDomain = getDomain(world.registry, entityDomainId)
+          const localId = getLocalId(entity)
+          if (entityDomain.entityId <= localId) {
+            entityDomain.entityId = localId + 1
+          }
+        }
+
         const resolved: ComponentLike[] = []
         const components = op.components
         for (let j = 0; j < components.length; j++) {
@@ -236,11 +263,34 @@ export function applyTransaction(world: World, transaction: Transaction) {
         )
 
         setEntityNode(world, entity, node)
+
+        // Record undo entry for server-applied spawn
+        world.currentUndoEntries.push({type: "undo-spawn", entity})
         break
       }
       case "despawn": {
         const node = entityGraphGetEntityNode(world.entityGraph, op.entity)
         if (!node) break
+
+        // Record undo entry before cleanup
+        {
+          const undoComponents: SpawnComponent[] = []
+          const els = node.vec.elements
+          for (let k = 0; k < els.length; k++) {
+            const comp = els[k] as ComponentLike
+            const compId = world.componentRegistry.getId(comp)
+            undoComponents.push({
+              id: compId,
+              data: getComponentValue(world, op.entity, comp),
+              rel: world.relations.virtualToRel.get(compId),
+            })
+          }
+          world.currentUndoEntries.push({
+            type: "undo-despawn",
+            entity: op.entity,
+            components: undoComponents,
+          })
+        }
 
         const incoming = world.relations.objectToSubjects.get(op.entity)
         if (incoming) {
@@ -318,6 +368,14 @@ export function applyTransaction(world: World, transaction: Transaction) {
         }
 
         if (!hasComp) {
+          // Record undo entry for server-applied component add
+          world.currentUndoEntries.push({
+            type: "undo-add",
+            entity,
+            componentId: op.componentId,
+            rel: op.rel,
+          })
+
           const nextNode = entityGraphFindOrCreateNode(
             world.entityGraph,
             vecSum(
@@ -340,6 +398,15 @@ export function applyTransaction(world: World, transaction: Transaction) {
         if (!comp) break
         const node = entityGraphGetEntityNode(world.entityGraph, entity)
         if (!node) break
+
+        // Record undo entry before deleting component data
+        world.currentUndoEntries.push({
+          type: "undo-remove",
+          entity,
+          componentId: id,
+          data: getComponentValue(world, entity, comp),
+          rel: world.relations.virtualToRel.get(id),
+        })
 
         const relInfo = world.relations.virtualToRel.get(id)
         if (relInfo) {
@@ -367,6 +434,79 @@ export function applyTransaction(world: World, transaction: Transaction) {
         }
         break
       }
+      case "add": {
+        const entity = op.entity
+        const comp = world.componentRegistry.getComponent(op.componentId)
+        if (!comp) break
+        const node = entityGraphGetEntityNode(world.entityGraph, entity)
+        if (!node) break
+
+        if (op.data !== undefined) {
+          setComponentValue(
+            world,
+            entity,
+            comp as Component<unknown>,
+            op.data,
+            transaction.tick,
+          )
+        }
+
+        if (op.rel) {
+          const rel = op.rel
+          const id = op.componentId
+
+          let relMap = world.relations.relToVirtual.get(rel.relationId)
+          if (!relMap) {
+            relMap = new Map()
+            world.relations.relToVirtual.set(rel.relationId, relMap)
+          }
+          relMap.set(rel.object, id)
+          world.relations.virtualToRel.set(id, rel)
+
+          registerIncomingRelation(
+            world,
+            entity,
+            rel.relationId,
+            rel.object as Entity,
+          )
+        }
+
+        let hasComp = false
+        const elements = node.vec.elements
+        for (let j = 0; j < elements.length; j++) {
+          if (
+            world.componentRegistry.getId(elements[j] as ComponentLike) ===
+            op.componentId
+          ) {
+            hasComp = true
+            break
+          }
+        }
+
+        if (!hasComp) {
+          // Record undo entry for server-applied component add
+          world.currentUndoEntries.push({
+            type: "undo-add",
+            entity,
+            componentId: op.componentId,
+            rel: op.rel,
+          })
+
+          const nextNode = entityGraphFindOrCreateNode(
+            world.entityGraph,
+            vecSum(
+              node.vec,
+              makeVec([comp], world.componentRegistry),
+              world.componentRegistry,
+            ),
+          )
+          const prevNode = setEntityNode(world, entity, nextNode)
+          if (prevNode) {
+            world.pendingNodePruning.add(prevNode)
+          }
+        }
+        break
+      }
     }
   }
 
@@ -387,12 +527,21 @@ export const emitSnapshots = defineSystem(
     world: World,
   ) => {
     if (!config.snapshotComponents) return
-    const blocks = captureSnapshotStream(world, config.snapshotComponents)
-    if (blocks.length > 0) {
-      stream.snapshots.push({
-        tick: world.tick,
-        blocks,
-      })
+    const interval = config.snapshotInterval ?? 1
+    if (interval > 1 && world.tick % interval !== 0) return
+    // Write directly to a pooled ByteWriter — no intermediate SnapshotBlock objects
+    const writer = acquireWriter()
+    writeSnapshotDirect(
+      writer,
+      world,
+      config.snapshotComponents,
+      world,
+      world.tick,
+    )
+    if (writer.getLength() > 7) {
+      // >7 means more than header (5 bytes) + blockCount of 0 (2 bytes)
+      if (!stream.rawSnapshots) stream.rawSnapshots = []
+      stream.rawSnapshots.push(writer.toBytes())
     }
   },
   {
@@ -426,6 +575,7 @@ export const clearReplicationStream = defineSystem(
   (stream: Write<typeof ReplicationStream>) => {
     stream.transactions.length = 0
     stream.snapshots.length = 0
+    if (stream.rawSnapshots) stream.rawSnapshots.length = 0
   },
   {
     params: [Write(ReplicationStream)],

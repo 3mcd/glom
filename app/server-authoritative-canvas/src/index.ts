@@ -1,3 +1,4 @@
+import {createDevtools} from "@glom/devtools"
 import * as g from "@glom/ecs"
 import * as commands from "@glom/ecs/command"
 import * as reconciliation from "@glom/ecs/reconciliation"
@@ -71,50 +72,47 @@ function addLogicalSystems(schedule: g.SystemSchedule) {
   g.addSystem(schedule, attachedPulseSystem)
 }
 
-const pulseSpawnerSystem = (
+function movementSystem(
+  query: g.Join<
+    g.All<g.Write<typeof Position>>,
+    g.All<typeof MoveCommand>,
+    typeof g.CommandOf
+  >,
+) {
+  for (const [pos, move] of query) {
+    pos.x += move.dx * SPEED
+    pos.y += move.dy * SPEED
+
+    if (pos.x < 0) pos.x = 250
+    if (pos.x > 250) pos.x = 0
+    if (pos.y < 0) pos.y = 250
+    if (pos.y > 250) pos.y = 0
+  }
+}
+
+function pulseSpawnerSystem(
   query: g.Join<
     g.All<g.Entity, typeof Position>,
     g.All<typeof g.IntentTick, g.Has<typeof FireCommand>>,
     typeof g.CommandOf
   >,
   world: g.World,
-) => {
+) {
   for (const [playerEnt, pos, intentTick] of query) {
     g.spawnInDomain(
       world,
-      [Position(pos), Pulse(5), PulseOf(playerEnt), g.Replicated],
+      [Position({...pos}), Pulse(5), PulseOf(playerEnt), g.Replicated],
       world.registry.domainId,
       intentTick,
     )
   }
 }
 
-const movementSystem = (
-  query: g.Join<
-    g.All<g.Entity, typeof Position>,
-    g.All<typeof MoveCommand>,
-    typeof g.CommandOf
-  >,
-  update: g.Add<typeof Position>,
-) => {
-  for (const [entity, pos, move] of query) {
-    let nextX = pos.x + move.dx * SPEED
-    let nextY = pos.y + move.dy * SPEED
-
-    if (nextX < 0) nextX = 250
-    if (nextX > 250) nextX = 0
-    if (nextY < 0) nextY = 250
-    if (nextY > 250) nextY = 0
-
-    update(entity, {x: nextX, y: nextY})
-  }
-}
-
-const pulseSystem = (
+function pulseSystem(
   query: g.All<g.Entity, typeof Pulse>,
   update: g.Add<typeof Pulse>,
   despawn: g.Despawn,
-) => {
+) {
   for (const [entity, size] of query) {
     const nextSize = (size as number) + 1.5
     if (nextSize > 40) {
@@ -125,28 +123,30 @@ const pulseSystem = (
   }
 }
 
-const attachedPulseSystem = (
+function attachedPulseSystem(
   pulses: g.Join<
-    g.All<g.Entity, typeof Position>,
+    g.All<g.Write<typeof Position>>,
     g.All<typeof Position>,
     typeof PulseOf
   >,
-  update: g.Add<typeof Position>,
-) => {
-  for (const [pulseEnt, _pos, parentPos] of pulses) {
-    update(pulseEnt, {x: parentPos.x, y: parentPos.y})
+) {
+  for (const [pos, parentPos] of pulses) {
+    pos.x = parentPos.x
+    pos.y = parentPos.y
   }
 }
 
-const renderSystem = (
+function renderSystem(
   query: g.All<typeof Position, typeof Color>,
   pulses: g.All<typeof Position, typeof Pulse>,
   ctx: g.Write<typeof CanvasContext>,
-) => {
+) {
   ctx.fillStyle = "#0f0f0f" // --bg
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height)
 
+  let count = 0
   for (const [pos, colorId] of query) {
+    count++
     ctx.fillStyle = (colorId as number) === 0 ? "#aed7f5" : "#d6d4a6"
     ctx.fillRect(pos.x - 10, pos.y - 10, 20, 20)
   }
@@ -168,8 +168,18 @@ function createServer() {
   const timestep = g.makeTimestep(HZ)
 
   g.addResource(world, CanvasContext(ctx))
-  g.addResource(world, g.ReplicationConfig({historyWindow: 64}))
-  g.addResource(world, g.ReplicationStream({transactions: [], snapshots: []}))
+  g.addResource(
+    world,
+    g.ReplicationConfig({
+      historyWindow: 64,
+      snapshotComponents: [world.componentRegistry.getId(Position)],
+      snapshotInterval: 5,
+    }),
+  )
+  g.addResource(
+    world,
+    g.ReplicationStream({transactions: [], snapshots: [], rawSnapshots: []}),
+  )
   g.addResource(world, g.CommandBuffer(new Map()))
   g.addResource(world, g.IncomingTransactions(new Map()))
   g.addResource(world, g.IncomingSnapshots(new Map()))
@@ -181,6 +191,7 @@ function createServer() {
   g.addSystem(schedule, renderSystem)
   g.addSystem(schedule, commands.cleanupEphemeralCommands)
   g.addSystem(schedule, replication.commitPendingMutations)
+  g.addSystem(schedule, replication.emitSnapshots)
   g.addSystem(schedule, replication.advanceWorldTick)
   g.addSystem(schedule, replication.pruneTemporalBuffers)
 
@@ -193,7 +204,16 @@ function createClient(domainId: number, reconcileSchedule: g.SystemSchedule) {
   const world = g.makeWorld({domainId, schema}) as g.World
   const timestep = g.makeTimestep(HZ)
 
-  g.addResource(world, g.HistoryBuffer({snapshots: [], maxSize: 120}))
+  g.addResource(
+    world,
+    g.HistoryBuffer({
+      snapshots: [],
+      checkpoints: [],
+      undoLog: [],
+      maxSize: 120,
+      checkpointInterval: 5,
+    }),
+  )
   g.addResource(world, g.CommandBuffer(new Map()))
   g.addResource(world, g.InputBuffer(new Map()))
   g.addResource(world, g.IncomingTransactions(new Map()))
@@ -250,6 +270,22 @@ const client = createClient(1, reconcileSchedule)
 const clientToServer = [] as {time: number; packet: Uint8Array}[]
 const serverToClient = [] as {time: number; packet: Uint8Array}[]
 
+const devtools = createDevtools(client.world, {
+  componentNames: new Map([
+    [Position, "Position"],
+    [Color, "Color"],
+    [MoveCommand, "MoveCommand"],
+    [Pulse, "Pulse"],
+    [FireCommand, "FireCommand"],
+    [PulseOf, "PulseOf"],
+    [CanvasContext, "CanvasContext"],
+    [g.Replicated, "Replicated"],
+    [g.IntentTick, "IntentTick"],
+    [g.CommandEntity, "CommandEntity"],
+    [g.CommandOf, "CommandOf"],
+  ]),
+})
+
 const player = g.spawn(
   server.world,
   Position({x: 125, y: 125}),
@@ -257,26 +293,32 @@ const player = g.spawn(
   g.Replicated,
 )
 
-const writer = new g.ByteWriter()
-g.writeHandshakeServer(writer, server.world.tick, {
+// Reusable writers to avoid per-packet allocations
+const sharedWriter = g.acquireWriter()
+
+sharedWriter.reset()
+g.writeHandshakeServer(sharedWriter, server.world.tick, {
   domainId: 0,
   tick: server.world.tick,
 })
 serverToClient.push({
   time: performance.now() + LATENCY_MS,
-  packet: writer.getBytes(),
+  packet: sharedWriter.toBytes(),
 })
 
 function loop() {
   const now = performance.now()
 
   if (!client.isSynced) {
-    const writer = new g.ByteWriter()
-    g.writeHandshakeServer(writer, server.world.tick, {
+    sharedWriter.reset()
+    g.writeHandshakeServer(sharedWriter, server.world.tick, {
       domainId: 1,
       tick: server.world.tick,
     })
-    serverToClient.push({time: now + LATENCY_MS, packet: writer.getBytes()})
+    serverToClient.push({
+      time: now + LATENCY_MS,
+      packet: sharedWriter.toBytes(),
+    })
   }
 
   while (clientToServer.length > 0 && clientToServer[0].time <= now) {
@@ -334,6 +376,9 @@ function loop() {
     } else if (header.type === g.MessageType.Transaction) {
       const transaction = g.readTransaction(reader, header.tick, client.world)
       g.receiveTransaction(client.world, transaction)
+    } else if (header.type === g.MessageType.Snapshot) {
+      const snapshot = g.readSnapshotLazy(reader, header.tick)
+      g.receiveSnapshot(client.world, snapshot)
     }
   }
 
@@ -357,15 +402,15 @@ function loop() {
       const commandBuffer = g.getResource(client.world, g.CommandBuffer)
       const commands = commandBuffer?.get(client.world.tick)
       if (commands && commands.length > 0) {
-        const writer = new g.ByteWriter()
+        sharedWriter.reset()
         g.writeCommands(
-          writer,
+          sharedWriter,
           {tick: client.world.tick, commands},
           client.world,
         )
         clientToServer.push({
           time: performance.now() + LATENCY_MS,
-          packet: writer.getBytes(),
+          packet: sharedWriter.toBytes(),
         })
       }
       g.runSchedule(client.schedule, client.world)
@@ -378,19 +423,18 @@ function loop() {
     const stream = g.getResource(server.world, g.ReplicationStream)
     if (stream) {
       for (const transaction of stream.transactions) {
-        const writer = new g.ByteWriter()
-        g.writeTransaction(writer, transaction, server.world)
+        sharedWriter.reset()
+        g.writeTransaction(sharedWriter, transaction, server.world)
         serverToClient.push({
           time: performance.now() + LATENCY_MS,
-          packet: writer.getBytes(),
+          packet: sharedWriter.toBytes(),
         })
       }
-      for (const snap of stream.snapshots) {
-        const writer = new g.ByteWriter()
-        g.writeSnapshot(writer, snap, server.world)
+      // rawSnapshots are pre-serialized by emitSnapshots — send directly
+      for (const raw of stream.rawSnapshots) {
         serverToClient.push({
           time: performance.now() + LATENCY_MS,
-          packet: writer.getBytes(),
+          packet: raw,
         })
       }
     }
@@ -406,6 +450,7 @@ function loop() {
       `Client: ${client.world.tick} (${cPos ? Math.round(cPos.x) : "?"}, ${cPos ? Math.round(cPos.y) : "?"})`
   }
 
+  devtools.update()
   requestAnimationFrame(loop)
 }
 

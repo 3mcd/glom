@@ -31,8 +31,8 @@ import {
   removeEntity,
 } from "./entity_registry"
 import {addDomainEntity} from "./entity_registry_domain"
-import {HistoryBuffer, pushSnapshot} from "./history"
-import type {ReplicationOp, SetOp} from "./net_types"
+import {HistoryBuffer, pushCheckpoint, pushSnapshot} from "./history"
+import type {AddOp, ReplicationOp, SpawnComponent} from "./net_types"
 import {isRelationship} from "./relation"
 import {
   getOrCreateVirtualId,
@@ -45,8 +45,13 @@ import {
   poolGetOp,
   poolReturnOp,
   TRANSIENT_DOMAIN,
+  COMMAND_DOMAIN,
 } from "./replication"
-import {Replicated, ReplicationStream} from "./replication_config"
+import {
+  Replicated,
+  ReplicationConfig,
+  ReplicationStream,
+} from "./replication_config"
 import {
   sparseMapClear,
   sparseMapDelete,
@@ -60,8 +65,10 @@ import {
   addResource,
   deleteComponentValue,
   getComponentValue,
+  getComponentValueById,
   getOrCreateIndex,
   getResource,
+  makeVersion,
   setComponentValue,
   type World,
 } from "./world"
@@ -211,7 +218,7 @@ export function spawnInDomain(
     }
   }
 
-  if (getDomainId(entity) === TRANSIENT_DOMAIN) {
+  if (getDomainId(entity) === TRANSIENT_DOMAIN && domainId !== COMMAND_DOMAIN) {
     world.transientRegistry.set(causalKey, {
       entity,
       tick: world.tick,
@@ -254,6 +261,10 @@ export function spawnInDomain(
 
   recordGraphMove(world, entity, prevNode, node)
 
+  if (getDomainId(entity) !== COMMAND_DOMAIN) {
+    world.currentUndoEntries.push({type: "undo-spawn", entity})
+  }
+
   return entity
 }
 
@@ -261,6 +272,26 @@ export function despawn(world: World, entity: Entity): void {
   const node = entityGraphGetEntityNode(world.entityGraph, entity)
   if (!node) {
     return
+  }
+
+  // Record undo-despawn before any cleanup
+  if (getDomainId(entity) !== COMMAND_DOMAIN) {
+    const undoComponents: SpawnComponent[] = []
+    const els = node.vec.elements
+    for (let k = 0; k < els.length; k++) {
+      const comp = els[k] as ComponentLike
+      const compId = world.componentRegistry.getId(comp)
+      undoComponents.push({
+        id: compId,
+        data: getComponentValue(world, entity, comp),
+        rel: world.relations.virtualToRel.get(compId),
+      })
+    }
+    world.currentUndoEntries.push({
+      type: "undo-despawn",
+      entity,
+      components: undoComponents,
+    })
   }
 
   const domainId = world.registry.domainId
@@ -415,6 +446,20 @@ export function addComponent(
   }
 
   if (toAdd.length > 0) {
+    // Record undo-add entries for each added component
+    if (getDomainId(entity) !== COMMAND_DOMAIN) {
+      for (let i = 0; i < toAdd.length; i++) {
+        const c = toAdd[i] as ComponentLike
+        const cid = world.componentRegistry.getId(c)
+        world.currentUndoEntries.push({
+          type: "undo-add",
+          entity,
+          componentId: cid,
+          rel: world.relations.virtualToRel.get(cid),
+        })
+      }
+    }
+
     if (getDomainId(entity) === world.registry.domainId) {
       let alreadyReplicated = false
       const elements = node.vec.elements
@@ -443,12 +488,38 @@ export function addComponent(
         for (let i = 0; i < toAdd.length; i++) {
           const c = toAdd[i] as ComponentLike
           const id = world.componentRegistry.getId(c)
-          const op = poolGetOp("set")
-          op.entity = entity
-          op.componentId = id
-          op.data = getComponentValue(world, entity, c)
-          op.rel = world.relations.virtualToRel.get(id)
-          world.pendingOps.push(op)
+          // Check if entity already has this component
+          let alreadyHas = false
+          const elements = node.vec.elements
+          for (let k = 0; k < elements.length; k++) {
+            if (
+              world.componentRegistry.getId(elements[k] as ComponentLike) === id
+            ) {
+              alreadyHas = true
+              break
+            }
+          }
+          if (!alreadyHas) {
+            // New component — emit structural "add" op
+            const op = poolGetOp("add")
+            op.entity = entity
+            op.componentId = id
+            op.data = getComponentValue(world, entity, c)
+            op.rel = world.relations.virtualToRel.get(id)
+            world.pendingOps.push(op)
+          } else {
+            // Value-only change — emit "set" op if P2P mode is enabled
+            const config = getResource(world, ReplicationConfig)
+            if (config?.emitValueTransactions) {
+              const op = poolGetOp("set")
+              op.entity = entity
+              op.componentId = id
+              op.data = getComponentValue(world, entity, c)
+              op.version = makeVersion(world.tick, world.registry.domainId)
+              op.rel = world.relations.virtualToRel.get(id)
+              world.pendingOps.push(op)
+            }
+          }
         }
       } else if (addingReplicated) {
         const allComponents = [...node.vec.elements, ...toAdd]
@@ -535,6 +606,21 @@ export function removeComponent(
   }
 
   if (toRemove.length > 0) {
+    // Record undo-remove entries for each removed component
+    if (getDomainId(entity) !== COMMAND_DOMAIN) {
+      for (let i = 0; i < toRemove.length; i++) {
+        const c = toRemove[i] as ComponentLike
+        const cid = world.componentRegistry.getId(c)
+        world.currentUndoEntries.push({
+          type: "undo-remove",
+          entity,
+          componentId: cid,
+          data: getComponentValue(world, entity, c),
+          rel: world.relations.virtualToRel.get(cid),
+        })
+      }
+    }
+
     if (getDomainId(entity) === world.registry.domainId) {
       let isReplicated = false
       const elements = node.vec.elements
@@ -606,11 +692,7 @@ export function commitTransaction(world: World): void {
     list.push(op)
   }
 
-  const entities = Array.from(entityToOps.keys())
-  for (let i = 0; i < entities.length; i++) {
-    const entity = entities[i] as Entity
-    const ops = entityToOps.get(entity) as ReplicationOp[]
-
+  for (const [entity, ops] of entityToOps) {
     let wasSpawned = false
     for (let j = 0; j < ops.length; j++) {
       if ((ops[j] as ReplicationOp).type === "spawn") {
@@ -667,7 +749,7 @@ export function commitTransaction(world: World): void {
 
     for (let j = 0; j < ops.length; j++) {
       const op = ops[j] as ReplicationOp
-      if (op.type === "set") {
+      if (op.type === "add" || op.type === "set") {
         componentChanges.set(op.componentId, op)
         componentRemovals.delete(op.componentId)
       } else if (op.type === "remove") {
@@ -676,25 +758,25 @@ export function commitTransaction(world: World): void {
       }
     }
 
-    const changeOps = Array.from(componentChanges.values())
-    for (let j = 0; j < changeOps.length; j++) {
-      const opOrig = changeOps[j] as SetOp
-      if (opOrig.type === "set") {
+    for (const opOrig of componentChanges.values()) {
+      if (opOrig.type === "add") {
+        const op = poolGetOp("add")
+        op.entity = entity
+        op.componentId = opOrig.componentId
+        op.data = getComponentValueById(world, entity as number, opOrig.componentId)
+        op.rel = opOrig.rel
+        reducedOps.push(op)
+      } else if (opOrig.type === "set") {
         const op = poolGetOp("set")
         op.entity = entity
         op.componentId = opOrig.componentId
+        op.data = getComponentValueById(world, entity as number, opOrig.componentId)
         op.version = opOrig.version
         op.rel = opOrig.rel
-        op.data = getComponentValue(world, entity, {
-          id: opOrig.componentId,
-          __component_brand: true,
-        } as ComponentLike)
         reducedOps.push(op)
       }
     }
-    const removals = Array.from(componentRemovals)
-    for (let j = 0; j < removals.length; j++) {
-      const id = removals[j] as number
+    for (const id of componentRemovals) {
       const op = poolGetOp("remove")
       op.entity = entity
       op.componentId = id
@@ -724,11 +806,26 @@ export function commitTransaction(world: World): void {
 }
 
 export function advanceTick(world: World, skipSnapshot = false): void {
-  world.tick++
   const history = getResource(world, HistoryBuffer)
-  if (!skipSnapshot && history) {
-    pushSnapshot(world, history)
+
+  // Batch undo entries for the current tick (before increment)
+  if (history && !skipSnapshot && world.currentUndoEntries.length > 0) {
+    history.undoLog.push({
+      tick: world.tick,
+      ops: [...world.currentUndoEntries],
+    })
   }
+  world.currentUndoEntries.length = 0
+
+  world.tick++
+
+  if (!skipSnapshot && history) {
+    const interval = history.checkpointInterval
+    if (interval <= 1 || world.tick % interval === 0) {
+      pushCheckpoint(world, history)
+    }
+  }
+
   world.tickSpawnCount = 0
 }
 
@@ -780,6 +877,17 @@ export function flushDeletions(world: World) {
     if (entityIndex !== undefined) {
       world.index.freeIndices.push(entityIndex)
       sparseMapDelete(world.index.entityToIndex, entity)
+    }
+
+    // Remove stale transient registry entries for this entity so that
+    // ghost cleanup can never despawn a *different* entity that later
+    // reuses the same recycled ID.
+    if (getDomainId(entity) === TRANSIENT_DOMAIN) {
+      for (const [key, info] of world.transientRegistry.entries()) {
+        if (info.entity === entity) {
+          world.transientRegistry.delete(key)
+        }
+      }
     }
 
     removeEntity(world.registry, entity)

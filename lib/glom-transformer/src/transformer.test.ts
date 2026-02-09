@@ -159,6 +159,30 @@ describe("transformer", () => {
     )
   })
 
+  test("transforms Join query with correct variable bindings", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const MoveCommand = g.defineComponent<{dx: number; dy: number}>()
+      const CommandOf = g.defineRelation()
+      const movementSystem = (q: g.Join<g.All<g.Write<typeof Position>>, g.All<typeof MoveCommand>, typeof CommandOf>) => {
+        for (const [pos, move] of q) {
+          pos.x += move.dx
+        }
+      }
+    `
+    const output = transform(input)
+    // Both stores should be generated
+    expect(output).toContain("_store0_q = q.stores[0]")
+    expect(output).toContain("_store1_q = q.stores[1]")
+    // pos should come from _e0 (left side, join index 0)
+    expect(output).toContain("const pos = _store0_q[")
+    expect(output).toMatch(/const pos = _store0_q\[_idx0_q\]/)
+    // move should come from _e1 (right side, join index 1)
+    expect(output).toContain("const move = _store1_q[")
+    expect(output).toMatch(/const move = _store1_q\[.*_e1_q/)
+  })
+
   test("transforms function declaration", () => {
     const input = `
       import * as g from "@glom/ecs"
@@ -444,6 +468,36 @@ describe("transformer", () => {
     expect(output).toContain("const move = _store")
     expect(output).toContain("g.CommandOf")
     expect(output).toContain("params: [{ join: [")
+  })
+
+  test("transforms Write term in Join query with version bump (canvas movementSystem)", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>()
+      const MoveCommand = g.defineComponent<{dx: number; dy: number}>()
+      const SPEED = 2
+      function movementSystem(
+        query: g.Join<
+          g.All<g.Write<typeof Position>>,
+          g.All<typeof MoveCommand>,
+          typeof g.CommandOf
+        >,
+      ) {
+        for (const [pos, move] of query) {
+          pos.x += move.dx * SPEED
+          pos.y += move.dy * SPEED
+        }
+      }
+    `
+    const output = transform(input)
+    // Write terms should be compiled like Read (store access) + version bumping
+    expect(output).toContain("const pos = _store")
+    expect(output).toContain("const move = _store")
+    // Should have write version preamble
+    expect(output).toContain("_world_query")
+    expect(output).toContain("_wcompId")
+    // Should have version bump statement
+    expect(output).toContain("_world_query.tick")
   })
 
   test("transforms doubly aliased Join query", () => {

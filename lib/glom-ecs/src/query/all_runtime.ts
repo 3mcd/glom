@@ -40,6 +40,7 @@ export type TermInfo =
       componentId: number
       store: unknown[] | undefined
       joinIndex: number
+      isWrite?: boolean
     }
   | {
       type: "has"
@@ -303,7 +304,24 @@ export class AllRuntime implements AnyAll {
       const index = sparseMapGet(world.index.entityToIndex, entity)
       if (index === undefined) return []
       const val = info.store[index]
-      return val === undefined ? [] : [val]
+      if (val === undefined) return []
+
+      if (info.isWrite) {
+        let versions = world.components.versions.get(componentId)
+        if (!versions) {
+          versions = new Uint32Array(1024)
+          world.components.versions.set(componentId, versions)
+        }
+        if (index >= versions.length) {
+          const next = new Uint32Array(Math.max(versions.length * 2, index + 1))
+          next.set(versions)
+          versions = next
+          world.components.versions.set(componentId, versions)
+        }
+        versions[index] = world.tick
+      }
+
+      return [val]
     }
     if (info.type === "has" || info.type === "not") {
       const actualNode =
@@ -435,11 +453,13 @@ export class AllRuntime implements AnyAll {
     }
 
     let type: "component" | "has" | "not" = "component"
+    let isWrite = false
     let termComp: unknown
     if ("read" in t) {
       termComp = t.read
     } else if ("write" in t) {
       termComp = t.write
+      isWrite = true
     } else if ("has" in t) {
       termComp = t.has
       type = "has"
@@ -463,14 +483,18 @@ export class AllRuntime implements AnyAll {
     }
 
     const componentId = world.componentRegistry.getId(component)
-    return {
+    const info: TermInfo = {
       type,
       component,
       componentId,
       store:
         type === "component" ? getComponentStore(world, component) : undefined,
       joinIndex: currentJoinIndex,
-    } as TermInfo
+    }
+    if (type === "component" && isWrite) {
+      (info as Extract<TermInfo, {type: "component"}>).isWrite = true
+    }
+    return info
   }
 
   private _collect_join_components(

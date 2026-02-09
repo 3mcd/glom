@@ -89,32 +89,59 @@ export function extractAllTermsFromNode(
         return results
       }
 
-      if (name === "Read" || name === "Write") {
+      // Check syntax-based type name for conditional types like Read/Write
+      // that lose their symbol name when resolved
+      const syntaxName = ts.isTypeReferenceNode(resolvedNode)
+        ? ts.isIdentifier(resolvedNode.typeName)
+          ? resolvedNode.typeName.text
+          : ts.isQualifiedName(resolvedNode.typeName)
+            ? resolvedNode.typeName.right.text
+            : undefined
+        : undefined
+
+      if (
+        name === "Read" ||
+        name === "Write" ||
+        syntaxName === "Read" ||
+        syntaxName === "Write"
+      ) {
+        const isWrite = name === "Write" || syntaxName === "Write"
         const componentExpr = extractRuntimeExpr(
           factory,
           resolvedNode.typeArguments?.[0],
         )
         return {
-          type: name === "Read" ? "read" : "write",
+          type: isWrite ? "write" : "read",
           storeIndex: storeIndex++,
           joinIndex: currentJoinIndex,
           runtimeExpr: componentExpr,
         }
       }
 
-      if (name === "Has" || name === "Not") {
+      if (
+        name === "Has" ||
+        name === "Not" ||
+        syntaxName === "Has" ||
+        syntaxName === "Not"
+      ) {
+        const isNot = name === "Not" || syntaxName === "Not"
         const componentExpr = extractRuntimeExpr(
           factory,
           resolvedNode.typeArguments?.[0],
         )
         return {
-          type: name === "Has" ? "has" : "not",
+          type: isNot ? "not" : "has",
           joinIndex: currentJoinIndex,
           runtimeExpr: componentExpr,
         }
       }
 
-      if (name === "Entity" || name === "EntityTerm") {
+      if (
+        name === "Entity" ||
+        name === "EntityTerm" ||
+        syntaxName === "Entity" ||
+        syntaxName === "EntityTerm"
+      ) {
         return {
           type: "entity",
           joinIndex: currentJoinIndex,

@@ -8,7 +8,7 @@ import {
   makeEntityGraph,
 } from "./entity_graph"
 import {type EntityRegistry, makeEntityRegistry} from "./entity_registry"
-import {HistoryBuffer} from "./history"
+import {HistoryBuffer, type UndoOp} from "./history"
 import {
   type ComponentRegistry,
   makeComponentRegistry,
@@ -93,6 +93,8 @@ export type World<R extends ComponentLike = any> = {
   readonly pendingOps: ReplicationOp[]
   readonly clocksync: ClocksyncManager
 
+  readonly currentUndoEntries: UndoOp[]
+
   readonly _reduction_entity_to_ops: Map<Entity, ReplicationOp[]>
   readonly _reduction_component_changes: Map<number, ReplicationOp>
   readonly _reduction_component_removals: Set<number>
@@ -140,6 +142,7 @@ export function makeWorld(options: WorldOptions = {}): World {
     transientRegistry: new Map(),
     pendingOps: [],
     clocksync: makeClocksyncManager(),
+    currentUndoEntries: [],
     _reduction_entity_to_ops: new Map(),
     _reduction_component_changes: new Map(),
     _reduction_component_removals: new Set(),
@@ -211,6 +214,48 @@ export function setComponentValue<T>(
   if (currentVersion !== undefined && version < currentVersion) {
     return
   }
+  versions[index] = version
+
+  const store = getComponentStore<T>(world, component)
+  if (store) {
+    store[index] = value
+  }
+}
+
+/**
+ * Like setComponentValue but skips the version check, unconditionally
+ * overwriting the current value. Used during authoritative snapshot
+ * application where the server's value must always win.
+ */
+export function forceSetComponentValue<T>(
+  world: World<any>,
+  entity: number,
+  component: Component<T> | ComponentLike,
+  value: T,
+  version = world.tick,
+): void {
+  const componentId = world.componentRegistry.getId(component)
+  if (component.isTag) {
+    if (entity === RESOURCE_ENTITY) {
+      world.components.resourceTags.add(componentId)
+    }
+    return
+  }
+  const index = getOrCreateIndex(world, entity)
+
+  let versions = world.components.versions.get(componentId)
+  if (!versions) {
+    versions = new Uint32Array(1024)
+    world.components.versions.set(componentId, versions)
+  }
+
+  if (index >= versions.length) {
+    const next = new Uint32Array(Math.max(versions.length * 2, index + 1))
+    next.set(versions)
+    versions = next
+    world.components.versions.set(componentId, versions)
+  }
+
   versions[index] = version
 
   const store = getComponentStore<T>(world, component)
@@ -307,4 +352,134 @@ export function hasResource<T extends ComponentLike>(
   const index = 0 // Resource entity is always index 0
   const store = world.components.storage.get(componentId)
   return store !== undefined && store[index] !== undefined
+}
+
+// --- Composite version utilities for P2P conflict resolution ---
+
+const DOMAIN_BITS = 11
+const MAX_DOMAIN_ID = (1 << DOMAIN_BITS) - 1 // 2047
+
+/**
+ * Create a composite version from a tick and domainId.
+ * Higher tick always wins; same-tick ties go to higher domainId.
+ * Works with the existing `setComponentValue` version check
+ * (`version < currentVersion`).
+ */
+export function makeVersion(tick: number, domainId: number): number {
+  return tick * (MAX_DOMAIN_ID + 1) + domainId
+}
+
+/** Extract the tick from a composite version. */
+export function getVersionTick(version: number): number {
+  return Math.floor(version / (MAX_DOMAIN_ID + 1))
+}
+
+/** Extract the domainId from a composite version. */
+export function getVersionDomainId(version: number): number {
+  return version % (MAX_DOMAIN_ID + 1)
+}
+
+// --- ById variants (avoid throwaway {id, __component_brand} objects) ---
+
+/**
+ * Like setComponentValue but takes a raw componentId instead of a ComponentLike,
+ * avoiding the allocation of a throwaway {id, __component_brand} object.
+ * Assumes the component is NOT a tag (tags have no store).
+ */
+export function setComponentValueById(
+  world: World<any>,
+  entity: number,
+  componentId: number,
+  value: unknown,
+  version = world.tick,
+): void {
+  const index = getOrCreateIndex(world, entity)
+
+  let versions = world.components.versions.get(componentId)
+  if (!versions) {
+    versions = new Uint32Array(1024)
+    world.components.versions.set(componentId, versions)
+  }
+
+  if (index >= versions.length) {
+    const next = new Uint32Array(Math.max(versions.length * 2, index + 1))
+    next.set(versions)
+    versions = next
+    world.components.versions.set(componentId, versions)
+  }
+
+  const currentVersion = versions[index]
+  if (currentVersion !== undefined && version < currentVersion) {
+    return
+  }
+  versions[index] = version
+
+  let store = world.components.storage.get(componentId)
+  if (!store) {
+    store = []
+    world.components.storage.set(componentId, store)
+  }
+  store[index] = value
+}
+
+/**
+ * Like forceSetComponentValue but takes a raw componentId.
+ * Unconditionally overwrites the current value (skips version check).
+ */
+export function forceSetComponentValueById(
+  world: World<any>,
+  entity: number,
+  componentId: number,
+  value: unknown,
+  version = world.tick,
+): void {
+  const index = getOrCreateIndex(world, entity)
+
+  let versions = world.components.versions.get(componentId)
+  if (!versions) {
+    versions = new Uint32Array(1024)
+    world.components.versions.set(componentId, versions)
+  }
+
+  if (index >= versions.length) {
+    const next = new Uint32Array(Math.max(versions.length * 2, index + 1))
+    next.set(versions)
+    versions = next
+    world.components.versions.set(componentId, versions)
+  }
+
+  versions[index] = version
+
+  let store = world.components.storage.get(componentId)
+  if (!store) {
+    store = []
+    world.components.storage.set(componentId, store)
+  }
+  store[index] = value
+}
+
+/**
+ * Like getComponentValue but takes a raw componentId.
+ * Assumes the component is NOT a tag.
+ */
+export function getComponentValueById(
+  world: World<any>,
+  entity: number,
+  componentId: number,
+): unknown {
+  if (world.pendingDeletions.has(entity as Entity)) {
+    return undefined
+  }
+  const index =
+    entity === RESOURCE_ENTITY
+      ? 0
+      : sparseMapGet(world.index.entityToIndex, entity)
+  if (index === undefined) {
+    return undefined
+  }
+  const store = world.components.storage.get(componentId)
+  if (!store) {
+    return undefined
+  }
+  return store[index]
 }

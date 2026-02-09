@@ -95,7 +95,7 @@ function createPeer(
       ],
     }),
   )
-  g.addResource(world, g.ReplicationStream({transactions: [], snapshots: []}))
+  g.addResource(world, g.ReplicationStream({transactions: [], snapshots: [], rawSnapshots: []}))
   g.addResource(world, g.CommandBuffer(new Map()))
   g.addResource(world, g.IncomingTransactions(new Map()))
   g.addResource(world, g.IncomingSnapshots(new Map()))
@@ -161,6 +161,8 @@ const peerB = createPeer(2, "canvasB", {
 const entityA = peerA.spawnPlayer()
 const entityB = peerB.spawnPlayer()
 
+const sharedWriter = g.acquireWriter()
+
 function loop() {
   peerA.update(entityA)
   peerB.update(entityB)
@@ -169,19 +171,17 @@ function loop() {
   const streamA = g.getResource(peerA.world, g.ReplicationStream)
   if (streamA) {
     for (const tx of streamA.transactions) {
-      const writer = new g.ByteWriter()
-      g.writeTransaction(writer, tx, peerA.world)
-      const reader = new g.ByteReader(writer.getBytes())
+      sharedWriter.reset()
+      g.writeTransaction(sharedWriter, tx, peerA.world)
+      const reader = new g.ByteReader(sharedWriter.toBytes())
       const header = g.readMessageHeader(reader)
       const decoded = g.readTransaction(reader, header.tick, peerB.world)
       g.receiveTransaction(peerB.world, decoded)
     }
-    for (const snap of streamA.snapshots) {
-      const writer = new g.ByteWriter()
-      g.writeSnapshot(writer, snap, peerA.world)
-      const reader = new g.ByteReader(writer.getBytes())
+    for (const raw of streamA.rawSnapshots) {
+      const reader = new g.ByteReader(raw)
       const header = g.readMessageHeader(reader)
-      const decoded = g.readSnapshot(reader, header.tick, peerB.world)
+      const decoded = g.readSnapshotLazy(reader, header.tick)
       g.receiveSnapshot(peerB.world, decoded)
     }
   }
@@ -190,19 +190,17 @@ function loop() {
   const streamB = g.getResource(peerB.world, g.ReplicationStream)
   if (streamB) {
     for (const tx of streamB.transactions) {
-      const writer = new g.ByteWriter()
-      g.writeTransaction(writer, tx, peerB.world)
-      const reader = new g.ByteReader(writer.getBytes())
+      sharedWriter.reset()
+      g.writeTransaction(sharedWriter, tx, peerB.world)
+      const reader = new g.ByteReader(sharedWriter.toBytes())
       const header = g.readMessageHeader(reader)
       const decoded = g.readTransaction(reader, header.tick, peerA.world)
       g.receiveTransaction(peerA.world, decoded)
     }
-    for (const snap of streamB.snapshots) {
-      const writer = new g.ByteWriter()
-      g.writeSnapshot(writer, snap, peerB.world)
-      const reader = new g.ByteReader(writer.getBytes())
+    for (const raw of streamB.rawSnapshots) {
+      const reader = new g.ByteReader(raw)
       const header = g.readMessageHeader(reader)
-      const decoded = g.readSnapshot(reader, header.tick, peerA.world)
+      const decoded = g.readSnapshotLazy(reader, header.tick)
       g.receiveSnapshot(peerA.world, decoded)
     }
   }

@@ -185,7 +185,7 @@ function setupServer() {
 
 function setupClient(domainId: number) {
   const world = g.makeWorld({domainId, schema})
-  g.addResource(world, g.HistoryBuffer({snapshots: [], maxSize: 120}))
+  g.addResource(world, g.HistoryBuffer({snapshots: [], checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
   g.addResource(world, g.CommandBuffer(new Map()))
   g.addResource(world, g.IncomingTransactions(new Map()))
   g.addResource(world, g.IncomingSnapshots(new Map()))
@@ -529,5 +529,697 @@ test("predictive spawning and rebinding isomorphism", () => {
 
       expect(pulseEntities.length).toBeLessThanOrEqual(1)
     }
+  }
+})
+
+/**
+ * Reproduction of the server-authoritative-canvas disappearing player bug.
+ *
+ * The canvas example adds a HistoryBuffer to the server AND streams Position
+ * snapshots to the client – neither of which the tests above do.  After the
+ * client receives the spawn transaction and then issues a single move command,
+ * the player rectangle vanishes from the client view even though the server
+ * continues to show it.
+ */
+test("canvas repro: client player persists after first command", () => {
+  const LATENCY_TICKS = 6
+
+  // Extra component used by the canvas example's render query
+  const Color = g.defineComponent<number>({
+    bytesPerElement: 4,
+    encode: (val, writer) => writer.writeUint32(val),
+    decode: (reader) => reader.readUint32(),
+  })
+
+  const canvasSchema = [...schema, Color]
+
+  // ---- server (mirrors createServer in canvas example) ----
+  const serverWorld = g.makeWorld({domainId: 0, schema: canvasSchema})
+
+  g.addResource(
+    serverWorld,
+    g.ReplicationConfig({
+      historyWindow: 64,
+      snapshotComponents: [serverWorld.componentRegistry.getId(Position)],
+    }),
+  )
+  // Canvas example adds HistoryBuffer to the server – this is the key
+  // difference from the existing setupServer() helper.
+  g.addResource(serverWorld, g.HistoryBuffer({snapshots: [], checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(
+    serverWorld,
+    g.ReplicationStream({transactions: [], snapshots: []}),
+  )
+  g.addResource(serverWorld, g.CommandBuffer(new Map()))
+  g.addResource(serverWorld, g.IncomingTransactions(new Map()))
+  g.addResource(serverWorld, g.IncomingSnapshots(new Map()))
+
+  const serverSchedule = g.makeSystemSchedule()
+  g.addSystem(serverSchedule, replication.clearReplicationStream)
+  g.addSystem(serverSchedule, reconciliation.applyRemoteTransactions)
+  g.addSystem(serverSchedule, commands.spawnEphemeralCommands)
+  g.addSystem(serverSchedule, movementSystem)
+  g.addSystem(serverSchedule, commands.cleanupEphemeralCommands)
+  g.addSystem(serverSchedule, replication.commitPendingMutations)
+  g.addSystem(serverSchedule, replication.emitSnapshots)
+  g.addSystem(serverSchedule, replication.advanceWorldTick)
+  g.addSystem(serverSchedule, replication.pruneTemporalBuffers)
+
+  // ---- spawn player on the server ----
+  const player = g.spawn(
+    serverWorld,
+    Position({x: 125, y: 125}),
+    Color(0),
+    g.Replicated,
+  )
+
+  // ---- server runs first tick  ----
+  // commitPendingMutations produces the spawn transaction;
+  // emitSnapshots produces a Position snapshot.
+  g.runSchedule(serverSchedule, serverWorld as g.World)
+
+  // Grab the replication output before it is cleared next tick.
+  const stream = g.getResource(serverWorld, g.ReplicationStream)!
+  expect(stream.transactions.length).toBeGreaterThan(0)
+
+  // Serialize → deserialize so the test exercises the real wire path.
+  const spawnTxPackets: Uint8Array[] = stream.transactions.map((tx) => {
+    const w = new g.ByteWriter()
+    g.writeTransaction(w, tx, serverWorld)
+    return w.getBytes()
+  })
+  const snapshotPackets: Uint8Array[] = stream.snapshots.map((snap) => {
+    const w = new g.ByteWriter()
+    g.writeSnapshot(w, snap, serverWorld)
+    return w.getBytes()
+  })
+
+  // ---- client (mirrors createClient in canvas example) ----
+  const clientWorld = g.makeWorld({domainId: 1, schema: canvasSchema})
+
+  const reconcileSchedule = g.makeSystemSchedule()
+  g.addSystem(reconcileSchedule, commands.spawnEphemeralCommands)
+  g.addSystem(reconcileSchedule, movementSystem)
+  g.addSystem(reconcileSchedule, commands.cleanupEphemeralCommands)
+
+  g.addResource(clientWorld, g.HistoryBuffer({snapshots: [], checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(clientWorld, g.CommandBuffer(new Map()))
+  g.addResource(clientWorld, g.InputBuffer(new Map()))
+  g.addResource(clientWorld, g.IncomingTransactions(new Map()))
+  g.addResource(clientWorld, g.IncomingSnapshots(new Map()))
+  g.addResource(
+    clientWorld,
+    g.ReplicationConfig({
+      historyWindow: 64,
+      ghostCleanupWindow: 60,
+      reconcileSchedule,
+    }),
+  )
+
+  const clientSchedule = g.makeSystemSchedule()
+  g.addSystem(clientSchedule, reconciliation.performRollback)
+  g.addSystem(clientSchedule, reconciliation.cleanupGhosts)
+  g.addSystem(clientSchedule, reconciliation.applyRemoteSnapshots)
+  g.addSystem(clientSchedule, commands.spawnEphemeralCommands)
+  g.addSystem(clientSchedule, movementSystem)
+  g.addSystem(clientSchedule, reconciliation.applyRemoteTransactions)
+  g.addSystem(clientSchedule, commands.cleanupEphemeralCommands)
+  g.addSystem(clientSchedule, replication.commitPendingMutations)
+  g.addSystem(clientSchedule, replication.advanceWorldTick)
+  g.addSystem(clientSchedule, replication.pruneTemporalBuffers)
+
+  // ---- simulate the handshake: client syncs its clock ----
+  // Server is now at tick 1 (after one runSchedule with advanceWorldTick).
+  const targetTick = serverWorld.tick + 15 + LATENCY_TICKS // matches canvas LAG_COMPENSATION_TICKS + latencyTicks
+  g.setTick(clientWorld, targetTick)
+  const history = g.getResource(clientWorld, g.HistoryBuffer)!
+  g.pushSnapshot(clientWorld, history) // empty-world snapshot, same as canvas
+
+  // ---- deliver spawn transaction & snapshot to the client ----
+  for (const packet of spawnTxPackets) {
+    const reader = new g.ByteReader(packet)
+    const header = g.readMessageHeader(reader)
+    const transaction = g.readTransaction(reader, header.tick, serverWorld)
+    g.receiveTransaction(clientWorld, transaction)
+  }
+  for (const packet of snapshotPackets) {
+    const reader = new g.ByteReader(packet)
+    const header = g.readMessageHeader(reader)
+    const snapshot = g.readSnapshot(reader, header.tick, serverWorld)
+    g.receiveSnapshot(clientWorld, snapshot)
+  }
+
+  // ---- let the client tick a few times so it processes the transaction ----
+  for (let i = 0; i < 5; i++) {
+    g.runSchedule(clientSchedule, clientWorld as g.World)
+  }
+
+  // Sanity: player must be present before we issue any command.
+  const posBefore = g.getComponentValue(clientWorld, player, Position)
+  const colorBefore = g.getComponentValue(clientWorld, player, Color)
+  expect(posBefore).toBeDefined()
+  expect(colorBefore).toBeDefined()
+  expect(posBefore!.x).toBe(125)
+  expect(posBefore!.y).toBe(125)
+
+  // ---- client records a single move command ----
+  g.recordCommand(clientWorld, player, MoveCommand({dx: 1, dy: 0}))
+
+  // ---- run the client schedule that processes the command ----
+  g.runSchedule(clientSchedule, clientWorld as g.World)
+
+  // ---- THE KEY ASSERTION: position and color must still be readable ----
+  const posAfterCmd = g.getComponentValue(clientWorld, player, Position)
+  const colorAfterCmd = g.getComponentValue(clientWorld, player, Color)
+  expect(posAfterCmd).toBeDefined()
+  expect(colorAfterCmd).toBeDefined()
+
+  // The movement system should have applied the command.
+  expect(posAfterCmd!.x).toBe(125 + 1 * SPEED)
+  expect(posAfterCmd!.y).toBe(125)
+
+  // ---- run several more ticks – the entity must not vanish ----
+  for (let i = 0; i < 20; i++) {
+    g.runSchedule(clientSchedule, clientWorld as g.World)
+    const pos = g.getComponentValue(clientWorld, player, Position)
+    const color = g.getComponentValue(clientWorld, player, Color)
+    expect(pos).toBeDefined()
+    expect(color).toBeDefined()
+  }
+})
+
+/**
+ * Reproduction of the second disappearing player bug:
+ * pressing Space (FireCommand) while holding a direction key (MoveCommand)
+ * causes the player to vanish on the client.
+ *
+ * The pulseSpawnerSystem spawns a Replicated entity with PulseOf(player)
+ * during the same tick that the movement system processes the MoveCommand.
+ */
+test("canvas repro: player persists with simultaneous move + fire", () => {
+  const LATENCY_TICKS = 6
+
+  const Color = g.defineComponent<number>({
+    bytesPerElement: 4,
+    encode: (val, writer) => writer.writeUint32(val),
+    decode: (reader) => reader.readUint32(),
+  })
+
+  // pulseSystem: grows pulse, despawns when large
+  const pulseSystem = g.defineSystem(
+    (
+      query: g.All<g.Entity, typeof Pulse>,
+      update: g.Add<typeof Pulse>,
+      doDespawn: g.Despawn,
+    ) => {
+      for (const [entity, size] of query) {
+        const nextSize = (size as number) + 1.5
+        if (nextSize > 40) {
+          doDespawn(entity)
+        } else {
+          update(entity, nextSize)
+        }
+      }
+    },
+    {
+      params: [{all: [{entity: true}, Pulse]}, g.Add(Pulse), g.Despawn()],
+      name: "pulseSystem",
+    },
+  )
+
+  const canvasSchema = [...schema, Color]
+
+  function addLogicalSystems(schedule: g.SystemSchedule) {
+    g.addSystem(schedule, movementSystem)
+    g.addSystem(schedule, pulseSpawnerSystem)
+    g.addSystem(schedule, pulseSystem)
+    g.addSystem(schedule, attachedPulseSystem)
+  }
+
+  // ---- server ----
+  const serverWorld = g.makeWorld({domainId: 0, schema: canvasSchema})
+
+  g.addResource(
+    serverWorld,
+    g.ReplicationConfig({
+      historyWindow: 64,
+      snapshotComponents: [serverWorld.componentRegistry.getId(Position)],
+    }),
+  )
+  g.addResource(serverWorld, g.HistoryBuffer({snapshots: [], checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(
+    serverWorld,
+    g.ReplicationStream({transactions: [], snapshots: []}),
+  )
+  g.addResource(serverWorld, g.CommandBuffer(new Map()))
+  g.addResource(serverWorld, g.IncomingTransactions(new Map()))
+  g.addResource(serverWorld, g.IncomingSnapshots(new Map()))
+
+  const serverSchedule = g.makeSystemSchedule()
+  g.addSystem(serverSchedule, replication.clearReplicationStream)
+  g.addSystem(serverSchedule, reconciliation.applyRemoteTransactions)
+  g.addSystem(serverSchedule, commands.spawnEphemeralCommands)
+  addLogicalSystems(serverSchedule)
+  g.addSystem(serverSchedule, commands.cleanupEphemeralCommands)
+  g.addSystem(serverSchedule, replication.commitPendingMutations)
+  g.addSystem(serverSchedule, replication.emitSnapshots)
+  g.addSystem(serverSchedule, replication.advanceWorldTick)
+  g.addSystem(serverSchedule, replication.pruneTemporalBuffers)
+
+  // spawn player on server
+  const player = g.spawn(
+    serverWorld,
+    Position({x: 125, y: 125}),
+    Color(0),
+    g.Replicated,
+  )
+
+  // server first tick
+  g.runSchedule(serverSchedule, serverWorld as g.World)
+
+  const stream = g.getResource(serverWorld, g.ReplicationStream)!
+  const spawnTxPackets: Uint8Array[] = stream.transactions.map((tx) => {
+    const w = new g.ByteWriter()
+    g.writeTransaction(w, tx, serverWorld)
+    return w.getBytes()
+  })
+  const snapshotPackets: Uint8Array[] = stream.snapshots.map((snap) => {
+    const w = new g.ByteWriter()
+    g.writeSnapshot(w, snap, serverWorld)
+    return w.getBytes()
+  })
+
+  // ---- client ----
+  const clientWorld = g.makeWorld({domainId: 1, schema: canvasSchema})
+
+  const reconcileSchedule = g.makeSystemSchedule()
+  g.addSystem(reconcileSchedule, commands.spawnEphemeralCommands)
+  addLogicalSystems(reconcileSchedule)
+  g.addSystem(reconcileSchedule, commands.cleanupEphemeralCommands)
+
+  g.addResource(clientWorld, g.HistoryBuffer({snapshots: [], checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(clientWorld, g.CommandBuffer(new Map()))
+  g.addResource(clientWorld, g.InputBuffer(new Map()))
+  g.addResource(clientWorld, g.IncomingTransactions(new Map()))
+  g.addResource(clientWorld, g.IncomingSnapshots(new Map()))
+  g.addResource(
+    clientWorld,
+    g.ReplicationConfig({
+      historyWindow: 64,
+      ghostCleanupWindow: 60,
+      reconcileSchedule,
+    }),
+  )
+
+  const clientSchedule = g.makeSystemSchedule()
+  g.addSystem(clientSchedule, reconciliation.performRollback)
+  g.addSystem(clientSchedule, reconciliation.cleanupGhosts)
+  g.addSystem(clientSchedule, reconciliation.applyRemoteSnapshots)
+  g.addSystem(clientSchedule, commands.spawnEphemeralCommands)
+  addLogicalSystems(clientSchedule)
+  g.addSystem(clientSchedule, reconciliation.applyRemoteTransactions)
+  g.addSystem(clientSchedule, commands.cleanupEphemeralCommands)
+  g.addSystem(clientSchedule, replication.commitPendingMutations)
+  g.addSystem(clientSchedule, replication.advanceWorldTick)
+  g.addSystem(clientSchedule, replication.pruneTemporalBuffers)
+
+  // handshake
+  const targetTick = serverWorld.tick + 15 + LATENCY_TICKS
+  g.setTick(clientWorld, targetTick)
+  const history = g.getResource(clientWorld, g.HistoryBuffer)!
+  g.pushSnapshot(clientWorld, history)
+
+  // deliver spawn transaction + snapshot to client
+  for (const packet of spawnTxPackets) {
+    const reader = new g.ByteReader(packet)
+    const header = g.readMessageHeader(reader)
+    const transaction = g.readTransaction(reader, header.tick, serverWorld)
+    g.receiveTransaction(clientWorld, transaction)
+  }
+  for (const packet of snapshotPackets) {
+    const reader = new g.ByteReader(packet)
+    const header = g.readMessageHeader(reader)
+    const snapshot = g.readSnapshot(reader, header.tick, serverWorld)
+    g.receiveSnapshot(clientWorld, snapshot)
+  }
+
+  // settle ticks
+  for (let i = 0; i < 5; i++) {
+    g.runSchedule(clientSchedule, clientWorld as g.World)
+  }
+
+  // Sanity: player must be present
+  const posBefore = g.getComponentValue(clientWorld, player, Position)
+  expect(posBefore).toBeDefined()
+  expect(posBefore!.x).toBe(125)
+
+  // ---- hold direction for a few ticks ----
+  for (let i = 0; i < 3; i++) {
+    g.recordCommand(clientWorld, player, MoveCommand({dx: 1, dy: 0}))
+    g.runSchedule(clientSchedule, clientWorld as g.World)
+  }
+
+  const posAfterMove = g.getComponentValue(clientWorld, player, Position)
+  expect(posAfterMove).toBeDefined()
+  expect(posAfterMove!.x).toBe(125 + 3 * SPEED)
+
+  // ---- move + fire in the same tick ----
+  g.recordCommand(clientWorld, player, MoveCommand({dx: 1, dy: 0}))
+  g.recordCommand(clientWorld, player, FireCommand)
+
+  // Send commands to the server (like the canvas example)
+  const cmdBuffer = g.getResource(clientWorld, g.CommandBuffer)!
+  const cmdsThisTick = cmdBuffer.get(clientWorld.tick)
+  if (cmdsThisTick && cmdsThisTick.length > 0) {
+    const w = new g.ByteWriter()
+    g.writeCommands(w, {tick: clientWorld.tick, commands: cmdsThisTick}, clientWorld)
+    const cmdPacket = w.getBytes()
+    const reader2 = new g.ByteReader(cmdPacket)
+    const header2 = g.readMessageHeader(reader2)
+    const cmdMsg = g.readCommands(reader2, header2.tick, serverWorld)
+    const targetServerTick = Math.max(serverWorld.tick, cmdMsg.tick)
+    for (const cmd of cmdMsg.commands) {
+      g.recordCommand(
+        serverWorld,
+        cmd.target as g.Entity,
+        {
+          component: {id: cmd.componentId, __component_brand: true} as g.ComponentLike,
+          value: cmd.data,
+        },
+        targetServerTick,
+        cmdMsg.tick,
+      )
+    }
+  }
+
+  g.runSchedule(clientSchedule, clientWorld as g.World)
+
+  // Player must still exist after move + fire
+  const posAfterFire = g.getComponentValue(clientWorld, player, Position)
+  const colorAfterFire = g.getComponentValue(clientWorld, player, Color)
+  expect(posAfterFire).toBeDefined()
+  expect(colorAfterFire).toBeDefined()
+  expect(posAfterFire!.x).toBe(125 + 4 * SPEED)
+
+  // ---- simulate the real game loop: interleave server + client ticks ----
+  // Collect server output after each tick and deliver with latency.
+  type DelayedPacket = {deliveryTick: number; packet: Uint8Array}
+  const pendingToClient: DelayedPacket[] = []
+
+  function collectServerOutput() {
+    const s = g.getResource(serverWorld, g.ReplicationStream)!
+    for (const tx of s.transactions) {
+      const w = new g.ByteWriter()
+      g.writeTransaction(w, tx, serverWorld)
+      pendingToClient.push({
+        deliveryTick: clientWorld.tick + LATENCY_TICKS,
+        packet: w.getBytes(),
+      })
+    }
+    for (const snap of s.snapshots) {
+      const w = new g.ByteWriter()
+      g.writeSnapshot(w, snap, serverWorld)
+      pendingToClient.push({
+        deliveryTick: clientWorld.tick + LATENCY_TICKS,
+        packet: w.getBytes(),
+      })
+    }
+  }
+
+  function deliverPendingToClient() {
+    const toDeliver = pendingToClient.filter(
+      (p) => p.deliveryTick <= clientWorld.tick,
+    )
+    for (const p of toDeliver) {
+      const reader3 = new g.ByteReader(p.packet)
+      const header3 = g.readMessageHeader(reader3)
+      if (header3.type === g.MessageType.Transaction) {
+        const transaction = g.readTransaction(
+          reader3,
+          header3.tick,
+          clientWorld,
+        )
+        g.receiveTransaction(clientWorld, transaction)
+      } else if (header3.type === g.MessageType.Snapshot) {
+        const snapshot = g.readSnapshot(reader3, header3.tick, clientWorld)
+        g.receiveSnapshot(clientWorld, snapshot)
+      }
+    }
+    // Remove delivered packets
+    for (let i = pendingToClient.length - 1; i >= 0; i--) {
+      if (pendingToClient[i]!.deliveryTick <= clientWorld.tick) {
+        pendingToClient.splice(i, 1)
+      }
+    }
+  }
+
+  // Advance server to catch up (it's behind from the initial setup)
+  while (serverWorld.tick < clientWorld.tick - LATENCY_TICKS) {
+    g.runSchedule(serverSchedule, serverWorld as g.World)
+    collectServerOutput()
+  }
+
+  // Run 40 more ticks with continuous movement, firing every once in a while
+  for (let i = 0; i < 40; i++) {
+    // Server tick
+    g.runSchedule(serverSchedule, serverWorld as g.World)
+    collectServerOutput()
+
+    // Deliver any pending server output that has "arrived"
+    deliverPendingToClient()
+
+    // Client input: always move, fire on specific ticks
+    g.recordCommand(clientWorld, player, MoveCommand({dx: 1, dy: 0}))
+    if (i % 10 === 0) {
+      g.recordCommand(clientWorld, player, FireCommand)
+    }
+
+    // Send commands to server
+    const cb = g.getResource(clientWorld, g.CommandBuffer)!
+    const tickCmds = cb.get(clientWorld.tick)
+    if (tickCmds && tickCmds.length > 0) {
+      const w = new g.ByteWriter()
+      g.writeCommands(
+        w,
+        {tick: clientWorld.tick, commands: tickCmds},
+        clientWorld,
+      )
+      const cmdPacket = w.getBytes()
+      const r = new g.ByteReader(cmdPacket)
+      const h = g.readMessageHeader(r)
+      const cmdMsg = g.readCommands(r, h.tick, serverWorld)
+      const tgt = Math.max(serverWorld.tick, cmdMsg.tick)
+      for (const cmd of cmdMsg.commands) {
+        g.recordCommand(
+          serverWorld,
+          cmd.target as g.Entity,
+          {
+            component: {
+              id: cmd.componentId,
+              __component_brand: true,
+            } as g.ComponentLike,
+            value: cmd.data,
+          },
+          tgt,
+          cmdMsg.tick,
+        )
+      }
+    }
+
+    // Client tick
+    g.runSchedule(clientSchedule, clientWorld as g.World)
+
+    // Assert player survives every tick
+    const pos = g.getComponentValue(clientWorld, player, Position)
+    const color = g.getComponentValue(clientWorld, player, Color)
+    expect(pos).toBeDefined()
+    expect(color).toBeDefined()
+  }
+})
+
+/**
+ * Reproduction of the ghost cleanup + entity ID recycling bug.
+ *
+ * When a predicted Replicated entity (pulse) is despawned by game logic, its
+ * entity ID is recycled. A subsequent predicted entity can reuse the same ID.
+ * But the OLD transient registry entry still exists, and when ghost cleanup
+ * eventually fires for that entry, it despawns the WRONG (new) entity.
+ *
+ * Pressing Space repeatedly causes pulse entities to cycle through creation
+ * and destruction. After a few cycles, ghost cleanup despawns a live pulse
+ * entity (or worse, a player entity that shares a recycled ID).
+ */
+test("canvas repro: ghost cleanup must not despawn recycled entity IDs", () => {
+  const LATENCY_TICKS = 6
+  const GHOST_WINDOW = 60
+
+  const Color = g.defineComponent<number>({
+    bytesPerElement: 4,
+    encode: (val, writer) => writer.writeUint32(val),
+    decode: (reader) => reader.readUint32(),
+  })
+
+  const pulseSystem = g.defineSystem(
+    (
+      query: g.All<g.Entity, typeof Pulse>,
+      update: g.Add<typeof Pulse>,
+      doDespawn: g.Despawn,
+    ) => {
+      for (const [entity, size] of query) {
+        const nextSize = (size as number) + 1.5
+        if (nextSize > 40) {
+          doDespawn(entity)
+        } else {
+          update(entity, nextSize)
+        }
+      }
+    },
+    {
+      params: [{all: [{entity: true}, Pulse]}, g.Add(Pulse), g.Despawn()],
+      name: "pulseSystem",
+    },
+  )
+
+  const canvasSchema = [...schema, Color]
+
+  function addLogicalSystems(schedule: g.SystemSchedule) {
+    g.addSystem(schedule, movementSystem)
+    g.addSystem(schedule, pulseSpawnerSystem)
+    g.addSystem(schedule, pulseSystem)
+    g.addSystem(schedule, attachedPulseSystem)
+  }
+
+  // ---- server ----
+  const serverWorld = g.makeWorld({domainId: 0, schema: canvasSchema})
+  g.addResource(serverWorld, g.ReplicationConfig({
+    historyWindow: 64,
+    snapshotComponents: [serverWorld.componentRegistry.getId(Position)],
+  }))
+  g.addResource(serverWorld, g.HistoryBuffer({snapshots: [], checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(serverWorld, g.ReplicationStream({transactions: [], snapshots: []}))
+  g.addResource(serverWorld, g.CommandBuffer(new Map()))
+  g.addResource(serverWorld, g.IncomingTransactions(new Map()))
+  g.addResource(serverWorld, g.IncomingSnapshots(new Map()))
+
+  const serverSchedule = g.makeSystemSchedule()
+  g.addSystem(serverSchedule, replication.clearReplicationStream)
+  g.addSystem(serverSchedule, reconciliation.applyRemoteTransactions)
+  g.addSystem(serverSchedule, commands.spawnEphemeralCommands)
+  addLogicalSystems(serverSchedule)
+  g.addSystem(serverSchedule, commands.cleanupEphemeralCommands)
+  g.addSystem(serverSchedule, replication.commitPendingMutations)
+  g.addSystem(serverSchedule, replication.emitSnapshots)
+  g.addSystem(serverSchedule, replication.advanceWorldTick)
+  g.addSystem(serverSchedule, replication.pruneTemporalBuffers)
+
+  const player = g.spawn(serverWorld, Position({x: 125, y: 125}), Color(0), g.Replicated)
+  g.runSchedule(serverSchedule, serverWorld as g.World)
+
+  const stream = g.getResource(serverWorld, g.ReplicationStream)!
+  const spawnTxPackets = stream.transactions.map((tx) => {
+    const w = new g.ByteWriter()
+    g.writeTransaction(w, tx, serverWorld)
+    return w.getBytes()
+  })
+  const snapshotPackets = stream.snapshots.map((snap) => {
+    const w = new g.ByteWriter()
+    g.writeSnapshot(w, snap, serverWorld)
+    return w.getBytes()
+  })
+
+  // ---- client ----
+  const clientWorld = g.makeWorld({domainId: 1, schema: canvasSchema})
+  const reconcileSchedule = g.makeSystemSchedule()
+  g.addSystem(reconcileSchedule, commands.spawnEphemeralCommands)
+  addLogicalSystems(reconcileSchedule)
+  g.addSystem(reconcileSchedule, commands.cleanupEphemeralCommands)
+
+  g.addResource(clientWorld, g.HistoryBuffer({snapshots: [], checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(clientWorld, g.CommandBuffer(new Map()))
+  g.addResource(clientWorld, g.InputBuffer(new Map()))
+  g.addResource(clientWorld, g.IncomingTransactions(new Map()))
+  g.addResource(clientWorld, g.IncomingSnapshots(new Map()))
+  g.addResource(clientWorld, g.ReplicationConfig({
+    historyWindow: 64,
+    ghostCleanupWindow: GHOST_WINDOW,
+    reconcileSchedule,
+  }))
+
+  const clientSchedule = g.makeSystemSchedule()
+  g.addSystem(clientSchedule, reconciliation.performRollback)
+  g.addSystem(clientSchedule, reconciliation.cleanupGhosts)
+  g.addSystem(clientSchedule, reconciliation.applyRemoteSnapshots)
+  g.addSystem(clientSchedule, commands.spawnEphemeralCommands)
+  addLogicalSystems(clientSchedule)
+  g.addSystem(clientSchedule, reconciliation.applyRemoteTransactions)
+  g.addSystem(clientSchedule, commands.cleanupEphemeralCommands)
+  g.addSystem(clientSchedule, replication.commitPendingMutations)
+  g.addSystem(clientSchedule, replication.advanceWorldTick)
+  g.addSystem(clientSchedule, replication.pruneTemporalBuffers)
+
+  // ---- handshake ----
+  const targetTick = serverWorld.tick + 15 + LATENCY_TICKS
+  g.setTick(clientWorld, targetTick)
+  const history = g.getResource(clientWorld, g.HistoryBuffer)!
+  g.pushSnapshot(clientWorld, history)
+
+  for (const packet of spawnTxPackets) {
+    const reader = new g.ByteReader(packet)
+    const header = g.readMessageHeader(reader)
+    const transaction = g.readTransaction(reader, header.tick, serverWorld)
+    g.receiveTransaction(clientWorld, transaction)
+  }
+  for (const packet of snapshotPackets) {
+    const reader = new g.ByteReader(packet)
+    const header = g.readMessageHeader(reader)
+    const snapshot = g.readSnapshot(reader, header.tick, serverWorld)
+    g.receiveSnapshot(clientWorld, snapshot)
+  }
+
+  // settle
+  for (let i = 0; i < 5; i++) {
+    g.runSchedule(clientSchedule, clientWorld as g.World)
+  }
+  expect(g.getComponentValue(clientWorld, player, Position)).toBeDefined()
+
+  // ---- fire repeatedly, well past the ghost cleanup window ----
+  // The pulse entity lives ~23 ticks (size 5 → 40 @ +1.5/tick).
+  // Fire every 30 ticks so the old pulse is despawned before the new one.
+  // After GHOST_WINDOW + extra ticks, ghost cleanup should fire for old entries.
+  const FIRE_INTERVAL = 30
+  const TOTAL_TICKS = GHOST_WINDOW + FIRE_INTERVAL * 3 + 20
+
+  // Intercept console.log to detect ghost cleanup incorrectly despawning
+  // recycled entity IDs.
+  const originalLog = console.log
+  const ghostDespawns: number[] = []
+  console.log = (...args: unknown[]) => {
+    if (args[0] === "despawned transient entity") {
+      ghostDespawns.push(args[1] as number)
+    }
+  }
+
+  try {
+    for (let i = 0; i < TOTAL_TICKS; i++) {
+      // Fire command every FIRE_INTERVAL ticks
+      if (i % FIRE_INTERVAL === 0) {
+        g.recordCommand(clientWorld, player, FireCommand)
+      }
+
+      g.runSchedule(clientSchedule, clientWorld as g.World)
+
+      // The player must ALWAYS survive
+      const pos = g.getComponentValue(clientWorld, player, Position)
+      const color = g.getComponentValue(clientWorld, player, Color)
+      expect(pos).toBeDefined()
+      expect(color).toBeDefined()
+    }
+
+    // Ghost cleanup should NEVER despawn an entity whose transient registry
+    // entry was already cleaned up by flushDeletions.  If it does, stale
+    // entries collided with recycled IDs.
+    expect(ghostDespawns).toEqual([])
+  } finally {
+    console.log = originalLog
   }
 })

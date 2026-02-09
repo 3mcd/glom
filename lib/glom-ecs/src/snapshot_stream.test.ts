@@ -3,7 +3,11 @@ import {defineComponent} from "./component"
 import {ByteReader, ByteWriter} from "./lib/binary"
 import {readMessageHeader, readSnapshot, writeSnapshot} from "./protocol"
 import {Replicated} from "./replication_config"
-import {applySnapshotStream, captureSnapshotStream} from "./snapshot_stream"
+import {
+  applySnapshotStream,
+  applySnapshotStreamVersioned,
+  captureSnapshotStream,
+} from "./snapshot_stream"
 import {getComponentValue, makeWorld} from "./world"
 import {spawn} from "./world_api"
 
@@ -51,7 +55,7 @@ describe("snapshot streaming", () => {
     expect(getComponentValue(worldB, e3, Position)).toBeUndefined()
   })
 
-  test("LWW versioning in snapshots", () => {
+  test("authoritative snapshots always overwrite (forceSet)", () => {
     const world = makeWorld({domainId: 1, schema: [Position]})
     world.tick = 50
     const entity = spawn(world, Position({x: 50, y: 50}), Replicated)
@@ -68,6 +72,28 @@ describe("snapshot streaming", () => {
       ],
     }
     applySnapshotStream(world, oldMessage)
+    // Authoritative: always overwrites, even with older tick
+    expect(getComponentValue(world, entity, Position)?.x).toBe(40)
+  })
+
+  test("versioned snapshots respect LWW (P2P)", () => {
+    const world = makeWorld({domainId: 1, schema: [Position]})
+    world.tick = 50
+    const entity = spawn(world, Position({x: 50, y: 50}), Replicated)
+    const posId = world.componentRegistry.getId(Position)
+
+    const oldMessage = {
+      tick: 40,
+      blocks: [
+        {
+          componentId: posId,
+          entities: [entity as number],
+          data: [{x: 40, y: 40}],
+        },
+      ],
+    }
+    applySnapshotStreamVersioned(world, oldMessage)
+    // Versioned: older tick does NOT overwrite
     expect(getComponentValue(world, entity, Position)?.x).toBe(50)
 
     const newMessage = {
@@ -80,7 +106,8 @@ describe("snapshot streaming", () => {
         },
       ],
     }
-    applySnapshotStream(world, newMessage)
+    applySnapshotStreamVersioned(world, newMessage)
+    // Versioned: newer tick overwrites
     expect(getComponentValue(world, entity, Position)?.x).toBe(60)
   })
 })

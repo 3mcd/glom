@@ -10,6 +10,8 @@ export type SnapshotBlock = {
 export type SnapshotMessage = {
   tick: number
   blocks: SnapshotBlock[]
+  /** Raw serialized snapshot body for lazy decode. When set, `blocks` is empty. */
+  _raw?: Uint8Array
 }
 
 export type SpawnComponent = {
@@ -38,7 +40,15 @@ export type SetOp = {
 
 export type RemoveOp = {type: "remove"; entity: Entity; componentId: number}
 
-export type ReplicationOp = SpawnOp | DespawnOp | SetOp | RemoveOp
+export type AddOp = {
+  type: "add"
+  entity: Entity
+  componentId: number
+  data?: unknown
+  rel?: RelationPair
+}
+
+export type ReplicationOp = SpawnOp | DespawnOp | SetOp | RemoveOp | AddOp
 
 export type Transaction = {
   domainId: number
