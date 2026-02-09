@@ -95,7 +95,7 @@ function createPeer(
       ],
     }),
   )
-  g.addResource(world, g.ReplicationStream({transactions: [], snapshots: [], rawSnapshots: []}))
+  g.addResource(world, g.ReplicationStream({transactions: [], snapshots: []}))
   g.addResource(world, g.CommandBuffer(new Map()))
   g.addResource(world, g.IncomingTransactions(new Map()))
   g.addResource(world, g.IncomingSnapshots(new Map()))
@@ -178,10 +178,10 @@ function loop() {
       const decoded = g.readTransaction(reader, header.tick, peerB.world)
       g.receiveTransaction(peerB.world, decoded)
     }
-    for (const raw of streamA.rawSnapshots) {
+    for (const raw of streamA.snapshots) {
       const reader = new g.ByteReader(raw)
       const header = g.readMessageHeader(reader)
-      const decoded = g.readSnapshotLazy(reader, header.tick)
+      const decoded = g.readSnapshot(reader, header.tick)
       g.receiveSnapshot(peerB.world, decoded)
     }
   }
@@ -197,10 +197,10 @@ function loop() {
       const decoded = g.readTransaction(reader, header.tick, peerA.world)
       g.receiveTransaction(peerA.world, decoded)
     }
-    for (const raw of streamB.rawSnapshots) {
+    for (const raw of streamB.snapshots) {
       const reader = new g.ByteReader(raw)
       const header = g.readMessageHeader(reader)
-      const decoded = g.readSnapshotLazy(reader, header.tick)
+      const decoded = g.readSnapshot(reader, header.tick)
       g.receiveSnapshot(peerA.world, decoded)
     }
   }

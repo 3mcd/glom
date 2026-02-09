@@ -89,9 +89,8 @@ export function captureSnapshotStream(
 /**
  * Capture snapshot data from the world and write directly to a ByteWriter,
  * bypassing all intermediate SnapshotBlock/SnapshotMessage allocations.
- * Produces the same binary format as writeSnapshot().
  */
-export function writeSnapshotDirect(
+export function writeSnapshot(
   writer: ByteWriter,
   world: World,
   componentIds: number[],

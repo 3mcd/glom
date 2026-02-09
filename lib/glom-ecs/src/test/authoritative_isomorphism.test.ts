@@ -291,11 +291,9 @@ class NetworkSimulation {
           this.latencyTicks,
         )
       }
-      for (const snap of stream.snapshots) {
-        const writer = new g.ByteWriter()
-        g.writeSnapshot(writer, snap, this.server.world)
+      for (const raw of stream.snapshots) {
         this.serverToClient.send(
-          writer.getBytes(),
+          raw,
           this.server.world.tick,
           this.latencyTicks,
         )
@@ -608,11 +606,7 @@ test("canvas repro: client player persists after first command", () => {
     g.writeTransaction(w, tx, serverWorld)
     return w.getBytes()
   })
-  const snapshotPackets: Uint8Array[] = stream.snapshots.map((snap) => {
-    const w = new g.ByteWriter()
-    g.writeSnapshot(w, snap, serverWorld)
-    return w.getBytes()
-  })
+  const snapshotPackets: Uint8Array[] = [...stream.snapshots]
 
   // ---- client (mirrors createClient in canvas example) ----
   const clientWorld = g.makeWorld({domainId: 1, schema: canvasSchema})
@@ -665,7 +659,7 @@ test("canvas repro: client player persists after first command", () => {
   for (const packet of snapshotPackets) {
     const reader = new g.ByteReader(packet)
     const header = g.readMessageHeader(reader)
-    const snapshot = g.readSnapshot(reader, header.tick, serverWorld)
+    const snapshot = g.readSnapshot(reader, header.tick)
     g.receiveSnapshot(clientWorld, snapshot)
   }
 
@@ -803,11 +797,7 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
     g.writeTransaction(w, tx, serverWorld)
     return w.getBytes()
   })
-  const snapshotPackets: Uint8Array[] = stream.snapshots.map((snap) => {
-    const w = new g.ByteWriter()
-    g.writeSnapshot(w, snap, serverWorld)
-    return w.getBytes()
-  })
+  const snapshotPackets: Uint8Array[] = [...stream.snapshots]
 
   // ---- client ----
   const clientWorld = g.makeWorld({domainId: 1, schema: canvasSchema})
@@ -859,7 +849,7 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
   for (const packet of snapshotPackets) {
     const reader = new g.ByteReader(packet)
     const header = g.readMessageHeader(reader)
-    const snapshot = g.readSnapshot(reader, header.tick, serverWorld)
+    const snapshot = g.readSnapshot(reader, header.tick)
     g.receiveSnapshot(clientWorld, snapshot)
   }
 
@@ -936,12 +926,10 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
         packet: w.getBytes(),
       })
     }
-    for (const snap of s.snapshots) {
-      const w = new g.ByteWriter()
-      g.writeSnapshot(w, snap, serverWorld)
+    for (const raw of s.snapshots) {
       pendingToClient.push({
         deliveryTick: clientWorld.tick + LATENCY_TICKS,
-        packet: w.getBytes(),
+        packet: raw,
       })
     }
   }
@@ -961,7 +949,7 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
         )
         g.receiveTransaction(clientWorld, transaction)
       } else if (header3.type === g.MessageType.Snapshot) {
-        const snapshot = g.readSnapshot(reader3, header3.tick, clientWorld)
+        const snapshot = g.readSnapshot(reader3, header3.tick)
         g.receiveSnapshot(clientWorld, snapshot)
       }
     }
@@ -1121,11 +1109,7 @@ test("canvas repro: ghost cleanup must not despawn recycled entity IDs", () => {
     g.writeTransaction(w, tx, serverWorld)
     return w.getBytes()
   })
-  const snapshotPackets = stream.snapshots.map((snap) => {
-    const w = new g.ByteWriter()
-    g.writeSnapshot(w, snap, serverWorld)
-    return w.getBytes()
-  })
+  const snapshotPackets = [...stream.snapshots]
 
   // ---- client ----
   const clientWorld = g.makeWorld({domainId: 1, schema: canvasSchema})
@@ -1172,7 +1156,7 @@ test("canvas repro: ghost cleanup must not despawn recycled entity IDs", () => {
   for (const packet of snapshotPackets) {
     const reader = new g.ByteReader(packet)
     const header = g.readMessageHeader(reader)
-    const snapshot = g.readSnapshot(reader, header.tick, serverWorld)
+    const snapshot = g.readSnapshot(reader, header.tick)
     g.receiveSnapshot(clientWorld, snapshot)
   }
 

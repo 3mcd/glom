@@ -47,7 +47,7 @@ export {
   acquireWriter,
   releaseWriter,
 } from "./lib/binary"
-export type {AddOp, SnapshotBlock, SnapshotMessage} from "./net_types"
+export type {AddOp, SnapshotMessage} from "./net_types"
 export {
   type Clocksync,
   type CommandMessage,
@@ -61,14 +61,12 @@ export {
   readHandshakeServer,
   readMessageHeader,
   readSnapshot,
-  readSnapshotLazy,
   readTransaction,
   writeClocksync,
   writeCommands,
   writeHandshakeClient,
   writeHandshakeServer,
   writeMessageHeader,
-  writeSnapshot,
   writeTransaction,
 } from "./protocol"
 export {All, In, Join, Out, Unique} from "./query/all"
@@ -132,7 +130,7 @@ export {
   applySnapshotStream,
   applySnapshotStreamVersioned,
   captureSnapshotStream,
-  writeSnapshotDirect,
+  writeSnapshot,
 } from "./snapshot_stream"
 export {
   makeSparseMap,

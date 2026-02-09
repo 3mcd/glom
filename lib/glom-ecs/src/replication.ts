@@ -26,7 +26,7 @@ import {
   registerIncomingRelation,
   unregisterIncomingRelation,
 } from "./relation_registry"
-import {captureSnapshotStream, writeSnapshotDirect} from "./snapshot_stream"
+import {captureSnapshotStream, writeSnapshot} from "./snapshot_stream"
 import {acquireWriter} from "./lib/binary"
 import {sparseMapDelete, sparseMapGet, sparseMapSet} from "./sparse_map"
 import {defineSystem} from "./system"
@@ -531,7 +531,7 @@ export const emitSnapshots = defineSystem(
     if (interval > 1 && world.tick % interval !== 0) return
     // Write directly to a pooled ByteWriter — no intermediate SnapshotBlock objects
     const writer = acquireWriter()
-    writeSnapshotDirect(
+    writeSnapshot(
       writer,
       world,
       config.snapshotComponents,
@@ -540,8 +540,7 @@ export const emitSnapshots = defineSystem(
     )
     if (writer.getLength() > 7) {
       // >7 means more than header (5 bytes) + blockCount of 0 (2 bytes)
-      if (!stream.rawSnapshots) stream.rawSnapshots = []
-      stream.rawSnapshots.push(writer.toBytes())
+      stream.snapshots.push(writer.toBytes())
     }
   },
   {
@@ -575,7 +574,6 @@ export const clearReplicationStream = defineSystem(
   (stream: Write<typeof ReplicationStream>) => {
     stream.transactions.length = 0
     stream.snapshots.length = 0
-    if (stream.rawSnapshots) stream.rawSnapshots.length = 0
   },
   {
     params: [Write(ReplicationStream)],

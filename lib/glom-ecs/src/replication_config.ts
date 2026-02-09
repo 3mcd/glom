@@ -1,5 +1,5 @@
 import {defineComponent, defineTag} from "./component"
-import type {SnapshotMessage, Transaction} from "./net_types"
+import type {Transaction} from "./net_types"
 import type {SystemSchedule} from "./system_schedule"
 
 export const Replicated = defineTag(0)
@@ -27,14 +27,13 @@ export const ReplicationConfig = defineComponent<{
 
 export const ReplicationStream = defineComponent<{
   transactions: Transaction[]
-  snapshots: SnapshotMessage[]
-  /** Pre-serialized snapshot packets (output of writeSnapshotDirect). */
-  rawSnapshots: Uint8Array[]
+  /** Pre-serialized snapshot packets (output of writeSnapshot). */
+  snapshots: Uint8Array[]
 }>(
   {
     bytesPerElement: 0,
     encode: () => {},
-    decode: () => ({transactions: [], snapshots: [], rawSnapshots: []}),
+    decode: () => ({transactions: [], snapshots: []}),
   },
   2,
 )

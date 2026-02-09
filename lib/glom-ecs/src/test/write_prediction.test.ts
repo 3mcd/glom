@@ -253,11 +253,7 @@ describe("end-to-end client prediction with Write + snapshots", () => {
       g.writeTransaction(w, tx, serverWorld)
       return w.getBytes()
     })
-    const snapshotPackets = stream.snapshots.map((snap) => {
-      const w = new g.ByteWriter()
-      g.writeSnapshot(w, snap, serverWorld)
-      return w.getBytes()
-    })
+    const snapshotPackets = stream.snapshots
 
     // ---- client ----
     const clientWorld = g.makeWorld({domainId: 1, schema})
@@ -315,7 +311,7 @@ describe("end-to-end client prediction with Write + snapshots", () => {
     for (const packet of snapshotPackets) {
       const reader = new g.ByteReader(packet)
       const header = g.readMessageHeader(reader)
-      const snapshot = g.readSnapshot(reader, header.tick, serverWorld)
+      const snapshot = g.readSnapshot(reader, header.tick)
       g.receiveSnapshot(clientWorld, snapshot)
     }
 
@@ -362,12 +358,10 @@ describe("end-to-end client prediction with Write + snapshots", () => {
       const transaction = g.readTransaction(reader, header.tick, serverWorld)
       g.receiveTransaction(clientWorld, transaction)
     }
-    for (const snap of stream.snapshots) {
-      const w = new g.ByteWriter()
-      g.writeSnapshot(w, snap, serverWorld)
-      const reader = new g.ByteReader(w.getBytes())
+    for (const raw of stream.snapshots) {
+      const reader = new g.ByteReader(raw)
       const header = g.readMessageHeader(reader)
-      const snapshot = g.readSnapshot(reader, header.tick, serverWorld)
+      const snapshot = g.readSnapshot(reader, header.tick)
       g.receiveSnapshot(clientWorld, snapshot)
     }
   }
@@ -725,12 +719,10 @@ describe("idle-to-movement transition with latency", () => {
       const transaction = g.readTransaction(reader, header.tick, serverWorld)
       g.receiveTransaction(clientWorld, transaction)
     }
-    for (const snap of stream.snapshots) {
-      const w = new g.ByteWriter()
-      g.writeSnapshot(w, snap, serverWorld)
-      const reader = new g.ByteReader(w.getBytes())
+    for (const raw of stream.snapshots) {
+      const reader = new g.ByteReader(raw)
       const header = g.readMessageHeader(reader)
-      const snapshot = g.readSnapshot(reader, header.tick, serverWorld)
+      const snapshot = g.readSnapshot(reader, header.tick)
       g.receiveSnapshot(clientWorld, snapshot)
     }
 
@@ -805,10 +797,8 @@ describe("idle-to-movement transition with latency", () => {
         g.writeTransaction(w, tx, serverWorld)
         serverToClient.send(w.getBytes(), frame)
       }
-      for (const snap of stream.snapshots) {
-        const w = new g.ByteWriter()
-        g.writeSnapshot(w, snap, serverWorld)
-        serverToClient.send(w.getBytes(), frame)
+      for (const raw of stream.snapshots) {
+        serverToClient.send(raw, frame)
       }
     }
 
@@ -824,7 +814,7 @@ describe("idle-to-movement transition with latency", () => {
         )
         g.receiveTransaction(clientWorld, transaction)
       } else if (header.type === g.MessageType.Snapshot) {
-        const snapshot = g.readSnapshot(reader, header.tick, serverWorld)
+        const snapshot = g.readSnapshot(reader, header.tick)
         g.receiveSnapshot(clientWorld, snapshot)
       }
     }

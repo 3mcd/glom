@@ -1,7 +1,7 @@
 import type {ComponentResolver} from "./component"
 import type {Entity} from "./entity"
 import type {ByteReader, ByteWriter} from "./lib/binary"
-import type {SnapshotBlock, SnapshotMessage} from "./net_types"
+import type {SnapshotMessage} from "./net_types"
 import type {RelationPair} from "./relation_registry"
 import type {ReplicationOp, SpawnComponent, Transaction} from "./replication"
 
@@ -159,77 +159,16 @@ export function readCommands(
   }
 }
 
-export function writeSnapshot(
-  writer: ByteWriter,
-  data: SnapshotMessage,
-  resolverLike: ResolverLike,
-) {
-  const resolver = toResolver(resolverLike)
-  writeMessageHeader(writer, MessageType.Snapshot, data.tick)
-  writer.writeUint16(data.blocks.length)
-
-  for (const block of data.blocks) {
-    writer.writeVarint(block.componentId)
-    writer.writeUint16(block.entities.length)
-
-    const serde = resolver.getSerde(block.componentId)
-    const isTag = resolver.isTag(block.componentId)
-
-    for (let i = 0; i < block.entities.length; i++) {
-      writer.writeVarint(block.entities[i]!)
-      if (!isTag && serde && block.data[i] !== undefined) {
-        serde.encode(block.data[i], writer)
-      }
-    }
-  }
-}
-
-export function readSnapshot(
-  reader: ByteReader,
-  tick: number,
-  resolverLike: ResolverLike,
-): SnapshotMessage {
-  const resolver = toResolver(resolverLike)
-  const blockCount = reader.readUint16()
-  const blocks: SnapshotBlock[] = []
-
-  for (let i = 0; i < blockCount; i++) {
-    const componentId = reader.readVarint()
-    const entityCount = reader.readUint16()
-    const entities: number[] = []
-    const data: unknown[] = []
-
-    const serde = resolver.getSerde(componentId)
-    const isTag = resolver.isTag(componentId)
-
-    for (let j = 0; j < entityCount; j++) {
-      entities.push(reader.readVarint())
-      if (!isTag && serde) {
-        data.push(serde.decode(reader, undefined as unknown))
-      } else {
-        data.push(undefined)
-      }
-    }
-
-    blocks.push({componentId, entities, data})
-  }
-
-  return {
-    tick,
-    blocks,
-  }
-}
-
 /**
- * Like readSnapshot but defers decoding: captures the remaining snapshot body
- * as a raw Uint8Array. When the returned SnapshotMessage is later passed to
+ * Defers snapshot decoding: captures the remaining snapshot body as a raw
+ * Uint8Array. When the returned SnapshotMessage is later passed to
  * applySnapshotStream / applySnapshotStreamVersioned, it will be decoded and
  * applied in a single pass — avoiding all intermediate SnapshotBlock allocations.
  *
  * Assumes the reader's remaining bytes are entirely the snapshot body
- * (one message per buffer). For multi-message buffers, use readSnapshot instead.
+ * (one message per buffer).
  */
-export function readSnapshotLazy(
+export function readSnapshot(
   reader: ByteReader,
   tick: number,
 ): SnapshotMessage {

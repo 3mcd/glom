@@ -176,10 +176,7 @@ function createServer() {
       snapshotInterval: 5,
     }),
   )
-  g.addResource(
-    world,
-    g.ReplicationStream({transactions: [], snapshots: [], rawSnapshots: []}),
-  )
+  g.addResource(world, g.ReplicationStream({transactions: [], snapshots: []}))
   g.addResource(world, g.CommandBuffer(new Map()))
   g.addResource(world, g.IncomingTransactions(new Map()))
   g.addResource(world, g.IncomingSnapshots(new Map()))
@@ -377,7 +374,7 @@ function loop() {
       const transaction = g.readTransaction(reader, header.tick, client.world)
       g.receiveTransaction(client.world, transaction)
     } else if (header.type === g.MessageType.Snapshot) {
-      const snapshot = g.readSnapshotLazy(reader, header.tick)
+      const snapshot = g.readSnapshot(reader, header.tick)
       g.receiveSnapshot(client.world, snapshot)
     }
   }
@@ -430,8 +427,8 @@ function loop() {
           packet: sharedWriter.toBytes(),
         })
       }
-      // rawSnapshots are pre-serialized by emitSnapshots — send directly
-      for (const raw of stream.rawSnapshots) {
+      // snapshots are pre-serialized by emitSnapshots — send directly
+      for (const raw of stream.snapshots) {
         serverToClient.push({
           time: performance.now() + LATENCY_MS,
           packet: raw,
