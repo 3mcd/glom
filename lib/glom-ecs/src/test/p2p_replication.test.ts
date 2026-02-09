@@ -1,11 +1,40 @@
 import {describe, expect, test} from "bun:test"
-import {defineComponent} from "../component"
+import {defineComponent, type ComponentResolver} from "../component"
 import {getComponentValue, makeVersion, makeWorld, getVersionTick, getVersionDomainId, setComponentValue} from "../world"
-import {applySnapshotStreamVersioned, captureSnapshotStream} from "../snapshot_stream"
+import {applySnapshotStreamVersioned, writeSnapshot} from "../snapshot_stream"
+import {ByteReader, ByteWriter} from "../lib/binary"
+import {readMessageHeader, readSnapshot, writeMessageHeader, MessageType} from "../protocol"
 import {Replicated, ReplicationConfig} from "../replication_config"
 import {addComponent, addResource, commitTransaction, getResource, spawn} from "../world_api"
 import {applyTransaction} from "../replication"
-import type {Transaction} from "../net_types"
+import type {SnapshotMessage, Transaction} from "../net_types"
+
+/**
+ * Build a SnapshotMessage with _raw bytes from inline block data.
+ * This avoids depending on entities existing in a world with Replicated.
+ */
+function makeSnapshotMessage(
+  tick: number,
+  blocks: {componentId: number; entities: number[]; data: unknown[]}[],
+  resolver: ComponentResolver,
+): SnapshotMessage {
+  const w = new ByteWriter()
+  // Write just the snapshot body (no message header — readSnapshot strips it)
+  w.writeUint16(blocks.length)
+  for (const block of blocks) {
+    w.writeVarint(block.componentId)
+    w.writeUint16(block.entities.length)
+    const serde = resolver.getSerde(block.componentId)
+    const isTag = resolver.isTag(block.componentId)
+    for (let i = 0; i < block.entities.length; i++) {
+      w.writeVarint(block.entities[i]!)
+      if (!isTag && serde && block.data[i] !== undefined) {
+        serde.encode(block.data[i], w)
+      }
+    }
+  }
+  return {tick, _raw: w.getBytes()}
+}
 
 const Position = defineComponent<{x: number; y: number}>({
   bytesPerElement: 8,
@@ -105,10 +134,11 @@ describe("applySnapshotStreamVersioned", () => {
       50,
     )
 
-    const staleSnapshot = {
-      tick: 40,
-      blocks: [{componentId: posId, entities: [entity as number], data: [{x: 40, y: 40}]}],
-    }
+    const staleSnapshot = makeSnapshotMessage(
+      40,
+      [{componentId: posId, entities: [entity as number], data: [{x: 40, y: 40}]}],
+      world.componentRegistry,
+    )
     applySnapshotStreamVersioned(world, staleSnapshot)
     // Should NOT overwrite — local version (50) > snapshot tick (40)
     expect(getComponentValue(world, entity, Position)?.x).toBe(50)
@@ -119,10 +149,11 @@ describe("applySnapshotStreamVersioned", () => {
     const entity = spawn(world, Position({x: 50, y: 50}), Replicated)
     const posId = world.componentRegistry.getId(Position)
 
-    const newerSnapshot = {
-      tick: 60,
-      blocks: [{componentId: posId, entities: [entity as number], data: [{x: 60, y: 60}]}],
-    }
+    const newerSnapshot = makeSnapshotMessage(
+      60,
+      [{componentId: posId, entities: [entity as number], data: [{x: 60, y: 60}]}],
+      world.componentRegistry,
+    )
     applySnapshotStreamVersioned(world, newerSnapshot)
     expect(getComponentValue(world, entity, Position)?.x).toBe(60)
   })
@@ -283,10 +314,11 @@ describe("P2P reconciliation", () => {
     )
 
     // Receive snapshot from slower peer at tick 15
-    const slowSnapshot = {
-      tick: makeVersion(15, 2), // even with higher domainId, tick 15 < 20
-      blocks: [{componentId: posId, entities: [entity as number], data: [{x: 50, y: 50}]}],
-    }
+    const slowSnapshot = makeSnapshotMessage(
+      makeVersion(15, 2), // even with higher domainId, tick 15 < 20
+      [{componentId: posId, entities: [entity as number], data: [{x: 50, y: 50}]}],
+      world.componentRegistry,
+    )
     applySnapshotStreamVersioned(world, slowSnapshot)
 
     // Note: applySnapshotStreamVersioned uses message.tick as the version.
@@ -341,21 +373,21 @@ describe("P2P reconciliation", () => {
       makeVersion(18, 2),
     )
 
-    // Exchange snapshots
-    const snapA = captureSnapshotStream(peerA, [posId])
-    const snapB = captureSnapshotStream(peerB, [posId])
+    // Exchange snapshots via binary round-trip
+    const writerA = new ByteWriter()
+    writeSnapshot(writerA, peerA, [posId], peerA, makeVersion(20, 1))
+    const writerB = new ByteWriter()
+    writeSnapshot(writerB, peerB, [posId], peerB, makeVersion(18, 2))
 
     // Apply B's snapshot to A (versioned)
-    applySnapshotStreamVersioned(peerA, {
-      tick: makeVersion(18, 2),
-      blocks: snapB,
-    })
+    const readerB = new ByteReader(writerB.getBytes())
+    const headerB = readMessageHeader(readerB)
+    applySnapshotStreamVersioned(peerA, readSnapshot(readerB, headerB.tick))
 
     // Apply A's snapshot to B (versioned)
-    applySnapshotStreamVersioned(peerB, {
-      tick: makeVersion(20, 1),
-      blocks: snapA,
-    })
+    const readerA = new ByteReader(writerA.getBytes())
+    const headerA = readMessageHeader(readerA)
+    applySnapshotStreamVersioned(peerB, readSnapshot(readerA, headerA.tick))
 
     // Peer A should keep its own value (tick 20 > tick 18)
     expect(getComponentValue(peerA, entity, Position)?.x).toBe(50)

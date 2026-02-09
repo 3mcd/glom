@@ -167,26 +167,42 @@ describe("snapshot deep-cloning", () => {
 describe("snapshot force-overwrite", () => {
   test("snapshot always overwrites position (forceSet)", () => {
     const world = g.makeWorld({domainId: 0, schema})
-    const entity = g.spawn(world, Position({x: 0, y: 0}))
+    const entity = g.spawn(world, Position({x: 0, y: 0}), g.Replicated)
     g.commitTransaction(world)
 
     world.tick = 50
 
     const posId = world.componentRegistry.getId(Position)
-    applySnapshotStream(world, {
-      tick: 30,
-      blocks: [
-        {
-          componentId: posId,
-          entities: [entity as number],
-          data: [{x: 999, y: 999}],
-        },
-      ],
-    })
+    // Capture snapshot of current state (x=0,y=0) at tick 30
+    const writer = new g.ByteWriter()
+    g.writeSnapshot(writer, world, [posId], world, 30)
 
+    // Change position so we can verify the snapshot overwrites it
     const pos = g.getComponentValue(world, entity, Position)!
-    expect(pos.x).toBe(999)
-    expect(pos.y).toBe(999)
+    pos.x = 0
+    pos.y = 0
+
+    // Now overwrite with a snapshot that carries the old values
+    // To test force-overwrite with different data, set position first
+    g.forceSetComponentValue(
+      world,
+      entity,
+      Position,
+      {x: 500, y: 500},
+      world.tick,
+    )
+    expect(g.getComponentValue(world, entity, Position)!.x).toBe(500)
+
+    // Apply the snapshot from tick 30 (which has x=0,y=0)
+    const reader = new g.ByteReader(writer.getBytes())
+    const header = g.readMessageHeader(reader)
+    const message = g.readSnapshot(reader, header.tick)
+    applySnapshotStream(world, message)
+
+    // Authoritative: overwrites even though tick 30 < 50
+    const posAfter = g.getComponentValue(world, entity, Position)!
+    expect(posAfter.x).toBe(0)
+    expect(posAfter.y).toBe(0)
   })
 })
 

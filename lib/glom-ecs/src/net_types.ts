@@ -1,17 +1,10 @@
 import type {Entity} from "./entity"
 import type {RelationPair} from "./relation_registry"
 
-export type SnapshotBlock = {
-  componentId: number
-  entities: number[]
-  data: unknown[]
-}
-
 export type SnapshotMessage = {
   tick: number
-  blocks: SnapshotBlock[]
-  /** Raw serialized snapshot body for lazy decode. When set, `blocks` is empty. */
-  _raw?: Uint8Array
+  /** Raw serialized snapshot body (binary). */
+  _raw: Uint8Array
 }
 
 export type SpawnComponent = {

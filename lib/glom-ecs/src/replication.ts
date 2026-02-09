@@ -26,7 +26,7 @@ import {
   registerIncomingRelation,
   unregisterIncomingRelation,
 } from "./relation_registry"
-import {captureSnapshotStream, writeSnapshot} from "./snapshot_stream"
+import {writeSnapshot} from "./snapshot_stream"
 import {acquireWriter} from "./lib/binary"
 import {sparseMapDelete, sparseMapGet, sparseMapSet} from "./sparse_map"
 import {defineSystem} from "./system"
@@ -529,7 +529,7 @@ export const emitSnapshots = defineSystem(
     if (!config.snapshotComponents) return
     const interval = config.snapshotInterval ?? 1
     if (interval > 1 && world.tick % interval !== 0) return
-    // Write directly to a pooled ByteWriter — no intermediate SnapshotBlock objects
+    // Write directly to a pooled ByteWriter
     const writer = acquireWriter()
     writeSnapshot(
       writer,

@@ -1,6 +1,8 @@
 import {describe, expect, test} from "bun:test"
-import {defineComponent} from "../component"
+import {defineComponent, type ComponentResolver} from "../component"
 import {HistoryBuffer, pushSnapshot, type Snapshot} from "../history"
+import {ByteWriter} from "../lib/binary"
+import type {SnapshotMessage} from "../net_types"
 import {All} from "../query/all"
 import {Add, Read} from "../query/term"
 import {
@@ -31,8 +33,40 @@ import {
   spawnInDomain,
 } from "../world_api"
 
+/**
+ * Build a SnapshotMessage with _raw bytes from inline block data.
+ */
+function makeSnapshotMessage(
+  tick: number,
+  blocks: {componentId: number; entities: number[]; data: unknown[]}[],
+  resolver: ComponentResolver,
+): SnapshotMessage {
+  const w = new ByteWriter()
+  w.writeUint16(blocks.length)
+  for (const block of blocks) {
+    w.writeVarint(block.componentId)
+    w.writeUint16(block.entities.length)
+    const serde = resolver.getSerde(block.componentId)
+    const isTag = resolver.isTag(block.componentId)
+    for (let i = 0; i < block.entities.length; i++) {
+      w.writeVarint(block.entities[i]!)
+      if (!isTag && serde && block.data[i] !== undefined) {
+        serde.encode(block.data[i], w)
+      }
+    }
+  }
+  return {tick, _raw: w.getBytes()}
+}
+
 describe("reconciliation", () => {
-  const Position = defineComponent<{x: number; y: number}>()
+  const Position = defineComponent<{x: number; y: number}>({
+    bytesPerElement: 16,
+    encode: (val, writer) => {
+      writer.writeFloat64(val.x)
+      writer.writeFloat64(val.y)
+    },
+    decode: (reader) => ({x: reader.readFloat64(), y: reader.readFloat64()}),
+  })
 
   test("reconcile late arriving transaction", () => {
     const world = makeWorld({domainId: 1, schema: [Position]})
@@ -168,16 +202,15 @@ describe("reconciliation", () => {
     const entity = spawn(world)
     commitTransaction(world)
 
-    const snapshot = {
-      tick: 0,
-      blocks: [
-        {
-          componentId: world.componentRegistry.getId(Position),
-          entities: [entity],
-          data: [{x: 42, y: 43}],
-        },
-      ],
-    }
+    const snapshot = makeSnapshotMessage(
+      0,
+      [{
+        componentId: world.componentRegistry.getId(Position),
+        entities: [entity as number],
+        data: [{x: 42, y: 43}],
+      }],
+      world.componentRegistry,
+    )
 
     receiveSnapshot(world, snapshot)
     const incoming = getResource(world, IncomingSnapshots)

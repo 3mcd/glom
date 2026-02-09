@@ -1,6 +1,6 @@
 import type {ComponentResolver} from "./component"
 import {ByteReader, type ByteWriter} from "./lib/binary"
-import type {SnapshotBlock, SnapshotMessage} from "./net_types"
+import type {SnapshotMessage} from "./net_types"
 import {MessageType, type ResolverLike, writeMessageHeader} from "./protocol"
 import {Replicated} from "./replication_config"
 import {
@@ -50,45 +50,8 @@ function collectReplicatedEntities(
   return _replicatedEntities.length
 }
 
-export function captureSnapshotStream(
-  world: World,
-  componentIds: number[],
-  entityFilter?: (entity: number) => boolean,
-): SnapshotBlock[] {
-  const blocks: SnapshotBlock[] = []
-
-  const count = collectReplicatedEntities(world, entityFilter)
-  if (count === 0) return blocks
-
-  for (let i = 0; i < componentIds.length; i++) {
-    const compId = componentIds[i]!
-    const blockEntities: number[] = []
-    const blockData: unknown[] = []
-
-    for (let j = 0; j < count; j++) {
-      const entity = _replicatedEntities[j]!
-      const val = getComponentValueById(world, entity, compId)
-      if (val !== undefined) {
-        blockEntities.push(entity)
-        blockData.push(val)
-      }
-    }
-
-    if (blockEntities.length > 0) {
-      blocks.push({
-        componentId: compId,
-        entities: blockEntities,
-        data: blockData,
-      })
-    }
-  }
-
-  return blocks
-}
-
 /**
- * Capture snapshot data from the world and write directly to a ByteWriter,
- * bypassing all intermediate SnapshotBlock/SnapshotMessage allocations.
+ * Capture snapshot data from the world and write directly to a ByteWriter.
  */
 export function writeSnapshot(
   writer: ByteWriter,
@@ -148,11 +111,10 @@ export function writeSnapshot(
 }
 
 /**
- * Read snapshot body from a ByteReader and apply directly to the world,
- * bypassing intermediate SnapshotBlock/SnapshotMessage allocations.
+ * Read snapshot body from a ByteReader and apply directly to the world.
  * @param force If true, uses forceSetComponentValueById (authoritative). If false, uses LWW.
  */
-function readAndApplySnapshotDirect(
+function readAndApplySnapshot(
   world: World,
   reader: ByteReader,
   tick: number,
@@ -182,29 +144,13 @@ function readAndApplySnapshotDirect(
   }
 }
 
+/**
+ * Apply a snapshot message to the world, force-overwriting all component values.
+ * Intended for authoritative (server → client) topologies.
+ */
 export function applySnapshotStream(world: World, message: SnapshotMessage) {
-  if (message._raw) {
-    _sharedReader.reset(message._raw)
-    readAndApplySnapshotDirect(world, _sharedReader, message.tick, true)
-    return
-  }
-  const blocks = message.blocks
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i]!
-    const componentId = block.componentId
-    const entities = block.entities
-    for (let j = 0; j < entities.length; j++) {
-      const entity = entities[j]!
-      const data = block.data[j]
-      forceSetComponentValueById(
-        world,
-        entity as number,
-        componentId,
-        data,
-        message.tick,
-      )
-    }
-  }
+  _sharedReader.reset(message._raw)
+  readAndApplySnapshot(world, _sharedReader, message.tick, true)
 }
 
 /**
@@ -216,26 +162,6 @@ export function applySnapshotStreamVersioned(
   world: World,
   message: SnapshotMessage,
 ) {
-  if (message._raw) {
-    _sharedReader.reset(message._raw)
-    readAndApplySnapshotDirect(world, _sharedReader, message.tick, false)
-    return
-  }
-  const blocks = message.blocks
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i]!
-    const componentId = block.componentId
-    const entities = block.entities
-    for (let j = 0; j < entities.length; j++) {
-      const entity = entities[j]!
-      const data = block.data[j]
-      setComponentValueById(
-        world,
-        entity as number,
-        componentId,
-        data,
-        message.tick,
-      )
-    }
-  }
+  _sharedReader.reset(message._raw)
+  readAndApplySnapshot(world, _sharedReader, message.tick, false)
 }

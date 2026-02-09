@@ -160,10 +160,10 @@ export function readCommands(
 }
 
 /**
- * Defers snapshot decoding: captures the remaining snapshot body as a raw
- * Uint8Array. When the returned SnapshotMessage is later passed to
- * applySnapshotStream / applySnapshotStreamVersioned, it will be decoded and
- * applied in a single pass — avoiding all intermediate SnapshotBlock allocations.
+ * Captures the remaining snapshot body as a raw Uint8Array. When the returned
+ * SnapshotMessage is later passed to applySnapshotStream /
+ * applySnapshotStreamVersioned, it will be decoded and applied in a single
+ * pass with no intermediate allocations.
  *
  * Assumes the reader's remaining bytes are entirely the snapshot body
  * (one message per buffer).
@@ -176,7 +176,6 @@ export function readSnapshot(
   reader.cursor = reader.buffer.byteLength
   return {
     tick,
-    blocks: [],
     _raw: raw,
   }
 }

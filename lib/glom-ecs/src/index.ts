@@ -129,7 +129,6 @@ export {
 export {
   applySnapshotStream,
   applySnapshotStreamVersioned,
-  captureSnapshotStream,
   writeSnapshot,
 } from "./snapshot_stream"
 export {
