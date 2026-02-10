@@ -1,13 +1,14 @@
-/** @jsxImportSource preact */
-
 import type {ComponentLike, Entity, EntityGraphNode, World} from "@glom/ecs"
 import {
   entityGraphGetEntityNode,
   getComponentValue,
   sparseSetValues,
 } from "@glom/ecs"
-import type {ComponentChildren} from "preact"
-import {render} from "preact"
+import type {ComponentChildren, VNode} from "preact"
+import {h, render} from "preact"
+import htm from "htm"
+
+const html = htm.bind(h)
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -167,21 +168,22 @@ function sniffCommands(
 // Value formatting
 // ---------------------------------------------------------------------------
 
-function formatValue(value: unknown, depth = 0): ComponentChildren {
+function formatValue(value: unknown, depth = 0): VNode | string {
   if (depth > 4) return "…"
-  if (value === undefined) return <span class="v-kw">undefined</span>
-  if (value === null) return <span class="v-kw">null</span>
+  if (value === undefined)
+    return html`<span class="v-kw">undefined</span>` as VNode
+  if (value === null) return html`<span class="v-kw">null</span>` as VNode
   if (typeof value === "number") {
     const s = Number.isInteger(value) ? String(value) : value.toFixed(3)
-    return <span class="v-num">{s}</span>
+    return html`<span class="v-num">${s}</span>` as VNode
   }
   if (typeof value === "boolean")
-    return <span class="v-kw">{String(value)}</span>
+    return html`<span class="v-kw">${String(value)}</span>` as VNode
   if (typeof value === "string")
-    return <span class="v-str">{JSON.stringify(value)}</span>
+    return html`<span class="v-str">${JSON.stringify(value)}</span>` as VNode
   if (Array.isArray(value)) {
     if (value.length === 0) return "[]"
-    const items: ComponentChildren[] = ["["]
+    const items: (VNode | string)[] = ["["]
     const limit = Math.min(value.length, 8)
     for (let i = 0; i < limit; i++) {
       if (i > 0) items.push(", ")
@@ -189,24 +191,22 @@ function formatValue(value: unknown, depth = 0): ComponentChildren {
     }
     if (value.length > 8) items.push(", …")
     items.push("]")
-    return <span>{items}</span>
+    return html`<span>${items}</span>` as VNode
   }
   if (typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>)
     if (entries.length === 0) return "{}"
     const limit = Math.min(entries.length, 8)
-    const items: ComponentChildren[] = []
+    const items: (VNode | string)[] = []
     for (let i = 0; i < limit; i++) {
       const [k, v] = entries[i]!
       if (i > 0) items.push("\n")
-      items.push(
-        <span class="v-key">{k}</span>,
-        ": ",
-        formatValue(v, depth + 1),
-      )
+      items.push(html`<span class="v-key">${k}</span>` as VNode)
+      items.push(": ")
+      items.push(formatValue(v, depth + 1))
     }
     if (entries.length > 8) items.push("\n…")
-    return <span>{items}</span>
+    return html`<span>${items}</span>` as VNode
   }
   return String(value)
 }
@@ -336,18 +336,17 @@ function EntityRow({
   components: EntityInfo["components"]
   onSelect: (e: Entity) => void
 }) {
-  return (
-    <div class="gd-er" onClick={() => onSelect(entity)}>
-      <span class="gd-eid">e{String(entity)}</span>
+  return html`
+    <div class="gd-er" onClick=${() => onSelect(entity)}>
+      <span class="gd-eid">e${String(entity)}</span>
       <div class="gd-et">
-        {components.map((c) => (
-          <span key={c.id} class={c.comp.isTag ? "gd-ct-tag t" : "gd-ct-tag"}>
-            {c.name}
-          </span>
-        ))}
+        ${components.map(
+          (c) =>
+            html`<span key=${c.id} class=${c.comp.isTag ? "gd-ct-tag t" : "gd-ct-tag"}>${c.name}</span>`,
+        )}
       </div>
     </div>
-  )
+  `
 }
 
 function EntityListView({
@@ -360,23 +359,24 @@ function EntityListView({
   onSelect: (e: Entity) => void
 }) {
   const entities = collectEntities(world, nameMap)
-  return (
+  return html`
     <div>
-      <div class="gd-cnt">{entities.length} entities</div>
-      {entities.length === 0 ? (
-        <div class="gd-em">No entities</div>
-      ) : (
-        entities.map((info) => (
-          <EntityRow
-            key={info.entity as number}
-            entity={info.entity}
-            components={info.components}
-            onSelect={onSelect}
-          />
-        ))
-      )}
+      <div class="gd-cnt">${entities.length} entities</div>
+      ${
+        entities.length === 0
+          ? html`<div class="gd-em">No entities</div>`
+          : entities.map(
+              (info) =>
+                html`<${EntityRow}
+                  key=${info.entity as number}
+                  entity=${info.entity}
+                  components=${info.components}
+                  onSelect=${onSelect}
+                />`,
+            )
+      }
     </div>
-  )
+  `
 }
 
 function ComponentValueView({
@@ -389,7 +389,7 @@ function ComponentValueView({
   comp: ComponentLike
 }) {
   const value = getComponentValue(world, entity as number, comp)
-  return <div class="gd-cv">{formatValue(value)}</div>
+  return html`<div class="gd-cv">${formatValue(value)}</div>`
 }
 
 function InspectorView({
@@ -404,58 +404,52 @@ function InspectorView({
   onBack: () => void
 }) {
   const node = entityGraphGetEntityNode(world.entityGraph, entity)
-  if (!node) return <div class="gd-em">Entity not found</div>
+  if (!node) return html`<div class="gd-em">Entity not found</div>`
 
-  return (
+  return html`
     <div class="gd-ins">
       <div class="gd-ins-t">
-        <span class="gd-bk" onClick={onBack}>
-          ←
-        </span>
-        {`Entity e${entity}`}
+        <span class="gd-bk" onClick=${onBack}>←</span>
+        ${`Entity e${entity}`}
       </div>
-      {node.vec.elements.map((el) => {
+      ${node.vec.elements.map((el) => {
         const comp = el as ComponentLike
         const name = componentRefToName(world, comp, nameMap)
         const id = world.componentRegistry.getId(comp)
-        return (
-          <div class="gd-cs" key={id}>
-            <div class="gd-ch">{name}</div>
-            {!comp.isTag && (
-              <ComponentValueView world={world} entity={entity} comp={comp} />
-            )}
+        return html`
+          <div class="gd-cs" key=${id}>
+            <div class="gd-ch">${name}</div>
+            ${!comp.isTag && html`<${ComponentValueView} world=${world} entity=${entity} comp=${comp} />`}
           </div>
-        )
+        `
       })}
     </div>
-  )
+  `
 }
 
 function CommandLogView({commandLog}: {commandLog: CommandLogEntry[]}) {
   if (commandLog.length === 0)
-    return <div class="gd-em">No commands recorded yet</div>
+    return html`<div class="gd-em">No commands recorded yet</div>`
 
   const rows = []
   for (let i = commandLog.length - 1; i >= 0; i--) {
     const entry = commandLog[i]!
-    rows.push(
-      <div class="gd-cr" key={i}>
-        <span class="ct">t{entry.tick}</span>
-        <span class="ce">e{entry.targetEntity}</span>{" "}
-        <span class="cn">{entry.componentName}</span>
-        {entry.data !== undefined && (
-          <span class="cd">{formatValuePlain(entry.data)}</span>
-        )}
-      </div>,
-    )
+    rows.push(html`
+      <div class="gd-cr" key=${i}>
+        <span class="ct">t${entry.tick}</span>
+        <span class="ce">e${entry.targetEntity}</span>${" "}
+        <span class="cn">${entry.componentName}</span>
+        ${entry.data !== undefined && html`<span class="cd">${formatValuePlain(entry.data)}</span>`}
+      </div>
+    `)
   }
 
-  return (
+  return html`
     <div>
-      <div class="gd-cnt">{commandLog.length} commands</div>
-      {rows}
+      <div class="gd-cnt">${commandLog.length} commands</div>
+      ${rows}
     </div>
-  )
+  `
 }
 
 function App({
@@ -473,51 +467,49 @@ function App({
 }) {
   const {isOpen, activeTab, selectedEntity} = state
 
-  return (
-    <div class={isOpen ? "gd" : "gd off"}>
-      {isOpen && (
+  return html`
+    <div class=${isOpen ? "gd" : "gd off"}>
+      ${isOpen && html`
         <div class="gd-b">
           <div class="gd-tabs">
             <button
-              class={activeTab === "entities" ? "gd-tab on" : "gd-tab"}
-              onClick={() => setState({activeTab: "entities"})}
+              class=${activeTab === "entities" ? "gd-tab on" : "gd-tab"}
+              onClick=${() => setState({activeTab: "entities"})}
             >
               Entities
             </button>
             <button
-              class={activeTab === "commands" ? "gd-tab on" : "gd-tab"}
-              onClick={() => setState({activeTab: "commands"})}
+              class=${activeTab === "commands" ? "gd-tab on" : "gd-tab"}
+              onClick=${() => setState({activeTab: "commands"})}
             >
               Commands
             </button>
           </div>
           <div class="gd-ct">
-            {activeTab === "entities" ? (
-              selectedEntity !== null ? (
-                <InspectorView
-                  world={world}
-                  entity={selectedEntity}
-                  nameMap={nameMap}
-                  onBack={() => setState({selectedEntity: null})}
-                />
-              ) : (
-                <EntityListView
-                  world={world}
-                  nameMap={nameMap}
-                  onSelect={(e) => setState({selectedEntity: e})}
-                />
-              )
-            ) : (
-              <CommandLogView commandLog={commandLog} />
-            )}
+            ${
+              activeTab === "entities"
+                ? selectedEntity !== null
+                  ? html`<${InspectorView}
+                      world=${world}
+                      entity=${selectedEntity}
+                      nameMap=${nameMap}
+                      onBack=${() => setState({selectedEntity: null})}
+                    />`
+                  : html`<${EntityListView}
+                      world=${world}
+                      nameMap=${nameMap}
+                      onSelect=${(e: Entity) => setState({selectedEntity: e})}
+                    />`
+                : html`<${CommandLogView} commandLog=${commandLog} />`
+            }
           </div>
         </div>
-      )}
-      <div class="gd-sb" onClick={() => setState({isOpen: !isOpen})}>
-        <span>tick {world.tick}</span>
+      `}
+      <div class="gd-sb" onClick=${() => setState({isOpen: !isOpen})}>
+        <span>tick ${world.tick}</span>
       </div>
     </div>
-  )
+  `
 }
 
 // ---------------------------------------------------------------------------
@@ -564,16 +556,16 @@ export function createDevtools(
     }
 
     render(
-      <App
-        world={world}
-        nameMap={componentNames}
-        commandLog={commandLog}
-        state={state}
-        setState={(partial) => {
+      html`<${App}
+        world=${world}
+        nameMap=${componentNames}
+        commandLog=${commandLog}
+        state=${state}
+        setState=${(partial: Partial<PanelState>) => {
           Object.assign(state, partial)
           doRender()
         }}
-      />,
+      />`,
       wrapper,
     )
   }
@@ -603,3 +595,4 @@ export function createDevtools(
     },
   }
 }
+
