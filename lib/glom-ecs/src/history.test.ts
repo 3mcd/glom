@@ -12,7 +12,6 @@ import {
 } from "./history"
 import {resimulateWithTransactions} from "./reconciliation"
 import {defineRelation} from "./relation"
-import {InputBuffer} from "./replication_config"
 import {sparseMapGet} from "./sparse_map"
 import {getComponentValue, makeWorld} from "./world"
 import {
@@ -118,20 +117,16 @@ describe("history", () => {
       checkpointInterval: 1,
     }
     addResource(world, HistoryBuffer(history))
-    const inputBuffer = new Map<number, unknown>()
-    addResource(world, InputBuffer(inputBuffer))
 
     const entity = spawn(world, Position({x: 0, y: 0}))
     commitTransaction(world)
 
     pushCheckpoint(world, history)
 
-    inputBuffer.set(1, {dx: 1, dy: 1})
     addComponent(world, entity, Position({x: 1, y: 1}))
     commitTransaction(world)
     advanceTick(world)
 
-    inputBuffer.set(2, {dx: 1, dy: 1})
     addComponent(world, entity, Position({x: 2, y: 2}))
     commitTransaction(world)
     advanceTick(world)
@@ -145,14 +140,13 @@ describe("history", () => {
       expect(posRolledResim.x).toBe(0)
     }
 
-    resimulateWithTransactions(world, 2, (w, input: unknown) => {
+    resimulateWithTransactions(world, 2, (w) => {
       const pos = getComponentValue(w, entity, Position)
-      const typedInput = input as {dx: number; dy: number}
       if (pos) {
         addComponent(
           w,
           entity,
-          Position({x: pos.x + typedInput.dx, y: pos.y + typedInput.dy}),
+          Position({x: pos.x + 1, y: pos.y + 1}),
         )
       }
     })

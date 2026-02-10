@@ -1,7 +1,7 @@
 import type {ComponentResolver} from "./component"
 import {ByteReader, type ByteWriter} from "./lib/binary"
 import type {SnapshotMessage} from "./net_types"
-import {MessageType, writeMessageHeader} from "./protocol"
+import {MessageType} from "./protocol"
 import {Replicated} from "./replication_config"
 import {
   forceSetComponentValueById,
@@ -81,7 +81,8 @@ export function writeSnapshot(
   }
 
   // Pass 2: write
-  writeMessageHeader(writer, MessageType.Snapshot, tick)
+  writer.writeUint8(MessageType.Snapshot)
+  writer.writeUint32(tick)
   writer.writeUint16(blockCount)
 
   for (let i = 0; i < componentIds.length; i++) {

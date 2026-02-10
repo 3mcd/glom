@@ -6,7 +6,7 @@ import {
   MessageType,
   readClocksync,
   readHandshakeClient,
-  readMessageHeader,
+  readMessageType,
   readTransaction,
   writeClocksync,
   writeHandshakeClient,
@@ -20,9 +20,10 @@ describe("protocol serialization", () => {
     writeHandshakeClient(writer, 100, {version: 1})
 
     const reader = new ByteReader(writer.getBytes())
-    const header = readMessageHeader(reader)
-    expect(header.type).toBe(MessageType.Handshake)
-    expect(header.tick).toBe(100)
+    const type = readMessageType(reader)
+    const tick = reader.readUint32()
+    expect(type).toBe(MessageType.Handshake)
+    expect(tick).toBe(100)
 
     const data = readHandshakeClient(reader)
     expect(data.version).toBe(1)
@@ -34,8 +35,9 @@ describe("protocol serialization", () => {
     writeClocksync(writer, 200, sync)
 
     const reader = new ByteReader(writer.getBytes())
-    const header = readMessageHeader(reader)
-    expect(header.type).toBe(MessageType.Clocksync)
+    const type = readMessageType(reader)
+    reader.readUint32() // tick
+    expect(type).toBe(MessageType.Clocksync)
 
     const data = readClocksync(reader)
     expect(data.t0).toBe(sync.t0)
@@ -84,8 +86,9 @@ describe("protocol serialization", () => {
     writeTransaction(writer, transaction, resolver)
 
     const reader = new ByteReader(writer.getBytes())
-    const header = readMessageHeader(reader)
-    const result = readTransaction(reader, header.tick, resolver)
+    readMessageType(reader) // MessageType.Transaction
+    const tick = reader.readUint32()
+    const result = readTransaction(reader, tick, resolver)
 
     expect(result.tick).toBe(500)
     expect(result.domainId).toBe(1)
@@ -159,8 +162,9 @@ describe("protocol serialization", () => {
     writeTransaction(writer, transaction, resolver)
 
     const reader = new ByteReader(writer.getBytes())
-    const header = readMessageHeader(reader)
-    const result = readTransaction(reader, header.tick, resolver)
+    readMessageType(reader) // MessageType.Transaction
+    const tick = reader.readUint32()
+    const result = readTransaction(reader, tick, resolver)
 
     expect(result.ops.length).toBe(3)
 
@@ -224,8 +228,9 @@ describe("protocol serialization", () => {
     writeTransaction(writer, transaction, resolver)
 
     const reader = new ByteReader(writer.getBytes())
-    const header = readMessageHeader(reader)
-    const result = readTransaction(reader, header.tick, resolver)
+    readMessageType(reader) // MessageType.Transaction
+    const tick = reader.readUint32()
+    const result = readTransaction(reader, tick, resolver)
 
     const op = result.ops[0]
     expect(op?.type).toBe("set")

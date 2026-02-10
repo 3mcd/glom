@@ -14,25 +14,8 @@ export enum MessageType {
   Command = 0x05,
 }
 
-export type MessageHeader = {
-  type: MessageType
-  tick: number
-}
-
-export function writeMessageHeader(
-  writer: ByteWriter,
-  type: MessageType,
-  tick: number,
-) {
-  writer.writeUint8(type)
-  writer.writeUint32(tick)
-}
-
-export function readMessageHeader(reader: ByteReader): MessageHeader {
-  return {
-    type: reader.readUint8(),
-    tick: reader.readUint32(),
-  }
+export function readMessageType(reader: ByteReader): MessageType {
+  return reader.readUint8() as MessageType
 }
 
 export type HandshakeClient = {
@@ -49,7 +32,8 @@ export function writeHandshakeClient(
   tick: number,
   data: HandshakeClient,
 ) {
-  writeMessageHeader(writer, MessageType.Handshake, tick)
+  writer.writeUint8(MessageType.Handshake)
+  writer.writeUint32(tick)
   writer.writeUint8(data.version)
 }
 
@@ -64,7 +48,8 @@ export function writeHandshakeServer(
   tick: number,
   data: HandshakeServer,
 ) {
-  writeMessageHeader(writer, MessageType.Handshake, tick)
+  writer.writeUint8(MessageType.Handshake)
+  writer.writeUint32(tick)
   writer.writeUint8(data.domainId)
   writer.writeUint32(data.tick)
 }
@@ -87,7 +72,8 @@ export function writeClocksync(
   tick: number,
   data: Clocksync,
 ) {
-  writeMessageHeader(writer, MessageType.Clocksync, tick)
+  writer.writeUint8(MessageType.Clocksync)
+  writer.writeUint32(tick)
   writer.writeFloat64(data.t0)
   writer.writeFloat64(data.t1)
   writer.writeFloat64(data.t2)
@@ -107,7 +93,8 @@ export function writeCommands(
   commands: Command[],
   resolver: ComponentResolver,
 ) {
-  writeMessageHeader(writer, MessageType.Command, tick)
+  writer.writeUint8(MessageType.Command)
+  writer.writeUint32(tick)
   writer.writeUint16(commands.length)
   for (const cmd of commands) {
     writer.writeVarint(cmd.target)
@@ -176,7 +163,8 @@ export function writeTransaction(
   transaction: Transaction,
   resolver: ComponentResolver,
 ) {
-  writeMessageHeader(writer, MessageType.Transaction, transaction.tick)
+  writer.writeUint8(MessageType.Transaction)
+  writer.writeUint32(transaction.tick)
   writer.writeUint8(transaction.domainId)
   writer.writeVarint(transaction.seq)
   writer.writeUint16(transaction.ops.length)

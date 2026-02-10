@@ -2,12 +2,7 @@ import {describe, expect, test} from "bun:test"
 import {type ComponentResolver, defineComponent} from "../component"
 import {ByteReader, ByteWriter} from "../lib/binary"
 import type {SetOp, SnapshotMessage, Transaction} from "../net_types"
-import {
-  MessageType,
-  readMessageHeader,
-  readSnapshot,
-  writeMessageHeader,
-} from "../protocol"
+import {readMessageType, readSnapshot} from "../protocol"
 import {applyTransaction} from "../replication"
 import {Replicated, ReplicationConfig} from "../replication_config"
 import {applySnapshotStreamVersioned, writeSnapshot} from "../snapshot_stream"
@@ -451,13 +446,15 @@ describe("P2P reconciliation", () => {
 
     // Apply B's snapshot to A (versioned)
     const readerB = new ByteReader(writerB.getBytes())
-    const headerB = readMessageHeader(readerB)
-    applySnapshotStreamVersioned(peerA, readSnapshot(readerB, headerB.tick))
+    readMessageType(readerB) // MessageType.Snapshot
+    const tickB = readerB.readUint32()
+    applySnapshotStreamVersioned(peerA, readSnapshot(readerB, tickB))
 
     // Apply A's snapshot to B (versioned)
     const readerA = new ByteReader(writerA.getBytes())
-    const headerA = readMessageHeader(readerA)
-    applySnapshotStreamVersioned(peerB, readSnapshot(readerA, headerA.tick))
+    readMessageType(readerA) // MessageType.Snapshot
+    const tickA = readerA.readUint32()
+    applySnapshotStreamVersioned(peerB, readSnapshot(readerA, tickA))
 
     // Peer A should keep its own value (tick 20 > tick 18)
     expect(getComponentValue(peerA, entity, Position)?.x).toBe(50)

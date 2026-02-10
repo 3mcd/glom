@@ -1,4 +1,5 @@
 import ts from "typescript"
+import {processDefineComponent} from "./process-component"
 import {processSystem} from "./process-system"
 import {factoryWithMetadata, wrapWithMetadata} from "./metadata"
 
@@ -101,6 +102,20 @@ export function createTransformer(
                 )
               }
             }
+          }
+        }
+
+        // Auto-generate serde for defineComponent<T>(...) calls.
+        // Return directly (no visitEachChild) because the injected serde
+        // is fully synthetic and needs no further transformation.
+        if (ts.isCallExpression(node)) {
+          const transformed = processDefineComponent(
+            node,
+            typeChecker,
+            context.factory,
+          )
+          if (transformed) {
+            return transformed
           }
         }
 

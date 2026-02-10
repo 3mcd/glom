@@ -11,7 +11,6 @@ import {
 import {
   IncomingSnapshots,
   IncomingTransactions,
-  InputBuffer,
   ReplicationConfig,
 } from "./replication_config"
 import {
@@ -54,11 +53,10 @@ export function receiveSnapshot(world: World, snapshot: SnapshotMessage) {
 export function resimulateWithTransactions(
   world: World,
   toTick: number,
-  tickFn: (world: World, input: unknown) => void,
+  tickFn: (world: World) => void,
 ) {
   const fromTick = world.tick
   const incomingTransactions = getResource(world, IncomingTransactions)
-  const inputs = getResource(world, InputBuffer)
 
   for (let t = fromTick; t < toTick; t++) {
     const transactions = incomingTransactions?.get(t)
@@ -69,8 +67,7 @@ export function resimulateWithTransactions(
       flushGraphChanges(world)
     }
 
-    const input = inputs?.get(t + 1)
-    tickFn(world, input)
+    tickFn(world)
 
     commitTransaction(world)
     advanceTick(world)
@@ -80,7 +77,7 @@ export function resimulateWithTransactions(
 export function reconcileTransaction(
   world: World,
   transaction: Transaction,
-  tickFn: (world: World, input: unknown) => void,
+  tickFn: (world: World) => void,
 ) {
   receiveTransaction(world, transaction)
 
@@ -117,15 +114,6 @@ export function pruneBuffers(world: World, minTick: number) {
     for (const tick of incomingSnapshots.keys()) {
       if (tick < minTick) {
         incomingSnapshots.delete(tick)
-      }
-    }
-  }
-
-  const inputs = getResource(world, InputBuffer)
-  if (inputs !== undefined) {
-    for (const tick of inputs.keys()) {
-      if (tick < minTick) {
-        inputs.delete(tick)
       }
     }
   }

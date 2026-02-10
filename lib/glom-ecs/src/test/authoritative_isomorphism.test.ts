@@ -197,7 +197,6 @@ function setupClient(domainId: number) {
   g.addResource(world, g.CommandBuffer(new Map()))
   g.addResource(world, g.IncomingTransactions(new Map()))
   g.addResource(world, g.IncomingSnapshots(new Map()))
-  g.addResource(world, g.InputBuffer(new Map()))
 
   const reconcileSchedule = g.makeSystemSchedule()
   g.addSystem(reconcileSchedule, commands.spawnEphemeralCommands)
@@ -246,20 +245,21 @@ class NetworkSimulation {
   processClientToServer() {
     for (const packet of this.clientToServer.receive(this.server.world.tick)) {
       const reader = new g.ByteReader(packet)
-      const header = g.readMessageHeader(reader)
-      if (header.type === g.MessageType.Command) {
+      const type = g.readMessageType(reader)
+      const tick = reader.readUint32()
+      if (type === g.MessageType.Command) {
         const commands = g.readCommands(
           reader,
           this.server.world.componentRegistry,
         )
-        const targetTick = Math.max(this.server.world.tick, header.tick)
+        const targetTick = Math.max(this.server.world.tick, tick)
         for (const cmd of commands) {
           g.recordCommand(
             this.server.world,
             cmd.target as g.Entity,
             cmd,
             targetTick,
-            header.tick,
+            tick,
           )
         }
       }
@@ -269,14 +269,15 @@ class NetworkSimulation {
   processServerToClient(onHandshake?: (handshake: g.HandshakeServer) => void) {
     for (const packet of this.serverToClient.receive(this.client.world.tick)) {
       const reader = new g.ByteReader(packet)
-      const header = g.readMessageHeader(reader)
-      if (header.type === g.MessageType.Handshake) {
+      const type = g.readMessageType(reader)
+      const tick = reader.readUint32()
+      if (type === g.MessageType.Handshake) {
         const handshake = g.readHandshakeServer(reader)
         onHandshake?.(handshake)
-      } else if (header.type === g.MessageType.Transaction) {
+      } else if (type === g.MessageType.Transaction) {
         const transaction = g.readTransaction(
           reader,
-          header.tick,
+          tick,
           this.server.world.componentRegistry,
         )
         g.receiveTransaction(this.client.world, transaction)
@@ -640,7 +641,6 @@ test("canvas repro: client player persists after first command", () => {
     }),
   )
   g.addResource(clientWorld, g.CommandBuffer(new Map()))
-  g.addResource(clientWorld, g.InputBuffer(new Map()))
   g.addResource(clientWorld, g.IncomingTransactions(new Map()))
   g.addResource(clientWorld, g.IncomingSnapshots(new Map()))
   g.addResource(
@@ -674,18 +674,20 @@ test("canvas repro: client player persists after first command", () => {
   // ---- deliver spawn transaction & snapshot to the client ----
   for (const packet of spawnTxPackets) {
     const reader = new g.ByteReader(packet)
-    const header = g.readMessageHeader(reader)
+    g.readMessageType(reader) // MessageType.Transaction
+    const tick = reader.readUint32()
     const transaction = g.readTransaction(
       reader,
-      header.tick,
+      tick,
       serverWorld.componentRegistry,
     )
     g.receiveTransaction(clientWorld, transaction)
   }
   for (const packet of snapshotPackets) {
     const reader = new g.ByteReader(packet)
-    const header = g.readMessageHeader(reader)
-    const snapshot = g.readSnapshot(reader, header.tick)
+    g.readMessageType(reader) // MessageType.Snapshot
+    const tick = reader.readUint32()
+    const snapshot = g.readSnapshot(reader, tick)
     g.receiveSnapshot(clientWorld, snapshot)
   }
 
@@ -851,7 +853,6 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
     }),
   )
   g.addResource(clientWorld, g.CommandBuffer(new Map()))
-  g.addResource(clientWorld, g.InputBuffer(new Map()))
   g.addResource(clientWorld, g.IncomingTransactions(new Map()))
   g.addResource(clientWorld, g.IncomingSnapshots(new Map()))
   g.addResource(
@@ -884,18 +885,20 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
   // deliver spawn transaction + snapshot to client
   for (const packet of spawnTxPackets) {
     const reader = new g.ByteReader(packet)
-    const header = g.readMessageHeader(reader)
+    g.readMessageType(reader) // MessageType.Transaction
+    const tick = reader.readUint32()
     const transaction = g.readTransaction(
       reader,
-      header.tick,
+      tick,
       serverWorld.componentRegistry,
     )
     g.receiveTransaction(clientWorld, transaction)
   }
   for (const packet of snapshotPackets) {
     const reader = new g.ByteReader(packet)
-    const header = g.readMessageHeader(reader)
-    const snapshot = g.readSnapshot(reader, header.tick)
+    g.readMessageType(reader) // MessageType.Snapshot
+    const tick = reader.readUint32()
+    const snapshot = g.readSnapshot(reader, tick)
     g.receiveSnapshot(clientWorld, snapshot)
   }
 
@@ -936,16 +939,17 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
     )
     const cmdPacket = w.getBytes()
     const reader2 = new g.ByteReader(cmdPacket)
-    const header2 = g.readMessageHeader(reader2)
+    g.readMessageType(reader2) // MessageType.Command
+    const cmdTick = reader2.readUint32()
     const commands = g.readCommands(reader2, serverWorld.componentRegistry)
-    const targetServerTick = Math.max(serverWorld.tick, header2.tick)
+    const targetServerTick = Math.max(serverWorld.tick, cmdTick)
     for (const cmd of commands) {
       g.recordCommand(
         serverWorld,
         cmd.target as g.Entity,
         cmd,
         targetServerTick,
-        header2.tick,
+        cmdTick,
       )
     }
   }
@@ -988,16 +992,17 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
     )
     for (const p of toDeliver) {
       const reader3 = new g.ByteReader(p.packet)
-      const header3 = g.readMessageHeader(reader3)
-      if (header3.type === g.MessageType.Transaction) {
+      const type3 = g.readMessageType(reader3)
+      const tick3 = reader3.readUint32()
+      if (type3 === g.MessageType.Transaction) {
         const transaction = g.readTransaction(
           reader3,
-          header3.tick,
+          tick3,
           clientWorld.componentRegistry,
         )
         g.receiveTransaction(clientWorld, transaction)
-      } else if (header3.type === g.MessageType.Snapshot) {
-        const snapshot = g.readSnapshot(reader3, header3.tick)
+      } else if (type3 === g.MessageType.Snapshot) {
+        const snapshot = g.readSnapshot(reader3, tick3)
         g.receiveSnapshot(clientWorld, snapshot)
       }
     }
@@ -1043,11 +1048,12 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
       )
       const cmdPacket = w.getBytes()
       const r = new g.ByteReader(cmdPacket)
-      const h = g.readMessageHeader(r)
+      g.readMessageType(r) // MessageType.Command
+      const cmdTick = r.readUint32()
       const cmds = g.readCommands(r, serverWorld.componentRegistry)
-      const tgt = Math.max(serverWorld.tick, h.tick)
+      const tgt = Math.max(serverWorld.tick, cmdTick)
       for (const cmd of cmds) {
-        g.recordCommand(serverWorld, cmd.target as g.Entity, cmd, tgt, h.tick)
+        g.recordCommand(serverWorld, cmd.target as g.Entity, cmd, tgt, cmdTick)
       }
     }
 
@@ -1184,7 +1190,6 @@ test("canvas repro: ghost cleanup must not despawn recycled entity IDs", () => {
     }),
   )
   g.addResource(clientWorld, g.CommandBuffer(new Map()))
-  g.addResource(clientWorld, g.InputBuffer(new Map()))
   g.addResource(clientWorld, g.IncomingTransactions(new Map()))
   g.addResource(clientWorld, g.IncomingSnapshots(new Map()))
   g.addResource(
@@ -1216,18 +1221,20 @@ test("canvas repro: ghost cleanup must not despawn recycled entity IDs", () => {
 
   for (const packet of spawnTxPackets) {
     const reader = new g.ByteReader(packet)
-    const header = g.readMessageHeader(reader)
+    g.readMessageType(reader) // MessageType.Transaction
+    const tick = reader.readUint32()
     const transaction = g.readTransaction(
       reader,
-      header.tick,
+      tick,
       serverWorld.componentRegistry,
     )
     g.receiveTransaction(clientWorld, transaction)
   }
   for (const packet of snapshotPackets) {
     const reader = new g.ByteReader(packet)
-    const header = g.readMessageHeader(reader)
-    const snapshot = g.readSnapshot(reader, header.tick)
+    g.readMessageType(reader) // MessageType.Snapshot
+    const tick = reader.readUint32()
+    const snapshot = g.readSnapshot(reader, tick)
     g.receiveSnapshot(clientWorld, snapshot)
   }
 

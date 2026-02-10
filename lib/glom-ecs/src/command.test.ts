@@ -12,7 +12,7 @@ import type {ComponentSerde} from "./component"
 import {type ComponentResolver, defineComponent, defineTag} from "./component"
 import type {Entity} from "./entity"
 import {ByteReader, ByteWriter} from "./lib/binary"
-import {readCommands, readMessageHeader, writeCommands} from "./protocol"
+import {readCommands, readMessageType, writeCommands} from "./protocol"
 import {World as WorldTerm} from "./query/term"
 import {sparseMapGet} from "./sparse_map"
 import {defineSystem} from "./system"
@@ -122,14 +122,15 @@ describe("command api", () => {
     writeCommands(writer, 50, commands, resolver)
 
     const reader = new ByteReader(writer.getBytes())
-    const header = readMessageHeader(reader)
+    readMessageType(reader) // MessageType.Command
+    const tick = reader.readUint32()
     const result = readCommands(reader, resolver)
 
     const [cmd0, cmd1] = result
     assertDefined(cmd0)
     assertDefined(cmd1)
 
-    expect(header.tick).toBe(50)
+    expect(tick).toBe(50)
     expect(result.length).toBe(2)
     expect(cmd0.target).toBe(1)
     expect(cmd0.componentId).toBe(100)

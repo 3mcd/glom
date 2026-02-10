@@ -526,3 +526,107 @@ describe("transformer", () => {
     )
   })
 })
+
+describe("auto-serde for defineComponent", () => {
+  test("generates serde for flat object with number fields", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
+    `
+    const output = transform(input)
+    expect(output).toContain("bytesPerElement: 16")
+    expect(output).toContain("writeFloat64")
+    expect(output).toContain("readFloat64")
+    expect(output).toContain("val.x")
+    expect(output).toContain("val.y")
+    // decode reuses existing value when provided
+    expect(output).toContain("value")
+    expect(output).toContain("v.x = reader.readFloat64()")
+    expect(output).toContain("v.y = reader.readFloat64()")
+    expect(output).toContain("return v")
+  })
+
+  test("generates serde for bare number", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Score = g.defineComponent<number>("Score")
+    `
+    const output = transform(input)
+    expect(output).toContain("bytesPerElement: 8")
+    expect(output).toContain("writer.writeFloat64(val)")
+    expect(output).toContain("reader.readFloat64()")
+  })
+
+  test("generates serde for bare boolean", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Active = g.defineComponent<boolean>("Active")
+    `
+    const output = transform(input)
+    expect(output).toContain("bytesPerElement: 1")
+    expect(output).toContain("writeUint8")
+    expect(output).toContain("val ? 1 : 0")
+    expect(output).toContain("readUint8() !== 0")
+  })
+
+  test("generates serde for mixed number and boolean fields", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Config = g.defineComponent<{speed: number; active: boolean}>("Config")
+    `
+    const output = transform(input)
+    // 8 (number) + 1 (boolean) = 9
+    expect(output).toContain("bytesPerElement: 9")
+    expect(output).toContain("val.speed")
+    expect(output).toContain("val.active ? 1 : 0")
+    expect(output).toContain("v.speed = reader.readFloat64()")
+    expect(output).toContain("v.active = reader.readUint8() !== 0")
+  })
+
+  test("skips when serde already provided", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>("Position", {
+        bytesPerElement: 8,
+        encode: (val: any, writer: any) => { writer.writeFloat32(val.x); writer.writeFloat32(val.y); },
+        decode: (reader: any) => ({ x: reader.readFloat32(), y: reader.readFloat32() })
+      })
+    `
+    const output = transform(input)
+    // Should keep the original float32 serde, not inject float64
+    expect(output).toContain("bytesPerElement: 8")
+    expect(output).toContain("writeFloat32")
+    expect(output).not.toContain("writeFloat64")
+  })
+
+  test("skips unsupported types (string)", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Name = g.defineComponent<string>("Name")
+    `
+    const output = transform(input)
+    expect(output).not.toContain("bytesPerElement")
+    expect(output).not.toContain("encode")
+  })
+
+  test("skips objects with unsupported field types", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Info = g.defineComponent<{name: string; value: number}>("Info")
+    `
+    const output = transform(input)
+    expect(output).not.toContain("bytesPerElement")
+    expect(output).not.toContain("encode")
+  })
+
+  test("works with direct import (no namespace)", () => {
+    const input = `
+      import { defineComponent } from "@glom/ecs"
+      const Vel = defineComponent<{dx: number; dy: number}>("Vel")
+    `
+    const output = transform(input)
+    expect(output).toContain("bytesPerElement: 16")
+    expect(output).toContain("val.dx")
+    expect(output).toContain("val.dy")
+  })
+})

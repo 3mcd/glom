@@ -518,7 +518,7 @@ export const emitSnapshots = defineSystem(
       world.tick,
     )
     if (writer.getLength() > 7) {
-      // >7 means more than header (5 bytes) + blockCount of 0 (2 bytes)
+      // >7 means more than messageType (1 byte) + tick (4 bytes) + blockCount of 0 (2 bytes)
       stream.snapshots.push(writer.toBytes())
     }
   },

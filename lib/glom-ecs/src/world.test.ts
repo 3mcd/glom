@@ -6,10 +6,10 @@ import {
   deleteComponentValue,
   getComponentStore,
   getComponentValue,
+  getOrCreateIndex,
   getResource,
   makeWorld,
   setComponentValue,
-  getOrCreateIndex,
 } from "./world"
 
 describe("worldStorage", () => {
@@ -79,10 +79,10 @@ describe("worldStorage", () => {
     addResource(world, IsRunning())
     expect(getResource(world, IsRunning)).toBeUndefined()
     const id = world.componentRegistry.getId(IsRunning)
-    expect(world.components.resourceTags.has(id)).toBe(true)
+    expect(world.components.resources.has(id)).toBe(true)
 
     deleteComponentValue(world, RESOURCE_ENTITY, IsRunning)
-    expect(world.components.resourceTags.has(id)).toBe(false)
+    expect(world.components.resources.has(id)).toBe(false)
   })
 
   test("regular components as resources", () => {

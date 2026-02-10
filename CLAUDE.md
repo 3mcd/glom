@@ -101,7 +101,7 @@ Multiple entrypoints in `@glom/ecs`:
 Key networking types:
 - `ReplicationConfig`, `ReplicationStream` - Per-entity replication settings
 - `HistoryBuffer` - Snapshot history for rollback
-- `InputBuffer`, `IncomingSnapshots`, `IncomingTransactions` - Network message buffers
+- `IncomingSnapshots`, `IncomingTransactions` - Network message buffers
 
 ### Entity Graph
 

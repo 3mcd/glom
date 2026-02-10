@@ -15,7 +15,6 @@ import type {ReplicationOp} from "./replication"
 import {
   IncomingSnapshots,
   IncomingTransactions,
-  InputBuffer,
   Replicated,
   ReplicationConfig,
   ReplicationStream,
@@ -31,30 +30,30 @@ import {
 export type ComponentStore = {
   readonly storage: Map<number, unknown[]>
   readonly versions: Map<number, Uint32Array>
-  readonly resourceTags: Set<number>
+  readonly resources: Set<number>
 }
 
 export function makeComponentStore(): ComponentStore {
   return {
     storage: new Map(),
     versions: new Map(),
-    resourceTags: new Set(),
+    resources: new Set(),
   }
 }
 
 export type EntityIndex = {
   readonly entityToIndex: SparseMap<number>
   readonly indexToEntity: number[]
-  readonly freeIndices: number[]
-  nextIndex: number
+  readonly free: number[]
+  next: number
 }
 
 export function makeEntityIndex(): EntityIndex {
   return {
     entityToIndex: makeSparseMap<number>(),
     indexToEntity: [],
-    freeIndices: [],
-    nextIndex: 1,
+    free: [],
+    next: 1,
   }
 }
 
@@ -100,7 +99,6 @@ export function makeWorld(options: WorldOptions = {}): World {
     ReplicationStream,
     HistoryBuffer,
     CommandBuffer,
-    InputBuffer,
     IncomingTransactions,
     IncomingSnapshots,
   ])
@@ -133,7 +131,7 @@ export function getOrCreateIndex(world: World<any>, entity: number): number {
   }
   let index = sparseMapGet(world.index.entityToIndex, entity)
   if (index === undefined) {
-    index = world.index.freeIndices.pop() ?? world.index.nextIndex++
+    index = world.index.free.pop() ?? world.index.next++
     sparseMapSet(world.index.entityToIndex, entity, index)
     world.index.indexToEntity[index] = entity
   }
@@ -166,7 +164,7 @@ export function setComponentValue<T>(
   const componentId = world.componentRegistry.getId(component)
   if (component.isTag) {
     if (entity === RESOURCE_ENTITY) {
-      world.components.resourceTags.add(componentId)
+      world.components.resources.add(componentId)
     }
     return
   }
@@ -212,7 +210,7 @@ export function forceSetComponentValue<T>(
   const componentId = world.componentRegistry.getId(component)
   if (component.isTag) {
     if (entity === RESOURCE_ENTITY) {
-      world.components.resourceTags.add(componentId)
+      world.components.resources.add(componentId)
     }
     return
   }
@@ -258,7 +256,7 @@ export function getComponentValue<T>(
   }
   if (component.isTag) {
     if (entity === RESOURCE_ENTITY) {
-      return world.components.resourceTags.has(componentId)
+      return world.components.resources.has(componentId)
         ? (undefined as T)
         : undefined
     }
@@ -286,7 +284,7 @@ export function deleteComponentValue<T>(
 ): void {
   const componentId = world.componentRegistry.getId(component)
   if (component.isTag && entity === RESOURCE_ENTITY) {
-    world.components.resourceTags.delete(componentId)
+    world.components.resources.delete(componentId)
     return
   }
   const index =
@@ -322,7 +320,7 @@ export function hasResource<T extends ComponentLike>(
   const component = resource as Component<unknown>
   const componentId = world.componentRegistry.getId(component)
   if (component.isTag) {
-    return world.components.resourceTags.has(componentId)
+    return world.components.resources.has(componentId)
   }
   const index = 0 // Resource entity is always index 0
   const store = world.components.storage.get(componentId)

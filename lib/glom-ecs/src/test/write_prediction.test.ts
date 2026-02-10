@@ -194,8 +194,9 @@ describe("snapshot force-overwrite", () => {
 
     // Apply the snapshot from tick 30 (which has x=0,y=0)
     const reader = new g.ByteReader(writer.getBytes())
-    const header = g.readMessageHeader(reader)
-    const message = g.readSnapshot(reader, header.tick)
+    g.readMessageType(reader) // MessageType.Snapshot
+    const tick = reader.readUint32()
+    const message = g.readSnapshot(reader, tick)
     applySnapshotStream(world, message)
 
     // Authoritative: overwrites even though tick 30 < 50
@@ -280,7 +281,6 @@ describe("end-to-end client prediction with Write + snapshots", () => {
       }),
     )
     g.addResource(clientWorld, g.CommandBuffer(new Map()))
-    g.addResource(clientWorld, g.InputBuffer(new Map()))
     g.addResource(clientWorld, g.IncomingTransactions(new Map()))
     g.addResource(clientWorld, g.IncomingSnapshots(new Map()))
     g.addResource(
@@ -311,18 +311,20 @@ describe("end-to-end client prediction with Write + snapshots", () => {
     // ---- deliver spawn transaction & snapshot ----
     for (const packet of spawnTxPackets) {
       const reader = new g.ByteReader(packet)
-      const header = g.readMessageHeader(reader)
+      g.readMessageType(reader) // MessageType.Transaction
+      const tick = reader.readUint32()
       const transaction = g.readTransaction(
         reader,
-        header.tick,
+        tick,
         serverWorld.componentRegistry,
       )
       g.receiveTransaction(clientWorld, transaction)
     }
     for (const packet of snapshotPackets) {
       const reader = new g.ByteReader(packet)
-      const header = g.readMessageHeader(reader)
-      const snapshot = g.readSnapshot(reader, header.tick)
+      g.readMessageType(reader) // MessageType.Snapshot
+      const tick = reader.readUint32()
+      const snapshot = g.readSnapshot(reader, tick)
       g.receiveSnapshot(clientWorld, snapshot)
     }
 
@@ -365,18 +367,20 @@ describe("end-to-end client prediction with Write + snapshots", () => {
       const w = new g.ByteWriter()
       g.writeTransaction(w, tx, serverWorld.componentRegistry)
       const reader = new g.ByteReader(w.getBytes())
-      const header = g.readMessageHeader(reader)
+      g.readMessageType(reader) // MessageType.Transaction
+      const tick = reader.readUint32()
       const transaction = g.readTransaction(
         reader,
-        header.tick,
+        tick,
         serverWorld.componentRegistry,
       )
       g.receiveTransaction(clientWorld, transaction)
     }
     for (const raw of stream.snapshots) {
       const reader = new g.ByteReader(raw)
-      const header = g.readMessageHeader(reader)
-      const snapshot = g.readSnapshot(reader, header.tick)
+      g.readMessageType(reader) // MessageType.Snapshot
+      const tick = reader.readUint32()
+      const snapshot = g.readSnapshot(reader, tick)
       g.receiveSnapshot(clientWorld, snapshot)
     }
   }
@@ -396,17 +400,18 @@ describe("end-to-end client prediction with Write + snapshots", () => {
       serverWorld.componentRegistry,
     )
     const reader = new g.ByteReader(writer.getBytes())
-    const header = g.readMessageHeader(reader)
-    if (header.type === g.MessageType.Command) {
+    const type = g.readMessageType(reader)
+    const tick = reader.readUint32()
+    if (type === g.MessageType.Command) {
       const commands = g.readCommands(reader, serverWorld.componentRegistry)
-      const targetTick = Math.max(serverWorld.tick, header.tick)
+      const targetTick = Math.max(serverWorld.tick, tick)
       for (const cmd of commands) {
         g.recordCommand(
           serverWorld,
           cmd.target as g.Entity,
           cmd,
           targetTick,
-          header.tick,
+          tick,
         )
       }
     }
@@ -654,7 +659,6 @@ describe("idle-to-movement transition with latency", () => {
       }),
     )
     g.addResource(clientWorld, g.CommandBuffer(new Map()))
-    g.addResource(clientWorld, g.InputBuffer(new Map()))
     g.addResource(clientWorld, g.IncomingTransactions(new Map()))
     g.addResource(clientWorld, g.IncomingSnapshots(new Map()))
     g.addResource(
@@ -688,18 +692,20 @@ describe("idle-to-movement transition with latency", () => {
       const w = new g.ByteWriter()
       g.writeTransaction(w, tx, serverWorld.componentRegistry)
       const reader = new g.ByteReader(w.getBytes())
-      const header = g.readMessageHeader(reader)
+      g.readMessageType(reader) // MessageType.Transaction
+      const tick = reader.readUint32()
       const transaction = g.readTransaction(
         reader,
-        header.tick,
+        tick,
         serverWorld.componentRegistry,
       )
       g.receiveTransaction(clientWorld, transaction)
     }
     for (const raw of stream.snapshots) {
       const reader = new g.ByteReader(raw)
-      const header = g.readMessageHeader(reader)
-      const snapshot = g.readSnapshot(reader, header.tick)
+      g.readMessageType(reader) // MessageType.Snapshot
+      const tick = reader.readUint32()
+      const snapshot = g.readSnapshot(reader, tick)
       g.receiveSnapshot(clientWorld, snapshot)
     }
 
@@ -741,17 +747,18 @@ describe("idle-to-movement transition with latency", () => {
     // 1. Deliver client→server packets (commands)
     for (const packet of clientToServer.receive(frame)) {
       const reader = new g.ByteReader(packet)
-      const header = g.readMessageHeader(reader)
-      if (header.type === g.MessageType.Command) {
+      const type = g.readMessageType(reader)
+      const tick = reader.readUint32()
+      if (type === g.MessageType.Command) {
         const commands = g.readCommands(reader, serverWorld.componentRegistry)
-        const targetTick = Math.max(serverWorld.tick, header.tick)
+        const targetTick = Math.max(serverWorld.tick, tick)
         for (const cmd of commands) {
           g.recordCommand(
             serverWorld,
             cmd.target as g.Entity,
             cmd,
             targetTick,
-            header.tick,
+            tick,
           )
         }
       }
@@ -776,16 +783,17 @@ describe("idle-to-movement transition with latency", () => {
     // 4. Deliver server→client packets (transactions + snapshots)
     for (const packet of serverToClient.receive(frame)) {
       const reader = new g.ByteReader(packet)
-      const header = g.readMessageHeader(reader)
-      if (header.type === g.MessageType.Transaction) {
+      const type = g.readMessageType(reader)
+      const tick = reader.readUint32()
+      if (type === g.MessageType.Transaction) {
         const transaction = g.readTransaction(
           reader,
-          header.tick,
+          tick,
           serverWorld.componentRegistry,
         )
         g.receiveTransaction(clientWorld, transaction)
-      } else if (header.type === g.MessageType.Snapshot) {
-        const snapshot = g.readSnapshot(reader, header.tick)
+      } else if (type === g.MessageType.Snapshot) {
+        const snapshot = g.readSnapshot(reader, tick)
         g.receiveSnapshot(clientWorld, snapshot)
       }
     }

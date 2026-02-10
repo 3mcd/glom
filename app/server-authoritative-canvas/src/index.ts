@@ -200,7 +200,6 @@ function createClient(domainId: number, reconcileSchedule: g.SystemSchedule) {
     }),
   )
   g.addResource(world, g.CommandBuffer(new Map()))
-  g.addResource(world, g.InputBuffer(new Map()))
   g.addResource(world, g.IncomingTransactions(new Map()))
   g.addResource(world, g.IncomingSnapshots(new Map()))
 
@@ -302,17 +301,18 @@ function loop() {
     }
     const {packet} = shift
     const reader = new g.ByteReader(packet)
-    const header = g.readMessageHeader(reader)
-    if (header.type === g.MessageType.Command) {
+    const type = g.readMessageType(reader)
+    const tick = reader.readUint32()
+    if (type === g.MessageType.Command) {
       const commands = g.readCommands(reader, server.world.componentRegistry)
-      const tick = Math.max(server.world.tick, header.tick)
+      const targetTick = Math.max(server.world.tick, tick)
       for (const command of commands) {
         g.recordCommand(
           server.world,
           command.target as g.Entity,
           command,
+          targetTick,
           tick,
-          header.tick,
         )
       }
     }
@@ -325,8 +325,9 @@ function loop() {
     }
     const {packet} = shift
     const reader = new g.ByteReader(packet)
-    const header = g.readMessageHeader(reader)
-    if (header.type === g.MessageType.Handshake) {
+    const type = g.readMessageType(reader)
+    const tick = reader.readUint32()
+    if (type === g.MessageType.Handshake) {
       const handshake = g.readHandshakeServer(reader)
       const latencyTicks = Math.ceil(LATENCY_MS / (1000 / HZ))
       const targetTick = handshake.tick + LAG_COMPENSATION_TICKS + latencyTicks
@@ -349,15 +350,15 @@ function loop() {
           client.timestep.accumulated += 1
         }
       }
-    } else if (header.type === g.MessageType.Transaction) {
+    } else if (type === g.MessageType.Transaction) {
       const transaction = g.readTransaction(
         reader,
-        header.tick,
+        tick,
         client.world.componentRegistry,
       )
       g.receiveTransaction(client.world, transaction)
-    } else if (header.type === g.MessageType.Snapshot) {
-      const snapshot = g.readSnapshot(reader, header.tick)
+    } else if (type === g.MessageType.Snapshot) {
+      const snapshot = g.readSnapshot(reader, tick)
       g.receiveSnapshot(client.world, snapshot)
     }
   }

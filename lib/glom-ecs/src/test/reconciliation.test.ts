@@ -18,7 +18,6 @@ import {TRANSIENT_DOMAIN, type Transaction} from "../replication"
 import {
   IncomingSnapshots,
   IncomingTransactions,
-  InputBuffer,
 } from "../replication_config"
 import {defineSystem} from "../system"
 import {addSystem, makeSystemSchedule, runSchedule} from "../system_schedule"
@@ -77,8 +76,6 @@ describe("reconciliation", () => {
       checkpointInterval: 1,
     }
     addResource(world, HistoryBuffer(history))
-    const inputBuffer = new Map<number, unknown>()
-    addResource(world, InputBuffer(inputBuffer))
     addResource(world, IncomingTransactions(new Map()))
 
     pushCheckpoint(world, history)
@@ -87,12 +84,10 @@ describe("reconciliation", () => {
     commitTransaction(world)
     advanceTick(world)
 
-    inputBuffer.set(1, {dx: 1})
     addComponent(world, entity, Position({x: 1, y: 0}))
     commitTransaction(world)
     advanceTick(world)
 
-    inputBuffer.set(2, {dx: 1})
     addComponent(world, entity, Position({x: 2, y: 0}))
     commitTransaction(world)
     advanceTick(world)
@@ -118,11 +113,10 @@ describe("reconciliation", () => {
       ],
     }
 
-    const tickFn = (w: typeof world, input: unknown) => {
+    const tickFn = (w: typeof world) => {
       const pos = getComponentValue(w, entity, Position)
-      const move = input as {dx: number} | undefined
-      if (move && pos) {
-        addComponent(w, entity, Position({x: pos.x + move.dx, y: pos.y}))
+      if (pos) {
+        addComponent(w, entity, Position({x: pos.x + 1, y: pos.y}))
       }
     }
 
@@ -131,7 +125,7 @@ describe("reconciliation", () => {
     expect(world.tick).toBe(3)
     const posFinal = getComponentValue(world, entity, Position)
     if (posFinal) {
-      expect(posFinal.x).toBe(11)
+      expect(posFinal.x).toBe(12)
     }
   })
 
@@ -144,27 +138,19 @@ describe("reconciliation", () => {
       checkpointInterval: 1,
     }
     addResource(world, HistoryBuffer(history))
-    const inputBuffer = new Map<number, unknown>()
-    addResource(world, InputBuffer(inputBuffer))
     const incomingTransactions = new Map<number, Transaction[]>()
     addResource(world, IncomingTransactions(incomingTransactions))
     addResource(world, IncomingSnapshots(new Map()))
 
     for (let i = 0; i < 5; i++) {
-      inputBuffer.set(i, {dx: i})
       incomingTransactions.set(i, [{domainId: 0, seq: i, tick: i, ops: []}])
       advanceTick(world)
     }
 
-    expect(inputBuffer.size).toBe(5)
     expect(incomingTransactions.size).toBe(5)
     expect(history.checkpoints.length).toBe(5)
 
     pruneBuffers(world, 3)
-
-    expect(inputBuffer.size).toBe(2)
-    expect(inputBuffer.has(3)).toBe(true)
-    expect(inputBuffer.has(4)).toBe(true)
 
     expect(incomingTransactions.size).toBe(2)
     expect(history.checkpoints.length).toBe(3)

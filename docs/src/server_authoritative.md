@@ -64,7 +64,6 @@ The client needs a `history` buffer to store past states for reconciliation. It 
 const world = makeWorld({domainId: 1, schema})
 addResource(world, HistoryBuffer({ snapshots: [], maxSize: 120 }))
 addResource(world, CommandBuffer(new Map()))
-addResource(world, InputBuffer(new Map()))
 addResource(world, IncomingTransactions(new Map()))
 addResource(world, IncomingSnapshots(new Map()))
 
@@ -92,7 +91,9 @@ When a client first connects, the server sends a `Handshake` message. This messa
 
 ```typescript
 // on the client, when receiving the initial handshake:
-if (header.type === MessageType.Handshake) {
+const type = readMessageType(reader)
+const tick = reader.readUint32()
+if (type === MessageType.Handshake) {
   const handshake = readHandshakeServer(reader)
   
   // estimate target tick: server tick + estimated round-trip buffer
@@ -117,7 +118,9 @@ Glom includes utilities for NTP-style clock synchronization to calculate the tim
 
 ```typescript
 // on the client, when receiving a clock sync response:
-if (header.type === MessageType.Clocksync) {
+const type = readMessageType(reader)
+const tick = reader.readUint32()
+if (type === MessageType.Clocksync) {
   const sync = readClocksync(reader)
   const t2 = performance.now()
   

@@ -133,7 +133,7 @@ const _serdeReader = new ByteReader(new Uint8Array(0))
 
 export function captureCheckpoint(world: World): Checkpoint {
   const componentData = new Map<number, unknown[]>()
-  const nextIndex = world.index.nextIndex
+  const nextIndex = world.index.next
 
   for (const [id, store] of world.components.storage) {
     if (store.length === 0) continue
@@ -234,8 +234,8 @@ export function captureCheckpoint(world: World): Checkpoint {
     registryDomains,
     entityToIndex,
     indexToEntity: world.index.indexToEntity.slice(0, nextIndex),
-    freeIndices: [...world.index.freeIndices],
-    nextIndex: world.index.nextIndex,
+    freeIndices: [...world.index.free],
+    nextIndex: world.index.next,
     relations: {
       relToVirtual,
       virtualToRel,
@@ -289,9 +289,9 @@ export function restoreCheckpoint(world: World, checkpoint: Checkpoint) {
   }
   world.index.indexToEntity.length = 0
   world.index.indexToEntity.push(...checkpoint.indexToEntity)
-  world.index.freeIndices.length = 0
-  world.index.freeIndices.push(...checkpoint.freeIndices)
-  world.index.nextIndex = checkpoint.nextIndex
+  world.index.free.length = 0
+  world.index.free.push(...checkpoint.freeIndices)
+  world.index.next = checkpoint.nextIndex
 
   for (const [id, currentStore] of world.components.storage) {
     if (!checkpoint.componentData.has(id)) {
@@ -311,7 +311,7 @@ export function restoreCheckpoint(world: World, checkpoint: Checkpoint) {
       world.components.storage.set(id, currentStore)
     }
     // Preserve resource values (index 0) — they must survive rollbacks.
-    // Resources like HistoryBuffer, CommandBuffer, InputBuffer, etc.
+    // Resources like HistoryBuffer, CommandBuffer, etc.
     // are stored at index 0 (RESOURCE_ENTITY) and contain temporal data
     // that should not be overwritten during checkpoint restoration.
     const savedResource = currentStore[0]
@@ -465,7 +465,7 @@ function undoSpawn(world: World, entity: Entity) {
 
   const idx = sparseMapGet(world.index.entityToIndex, entity)
   if (idx !== undefined) {
-    world.index.freeIndices.push(idx)
+    world.index.free.push(idx)
     sparseMapDelete(world.index.entityToIndex, entity)
   }
 

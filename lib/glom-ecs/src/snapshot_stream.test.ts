@@ -1,7 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {defineComponent} from "./component"
 import {ByteReader, ByteWriter} from "./lib/binary"
-import {readMessageHeader, readSnapshot} from "./protocol"
+import {readMessageType, readSnapshot} from "./protocol"
 import {Replicated} from "./replication_config"
 import {
   applySnapshotStream,
@@ -40,9 +40,10 @@ describe("snapshot streaming", () => {
 
     // Read snapshot from binary
     const reader = new ByteReader(bytes)
-    const header = readMessageHeader(reader)
-    expect(header.tick).toBe(100)
-    const message = readSnapshot(reader, header.tick)
+    readMessageType(reader) // MessageType.Snapshot
+    const tick = reader.readUint32()
+    expect(tick).toBe(100)
+    const message = readSnapshot(reader, tick)
 
     // Apply to worldB
     // First spawn entities in worldB so they exist
@@ -72,8 +73,9 @@ describe("snapshot streaming", () => {
     pos.y = 999
 
     const reader = new ByteReader(writer.getBytes())
-    const header = readMessageHeader(reader)
-    const message = readSnapshot(reader, header.tick)
+    readMessageType(reader) // MessageType.Snapshot
+    const tick = reader.readUint32()
+    const message = readSnapshot(reader, tick)
     applySnapshotStream(world, message)
 
     // Authoritative: always overwrites, even with older tick
@@ -95,8 +97,9 @@ describe("snapshot streaming", () => {
     pos.y = 999
 
     const oldReader = new ByteReader(oldWriter.getBytes())
-    const oldHeader = readMessageHeader(oldReader)
-    const oldMessage = readSnapshot(oldReader, oldHeader.tick)
+    readMessageType(oldReader) // MessageType.Snapshot
+    const oldTick = oldReader.readUint32()
+    const oldMessage = readSnapshot(oldReader, oldTick)
     applySnapshotStreamVersioned(world, oldMessage)
 
     // Versioned: older tick (40) does NOT overwrite current version (50)
@@ -107,8 +110,9 @@ describe("snapshot streaming", () => {
     writeSnapshot(newWriter, world, [posId], world.componentRegistry, 60)
 
     const newReader = new ByteReader(newWriter.getBytes())
-    const newHeader = readMessageHeader(newReader)
-    const newMessage = readSnapshot(newReader, newHeader.tick)
+    readMessageType(newReader) // MessageType.Snapshot
+    const newTick = newReader.readUint32()
+    const newMessage = readSnapshot(newReader, newTick)
     applySnapshotStreamVersioned(world, newMessage)
 
     // Versioned: newer tick (60) overwrites

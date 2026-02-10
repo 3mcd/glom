@@ -110,8 +110,10 @@ timestepSetOffset(timestep, getClockOffset(world) + halfTrip + buffer)
 Buffers an incoming transaction from a peer or server. This is called as soon as a transaction packet is decoded. The transaction is stored in the `IncomingTransactions` resource to be processed by the `performRollback` system at the start of the next frame.
 
 ```typescript
-if (header.type === MessageType.Transaction) {
-  const transaction = readTransaction(reader, header.tick, world)
+const type = readMessageType(reader)
+const tick = reader.readUint32()
+if (type === MessageType.Transaction) {
+  const transaction = readTransaction(reader, tick, world)
   receiveTransaction(world, transaction)
 }
 ```
@@ -120,14 +122,16 @@ if (header.type === MessageType.Transaction) {
 Buffers an authoritative world snapshot. This is used when receiving a full state update, which usually happens when a client first joins a game or after a significant synchronization failure.
 
 ```typescript
-if (header.type === MessageType.Snapshot) {
-  const snapshot = readSnapshot(reader, world)
+const type = readMessageType(reader)
+const tick = reader.readUint32()
+if (type === MessageType.Snapshot) {
+  const snapshot = readSnapshot(reader, tick)
   receiveSnapshot(world, snapshot)
 }
 ```
 
 #### `recordCommand(world, target, command, [tick])`
-Records a user intent command into the world's command buffer. This is called within input handling logic (e.g., every frame) to store commands in the `InputBuffer` so they can be re-played during reconciliation if a rollback occurs.
+Records a user intent command into the world's command buffer. This is called within input handling logic (e.g., every frame) to store commands in the `CommandBuffer` so they can be re-played during reconciliation if a rollback occurs.
 
 ```typescript
 // Record a "Move" command for the local player entity
@@ -183,20 +187,12 @@ A buffer for periodic authoritative state updates. Similar to transactions, this
 addResource(world, IncomingSnapshots)
 ```
 
-#### `InputBuffer`
-Stores a history of local commands. This is automatically managed by `recordCommand` and used by `performRollback` to ensure player actions are preserved when the world state is rewound.
-
-```typescript
-// Initialize the command buffer resource
-addResource(world, InputBuffer)
-```
-
 ## 13. Built-in Networking Systems
 
 ### Reconciliation Systems (Client-side)
 
 #### `performRollback`
-The core engine of client-side prediction. This system is typically scheduled at the very beginning of the client's `Main` schedule. It checks the `IncomingTransactions` buffer against the `HistoryBuffer` and automatically rewinds the world and re-simulates missing frames if a discrepancy is found. It also re-applies local commands from the `InputBuffer` during re-simulation.
+The core engine of client-side prediction. This system is typically scheduled at the very beginning of the client's `Main` schedule. It checks the `IncomingTransactions` buffer against the `HistoryBuffer` and automatically rewinds the world and re-simulates missing frames if a discrepancy is found. It also re-applies local commands from the `CommandBuffer` during re-simulation.
 
 #### `cleanupGhosts`
 Prunes unconfirmed predicted entities. This system belongs in the client schedule and deletes transient entities created during prediction if they haven't been "confirmed" (rebound to a server ID) in the `HistoryBuffer` within a certain time window.
@@ -221,7 +217,7 @@ Increments the tick counter and saves history. This system is typically schedule
 ### Utility Systems
 
 #### `spawnEphemeralCommands`
-Turns recorded inputs into queryable entities. This system is typically scheduled before the main simulation logic to look at the `InputBuffer` for the current tick and spawn temporary entities so systems can use standard queries to read player intent.
+Turns recorded inputs into queryable entities. This system is typically scheduled before the main simulation logic to look at the `CommandBuffer` for the current tick and spawn temporary entities so systems can use standard queries to read player intent.
 
 #### `cleanupEphemeralCommands`
-Removes temporary command entities. This system is typically scheduled after the simulation logic to keep the world clean and ensure command entities created from the `InputBuffer` do not persist into the next tick.
+Removes temporary command entities. This system is typically scheduled after the simulation logic to keep the world clean and ensure command entities created from the `CommandBuffer` do not persist into the next tick.

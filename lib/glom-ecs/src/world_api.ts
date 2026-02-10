@@ -895,7 +895,7 @@ export function flushDeletions(world: World) {
 
     const entityIndex = sparseMapGet(world.index.entityToIndex, entity)
     if (entityIndex !== undefined) {
-      world.index.freeIndices.push(entityIndex)
+      world.index.free.push(entityIndex)
       sparseMapDelete(world.index.entityToIndex, entity)
     }
 

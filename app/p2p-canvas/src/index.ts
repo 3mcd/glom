@@ -177,18 +177,20 @@ function loop() {
       sharedWriter.reset()
       g.writeTransaction(sharedWriter, tx, peerA.world.componentRegistry)
       const reader = new g.ByteReader(sharedWriter.toBytes())
-      const header = g.readMessageHeader(reader)
+      g.readMessageType(reader) // MessageType.Transaction
+      const tick = reader.readUint32()
       const decoded = g.readTransaction(
         reader,
-        header.tick,
+        tick,
         peerB.world.componentRegistry,
       )
       g.receiveTransaction(peerB.world, decoded)
     }
     for (const raw of streamA.snapshots) {
       const reader = new g.ByteReader(raw)
-      const header = g.readMessageHeader(reader)
-      const decoded = g.readSnapshot(reader, header.tick)
+      g.readMessageType(reader) // MessageType.Snapshot
+      const tick = reader.readUint32()
+      const decoded = g.readSnapshot(reader, tick)
       g.receiveSnapshot(peerB.world, decoded)
     }
   }
@@ -200,18 +202,20 @@ function loop() {
       sharedWriter.reset()
       g.writeTransaction(sharedWriter, tx, peerB.world.componentRegistry)
       const reader = new g.ByteReader(sharedWriter.toBytes())
-      const header = g.readMessageHeader(reader)
+      g.readMessageType(reader) // MessageType.Transaction
+      const tick = reader.readUint32()
       const decoded = g.readTransaction(
         reader,
-        header.tick,
+        tick,
         peerA.world.componentRegistry,
       )
       g.receiveTransaction(peerA.world, decoded)
     }
     for (const raw of streamB.snapshots) {
       const reader = new g.ByteReader(raw)
-      const header = g.readMessageHeader(reader)
-      const decoded = g.readSnapshot(reader, header.tick)
+      g.readMessageType(reader) // MessageType.Snapshot
+      const tick = reader.readUint32()
+      const decoded = g.readSnapshot(reader, tick)
       g.receiveSnapshot(peerA.world, decoded)
     }
   }

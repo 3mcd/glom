@@ -32,15 +32,6 @@ export const ReplicationStream = defineComponent<{
   decode: () => ({transactions: [], snapshots: []}),
 })
 
-export const InputBuffer = defineComponent<Map<number, unknown>>(
-  "glom/InputBuffer",
-  {
-    bytesPerElement: 0,
-    encode: () => {},
-    decode: () => new Map(),
-  },
-)
-
 export const IncomingTransactions = defineComponent<Map<number, Transaction[]>>(
   "glom/IncomingTransactions",
   {
