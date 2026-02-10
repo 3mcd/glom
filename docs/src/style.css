@@ -226,6 +226,7 @@ hr {
 .toc-header {
   padding: 0.5rem 1rem;
   font-family: var(--font-mono);
+  font-weight: bold;
 }
 
 /* Section specific header colors */
@@ -327,6 +328,7 @@ hr {
 
 .info-header .row > span {
   padding: 0.5rem 1rem;
+  font-weight: bold;
 }
 
 .scroll-top {
