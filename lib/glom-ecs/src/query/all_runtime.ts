@@ -29,7 +29,7 @@ import {
   sparseMapSet,
 } from "../sparse_map"
 import {makeVec, type Vec, vecIsSupersetOf} from "../vec"
-import {getComponentStore, type World} from "../world"
+import {getComponentId, getComponentStore, getEntityNode, resolveVirtualComponent, type World} from "../world"
 import type {AnyAll} from "./all"
 
 export type TermInfo =
@@ -75,7 +75,7 @@ export class JoinLevel implements EntityGraphNodeListener {
       makeVec([c], world.componentRegistry),
     )
     if (joinOn) {
-      this.joinOn = {id: world.componentRegistry.getId(joinOn)}
+      this.joinOn = {id: getComponentId(world, joinOn)}
     }
 
     this.anchorNode = entityGraphFindOrCreateNode(
@@ -157,10 +157,9 @@ export class AllRuntime implements AnyAll {
 
     const rootJoin = this.joins[0]
     if (!rootJoin) return
-    const nodes = rootJoin.nodes
 
-    for (let i = 0; i < nodes.length; i++) {
-      const node = nodes[i] as EntityGraphNode
+    for (let i = 0; i < rootJoin.nodes.length; i++) {
+      const node = rootJoin.nodes[i] as EntityGraphNode
       const entities = node.entities.dense
       for (let j = 0; j < entities.length; j++) {
         const entity = entities[j] as Entity
@@ -248,19 +247,17 @@ export class AllRuntime implements AnyAll {
     if (!join) return
 
     if (join.joinOnId !== undefined && subjectEntity !== undefined) {
-      const relationId = join.joinOnId
       for (let i = 0; i < join.nodes.length; i++) {
         const n = join.nodes[i] as EntityGraphNode
-        const relMap = n.relMaps[relationId]
+        const relMap = n.relMaps[join.joinOnId]
         if (!relMap) continue
 
         const targets = relMap.subjectToObjects.get(subjectEntity as number)
         if (!targets) continue
 
-        const targetEntities = targets.dense
-        for (let j = 0; j < targetEntities.length; j++) {
+        for (let j = 0; j < targets.dense.length; j++) {
           yield* this._yield_at_level(
-            targetEntities[j] as Entity,
+            targets.dense[j] as Entity,
             n,
             joinLevel,
             currentResult,
@@ -289,47 +286,43 @@ export class AllRuntime implements AnyAll {
     info: TermInfo,
     node?: EntityGraphNode,
   ): unknown[] {
-    const world = this._world
-    assertDefined(world)
+    assertDefined(this._world)
     if (info.type === "entity") return [entity]
     if (info.type === "component") {
       const actualNode =
-        node ?? sparseMapGet(world.entityGraph.byEntity, entity as number)
+        node ?? getEntityNode(this._world, entity as Entity)
       if (!actualNode) return []
-
-      const componentId = info.componentId
-      if (!actualNode.vec.sparse.has(componentId)) return []
+      if (!actualNode.vec.sparse.has(info.componentId)) return []
 
       if (!info.store) return [undefined]
-      const index = sparseMapGet(world.index.entityToIndex, entity)
+      const index = sparseMapGet(this._world.index.entityToIndex, entity)
       if (index === undefined) return []
       const val = info.store[index]
       if (val === undefined) return []
 
       if (info.isWrite) {
-        let versions = world.components.versions.get(componentId)
+        let versions = this._world.components.versions.get(info.componentId)
         if (!versions) {
           versions = new Uint32Array(1024)
-          world.components.versions.set(componentId, versions)
+          this._world.components.versions.set(info.componentId, versions)
         }
         if (index >= versions.length) {
           const next = new Uint32Array(Math.max(versions.length * 2, index + 1))
           next.set(versions)
           versions = next
-          world.components.versions.set(componentId, versions)
+          this._world.components.versions.set(info.componentId, versions)
         }
-        versions[index] = world.tick
+        versions[index] = this._world.tick
       }
 
       return [val]
     }
     if (info.type === "has" || info.type === "not") {
       const actualNode =
-        node ?? sparseMapGet(world.entityGraph.byEntity, entity as number)
+        node ?? getEntityNode(this._world, entity as Entity)
       if (!actualNode) return info.type === "not" ? [undefined] : []
 
-      const componentId = info.componentId
-      const hasComponent = actualNode.vec.sparse.has(componentId)
+      const hasComponent = actualNode.vec.sparse.has(info.componentId)
 
       if (info.type === "has") {
         return hasComponent ? [undefined] : []
@@ -477,12 +470,12 @@ export class AllRuntime implements AnyAll {
         termComp.relation,
         termComp.object,
       )
-      component = world.componentRegistry.getVirtualComponent(vid)
+      component = resolveVirtualComponent(world, vid)
     } else {
       component = termComp as ComponentLike
     }
 
-    const componentId = world.componentRegistry.getId(component)
+    const componentId = getComponentId(world, component)
     const info: TermInfo = {
       type,
       component,
@@ -588,7 +581,7 @@ export class AllRuntime implements AnyAll {
         termComp.relation,
         termComp.object,
       )
-      component = world.componentRegistry.getVirtualComponent(vid)
+      component = resolveVirtualComponent(world, vid)
     } else {
       component = termComp as ComponentLike
     }
@@ -627,7 +620,7 @@ export class AllRuntime implements AnyAll {
     const world = this._world
     if (!world) return false
 
-    const node = sparseMapGet(world.entityGraph.byEntity, entity as number)
+    const node = getEntityNode(world, entity as Entity)
     if (!node) return false
 
     // Check if the entity's node matches the first join level
@@ -670,8 +663,7 @@ export class UniqueRuntime extends AllRuntime {
     if (result.done) {
       throw new Error(`Unique query failed: no entity found matching terms`)
     }
-    const val = result.value
-    return val.length === 1 ? val[0] : val
+    return result.value.length === 1 ? result.value[0] : result.value
   }
 }
 

@@ -14,7 +14,6 @@ import {
   emitSpawnedEntities,
   entityGraphBatchAdd,
   entityGraphFindOrCreateNode,
-  entityGraphGetEntityNode,
   entityGraphNodeAddRelation,
   entityGraphNodePrune,
   entityGraphNodeRemoveEntity,
@@ -35,7 +34,10 @@ import {HistoryBuffer, pushCheckpoint, pushSnapshot} from "./history"
 import type {AddOp, ReplicationOp, SpawnComponent} from "./net_types"
 import {isRelationship} from "./relation"
 import {
+  deleteObjectSubjects,
+  getObjectSubjects,
   getOrCreateVirtualId,
+  getRelationPair,
   getVirtualId,
   registerIncomingRelation,
   unregisterIncomingRelation,
@@ -64,11 +66,15 @@ import {makeVec, vecDifference, vecSum} from "./vec"
 import {
   addResource,
   deleteComponentValue,
+  getComponentId,
   getComponentValue,
   getComponentValueById,
+  getEntityNode,
   getOrCreateIndex,
   getResource,
   makeVersion,
+  resolveComponent,
+  resolveVirtualComponent,
   setComponentValue,
   type World,
 } from "./world"
@@ -115,7 +121,7 @@ export function setEntityNode(
   )
   if (prevNode === nextNode) return prevNode
 
-  const incoming = world.relations.objectToSubjects.get(entity)
+  const incoming = getObjectSubjects(world, entity)
   if (incoming) {
     for (const {subject, relationId} of incoming) {
       if (prevNode) {
@@ -156,7 +162,7 @@ export function spawnInDomain(
     const c = components[i]
     if (c && typeof c === "object" && "component" in c) {
       if (
-        world.componentRegistry.getId(
+        getComponentId(world, 
           (c as ComponentInstance<unknown>).component,
         ) === Replicated.id
       ) {
@@ -164,7 +170,7 @@ export function spawnInDomain(
         break
       }
     } else if (c && !isRelationship(c)) {
-      if (world.componentRegistry.getId(c as ComponentLike) === Replicated.id) {
+      if (getComponentId(world, c as ComponentLike) === Replicated.id) {
         isReplicated = true
         break
       }
@@ -203,13 +209,13 @@ export function spawnInDomain(
       if (isRelationship(item)) {
         const vid = getOrCreateVirtualId(world, item.relation, item.object)
         resolvedComponents.push(
-          world.componentRegistry.getVirtualComponent(vid),
+          resolveVirtualComponent(world, vid),
         )
         resolvedComponents.push(item.relation)
         registerIncomingRelation(
           world,
           entity,
-          world.componentRegistry.getId(item.relation),
+          getComponentId(world, item.relation),
           item.object,
         )
       } else {
@@ -229,7 +235,7 @@ export function spawnInDomain(
     let replicatedCheck = false
     for (let i = 0; i < resolvedComponents.length; i++) {
       if (
-        world.componentRegistry.getId(
+        getComponentId(world, 
           resolvedComponents[i] as ComponentLike,
         ) === Replicated.id
       ) {
@@ -244,11 +250,11 @@ export function spawnInDomain(
       op.components = []
       for (let i = 0; i < resolvedComponents.length; i++) {
         const c = resolvedComponents[i] as ComponentLike
-        const id = world.componentRegistry.getId(c)
+        const id = getComponentId(world, c)
         op.components.push({
           id,
           data: getComponentValue(world, entity, c),
-          rel: world.relations.virtualToRel.get(id),
+          rel: getRelationPair(world, id),
         })
       }
       world.pendingOps.push(op)
@@ -269,7 +275,7 @@ export function spawnInDomain(
 }
 
 export function despawn(world: World, entity: Entity): void {
-  const node = entityGraphGetEntityNode(world.entityGraph, entity)
+  const node = getEntityNode(world, entity)
   if (!node) {
     return
   }
@@ -280,11 +286,11 @@ export function despawn(world: World, entity: Entity): void {
     const els = node.vec.elements
     for (let k = 0; k < els.length; k++) {
       const comp = els[k] as ComponentLike
-      const compId = world.componentRegistry.getId(comp)
+      const compId = getComponentId(world, comp)
       undoComponents.push({
         id: compId,
         data: getComponentValue(world, entity, comp),
-        rel: world.relations.virtualToRel.get(compId),
+        rel: getRelationPair(world, compId),
       })
     }
     world.currentUndoEntries.push({
@@ -300,7 +306,7 @@ export function despawn(world: World, entity: Entity): void {
     const elements = node.vec.elements
     for (let i = 0; i < elements.length; i++) {
       if (
-        world.componentRegistry.getId(elements[i] as ComponentLike) ===
+        getComponentId(world, elements[i] as ComponentLike) ===
         Replicated.id
       ) {
         isReplicated = true
@@ -314,7 +320,7 @@ export function despawn(world: World, entity: Entity): void {
     }
   }
 
-  const incoming = world.relations.objectToSubjects.get(entity)
+  const incoming = getObjectSubjects(world, entity)
   if (incoming) {
     const toRemove = Array.from(incoming)
     for (let i = 0; i < toRemove.length; i++) {
@@ -329,8 +335,8 @@ export function despawn(world: World, entity: Entity): void {
   const elements = node.vec.elements
   for (let i = 0; i < elements.length; i++) {
     const comp = elements[i] as ComponentLike
-    const compId = world.componentRegistry.getId(comp)
-    const rel = world.relations.virtualToRel.get(compId)
+    const compId = getComponentId(world, comp)
+    const rel = getRelationPair(world, compId)
     if (rel) {
       unregisterIncomingRelation(
         world,
@@ -343,9 +349,9 @@ export function despawn(world: World, entity: Entity): void {
 
   world.pendingDeletions.add(entity)
 
-  const prevNode = sparseMapGet(world.entityGraph.byEntity, entity as number)
+  const prevNode = getEntityNode(world, entity)
   if (prevNode) {
-    const incoming = world.relations.objectToSubjects.get(entity)
+    const incoming = getObjectSubjects(world, entity)
     if (incoming) {
       for (const {subject, relationId} of incoming) {
         entityGraphNodeRemoveRelation(
@@ -368,13 +374,13 @@ function removeRelation(
   relationId: number,
   object: Entity,
 ): void {
-  const node = entityGraphGetEntityNode(world.entityGraph, entity)
+  const node = getEntityNode(world, entity)
   if (!node) return
 
-  const virtualId = getVirtualId(world.relations, relationId, object)
+  const virtualId = getVirtualId(world, relationId, object)
   if (virtualId === undefined) return
 
-  const vidComp = world.componentRegistry.getVirtualComponent(virtualId)
+  const vidComp = resolveVirtualComponent(world, virtualId)
   let nextVec = vecDifference(
     node.vec,
     makeVec([vidComp as Component<unknown>], world.componentRegistry),
@@ -382,11 +388,10 @@ function removeRelation(
   )
 
   let hasOtherRelations = false
-  const elements = nextVec.elements
-  for (let i = 0; i < elements.length; i++) {
-    const comp = elements[i] as ComponentLike
-    const rel = world.relations.virtualToRel.get(
-      world.componentRegistry.getId(comp),
+  for (let i = 0; i < nextVec.elements.length; i++) {
+    const comp = nextVec.elements[i] as ComponentLike
+    const rel = getRelationPair(world, 
+      getComponentId(world, comp),
     )
     if (rel && rel.relationId === relationId) {
       hasOtherRelations = true
@@ -395,7 +400,7 @@ function removeRelation(
   }
 
   if (!hasOtherRelations) {
-    const relTag = world.componentRegistry.getComponent(relationId)
+    const relTag = resolveComponent(world, relationId)
     if (relTag) {
       nextVec = vecDifference(
         nextVec,
@@ -416,7 +421,7 @@ export function addComponent(
   entity: Entity,
   item: ComponentInstance<unknown> | ComponentLike,
 ): void {
-  const node = entityGraphGetEntityNode(world.entityGraph, entity)
+  const node = getEntityNode(world, entity)
   if (!node) return
 
   const toAdd: ComponentLike[] = []
@@ -432,12 +437,12 @@ export function addComponent(
   } else if (item) {
     if (isRelationship(item)) {
       const vid = getOrCreateVirtualId(world, item.relation, item.object)
-      toAdd.push(world.componentRegistry.getVirtualComponent(vid))
+      toAdd.push(resolveVirtualComponent(world, vid))
       toAdd.push(item.relation)
       registerIncomingRelation(
         world,
         entity,
-        world.componentRegistry.getId(item.relation),
+        getComponentId(world, item.relation),
         item.object,
       )
     } else {
@@ -450,12 +455,12 @@ export function addComponent(
     if (getDomainId(entity) !== COMMAND_DOMAIN) {
       for (let i = 0; i < toAdd.length; i++) {
         const c = toAdd[i] as ComponentLike
-        const cid = world.componentRegistry.getId(c)
+        const cid = getComponentId(world, c)
         world.currentUndoEntries.push({
           type: "undo-add",
           entity,
           componentId: cid,
-          rel: world.relations.virtualToRel.get(cid),
+          rel: getRelationPair(world, cid),
         })
       }
     }
@@ -465,7 +470,7 @@ export function addComponent(
       const elements = node.vec.elements
       for (let i = 0; i < elements.length; i++) {
         if (
-          world.componentRegistry.getId(elements[i] as ComponentLike) ===
+          getComponentId(world, elements[i] as ComponentLike) ===
           Replicated.id
         ) {
           alreadyReplicated = true
@@ -476,7 +481,7 @@ export function addComponent(
       let addingReplicated = false
       for (let i = 0; i < toAdd.length; i++) {
         if (
-          world.componentRegistry.getId(toAdd[i] as ComponentLike) ===
+          getComponentId(world, toAdd[i] as ComponentLike) ===
           Replicated.id
         ) {
           addingReplicated = true
@@ -487,13 +492,13 @@ export function addComponent(
       if (alreadyReplicated) {
         for (let i = 0; i < toAdd.length; i++) {
           const c = toAdd[i] as ComponentLike
-          const id = world.componentRegistry.getId(c)
+          const id = getComponentId(world, c)
           // Check if entity already has this component
           let alreadyHas = false
           const elements = node.vec.elements
           for (let k = 0; k < elements.length; k++) {
             if (
-              world.componentRegistry.getId(elements[k] as ComponentLike) === id
+              getComponentId(world, elements[k] as ComponentLike) === id
             ) {
               alreadyHas = true
               break
@@ -505,7 +510,7 @@ export function addComponent(
             op.entity = entity
             op.componentId = id
             op.data = getComponentValue(world, entity, c)
-            op.rel = world.relations.virtualToRel.get(id)
+            op.rel = getRelationPair(world, id)
             world.pendingOps.push(op)
           } else {
             // Value-only change — emit "set" op if P2P mode is enabled
@@ -516,7 +521,7 @@ export function addComponent(
               op.componentId = id
               op.data = getComponentValue(world, entity, c)
               op.version = makeVersion(world.tick, world.registry.domainId)
-              op.rel = world.relations.virtualToRel.get(id)
+              op.rel = getRelationPair(world, id)
               world.pendingOps.push(op)
             }
           }
@@ -529,11 +534,11 @@ export function addComponent(
         op.components = []
         for (let i = 0; i < allComponents.length; i++) {
           const c = allComponents[i] as ComponentLike
-          const id = world.componentRegistry.getId(c)
+          const id = getComponentId(world, c)
           op.components.push({
             id,
             data: getComponentValue(world, entity, c),
-            rel: world.relations.virtualToRel.get(id),
+            rel: getRelationPair(world, id),
           })
         }
         world.pendingOps.push(op)
@@ -556,23 +561,23 @@ export function removeComponent(
   entity: Entity,
   item: ComponentLike,
 ): void {
-  const node = entityGraphGetEntityNode(world.entityGraph, entity)
+  const node = getEntityNode(world, entity)
   if (!node) return
 
   const toRemove: ComponentLike[] = []
   if (isRelationship(item)) {
     const virtualId = getVirtualId(
-      world.relations,
-      world.componentRegistry.getId(item.relation),
+      world,
+      getComponentId(world, item.relation),
       item.object,
     )
     if (virtualId !== undefined) {
-      const vidComp = world.componentRegistry.getVirtualComponent(virtualId)
+      const vidComp = resolveVirtualComponent(world, virtualId)
       toRemove.push(vidComp)
       unregisterIncomingRelation(
         world,
         entity,
-        world.componentRegistry.getId(item.relation),
+        getComponentId(world, item.relation),
         item.object,
       )
 
@@ -581,16 +586,16 @@ export function removeComponent(
       for (let i = 0; i < elements.length; i++) {
         const comp = elements[i] as ComponentLike
         if (
-          world.componentRegistry.getId(comp) ===
-          world.componentRegistry.getId(vidComp)
+          getComponentId(world, comp) ===
+          getComponentId(world, vidComp)
         )
           continue
-        const rel = world.relations.virtualToRel.get(
-          world.componentRegistry.getId(comp),
+        const rel = getRelationPair(world, 
+          getComponentId(world, comp),
         )
         if (
           rel &&
-          rel.relationId === world.componentRegistry.getId(item.relation)
+          rel.relationId === getComponentId(world, item.relation)
         ) {
           hasOtherRelations = true
           break
@@ -610,13 +615,13 @@ export function removeComponent(
     if (getDomainId(entity) !== COMMAND_DOMAIN) {
       for (let i = 0; i < toRemove.length; i++) {
         const c = toRemove[i] as ComponentLike
-        const cid = world.componentRegistry.getId(c)
+        const cid = getComponentId(world, c)
         world.currentUndoEntries.push({
           type: "undo-remove",
           entity,
           componentId: cid,
           data: getComponentValue(world, entity, c),
-          rel: world.relations.virtualToRel.get(cid),
+          rel: getRelationPair(world, cid),
         })
       }
     }
@@ -626,7 +631,7 @@ export function removeComponent(
       const elements = node.vec.elements
       for (let i = 0; i < elements.length; i++) {
         if (
-          world.componentRegistry.getId(elements[i] as ComponentLike) ===
+          getComponentId(world, elements[i] as ComponentLike) ===
           Replicated.id
         ) {
           isReplicated = true
@@ -638,7 +643,7 @@ export function removeComponent(
           const c = toRemove[i] as ComponentLike
           const op = poolGetOp("remove")
           op.entity = entity
-          op.componentId = world.componentRegistry.getId(c)
+          op.componentId = getComponentId(world, c)
           world.pendingOps.push(op)
         }
       }
@@ -679,20 +684,19 @@ export function commitTransaction(world: World): void {
 
   const domainId = world.registry.domainId
   const reducedOps: ReplicationOp[] = []
-  const entityToOps = world._reduction_entity_to_ops
-  entityToOps.clear()
+  world._reduction_entity_to_ops.clear()
 
   for (let i = 0; i < world.pendingOps.length; i++) {
     const op = world.pendingOps[i] as ReplicationOp
-    let list = entityToOps.get(op.entity)
+    let list = world._reduction_entity_to_ops.get(op.entity)
     if (!list) {
       list = []
-      entityToOps.set(op.entity, list)
+      world._reduction_entity_to_ops.set(op.entity, list)
     }
     list.push(op)
   }
 
-  for (const [entity, ops] of entityToOps) {
+  for (const [entity, ops] of world._reduction_entity_to_ops) {
     let wasSpawned = false
     for (let j = 0; j < ops.length; j++) {
       if ((ops[j] as ReplicationOp).type === "spawn") {
@@ -711,7 +715,7 @@ export function commitTransaction(world: World): void {
     }
 
     if (wasSpawned) {
-      const node = entityGraphGetEntityNode(world.entityGraph, entity)
+      const node = getEntityNode(world, entity)
       if (!node) continue
 
       let spawnOpOrig: Extract<ReplicationOp, {type: "spawn"}> | undefined
@@ -731,34 +735,32 @@ export function commitTransaction(world: World): void {
       const elements = node.vec.elements
       for (let j = 0; j < elements.length; j++) {
         const c = elements[j] as ComponentLike
-        const id = world.componentRegistry.getId(c)
+        const id = getComponentId(world, c)
         op.components.push({
           id,
           data: getComponentValue(world, entity, c),
-          rel: world.relations.virtualToRel.get(id),
+          rel: getRelationPair(world, id),
         })
       }
       reducedOps.push(op)
       continue
     }
 
-    const componentChanges = world._reduction_component_changes
-    const componentRemovals = world._reduction_component_removals
-    componentChanges.clear()
-    componentRemovals.clear()
+    world._reduction_component_changes.clear()
+    world._reduction_component_removals.clear()
 
     for (let j = 0; j < ops.length; j++) {
       const op = ops[j] as ReplicationOp
       if (op.type === "add" || op.type === "set") {
-        componentChanges.set(op.componentId, op)
-        componentRemovals.delete(op.componentId)
+        world._reduction_component_changes.set(op.componentId, op)
+        world._reduction_component_removals.delete(op.componentId)
       } else if (op.type === "remove") {
-        componentRemovals.add(op.componentId)
-        componentChanges.delete(op.componentId)
+        world._reduction_component_removals.add(op.componentId)
+        world._reduction_component_changes.delete(op.componentId)
       }
     }
 
-    for (const opOrig of componentChanges.values()) {
+    for (const opOrig of world._reduction_component_changes.values()) {
       if (opOrig.type === "add") {
         const op = poolGetOp("add")
         op.entity = entity
@@ -776,7 +778,7 @@ export function commitTransaction(world: World): void {
         reducedOps.push(op)
       }
     }
-    for (const id of componentRemovals) {
+    for (const id of world._reduction_component_removals) {
       const op = poolGetOp("remove")
       op.entity = entity
       op.componentId = id
@@ -820,8 +822,7 @@ export function advanceTick(world: World, skipSnapshot = false): void {
   world.tick++
 
   if (!skipSnapshot && history) {
-    const interval = history.checkpointInterval
-    if (interval <= 1 || world.tick % interval === 0) {
+    if (history.checkpointInterval <= 1 || world.tick % history.checkpointInterval === 0) {
       pushCheckpoint(world, history)
     }
   }
@@ -871,7 +872,7 @@ export function flushGraphChanges(world: World) {
 
 export function flushDeletions(world: World) {
   world.pendingDeletions.forEach((entity) => {
-    world.relations.objectToSubjects.delete(entity)
+    deleteObjectSubjects(world, entity)
 
     const entityIndex = sparseMapGet(world.index.entityToIndex, entity)
     if (entityIndex !== undefined) {

@@ -5,6 +5,7 @@ import {MessageType, type ResolverLike, writeMessageHeader} from "./protocol"
 import {Replicated} from "./replication_config"
 import {
   forceSetComponentValueById,
+  getComponentId,
   getComponentValueById,
   setComponentValueById,
   type World,
@@ -32,7 +33,7 @@ function collectReplicatedEntities(
     let isReplicated = false
     const elements = node.vec.elements
     for (let j = 0; j < elements.length; j++) {
-      if (world.componentRegistry.getId(elements[j]!) === Replicated.id) {
+      if (getComponentId(world, elements[j]!) === Replicated.id) {
         isReplicated = true
         break
       }
@@ -120,14 +121,13 @@ function readAndApplySnapshot(
   tick: number,
   force: boolean,
 ): void {
-  const resolver = world.componentRegistry
   const blockCount = reader.readUint16()
 
   for (let i = 0; i < blockCount; i++) {
     const componentId = reader.readVarint()
     const entityCount = reader.readUint16()
-    const serde = resolver.getSerde(componentId)
-    const isTag = resolver.isTag(componentId)
+    const serde = world.componentRegistry.getSerde(componentId)
+    const isTag = world.componentRegistry.isTag(componentId)
 
     for (let j = 0; j < entityCount; j++) {
       const entity = reader.readVarint()

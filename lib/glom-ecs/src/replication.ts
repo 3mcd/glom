@@ -10,31 +10,38 @@ import {CommandBuffer, type CommandInstance} from "./command"
 import {type Entity, getDomainId, getLocalId} from "./entity"
 import {
   entityGraphFindOrCreateNode,
-  entityGraphGetEntityNode,
   entityGraphNodeAddEntity,
   entityGraphNodeRemoveEntity,
 } from "./entity_graph"
 import {getDomain, removeEntity} from "./entity_registry"
 import {addDomainEntity, removeDomainEntity} from "./entity_registry_domain"
+import {acquireWriter} from "./lib/binary"
 import {hashWord} from "./lib/hash"
 import {Read, World as WorldTerm, Write} from "./query/term"
 import {pruneBuffers} from "./reconciliation"
 import type {Relation} from "./relation"
 import {
+  deleteObjectSubjects,
+  getObjectSubjects,
+  getOrCreateVirtualMap,
+  getRelationPair,
   type RelationPair,
   type RelationSubject,
   registerIncomingRelation,
+  setRelationPair,
   unregisterIncomingRelation,
 } from "./relation_registry"
 import {writeSnapshot} from "./snapshot_stream"
-import {acquireWriter} from "./lib/binary"
 import {sparseMapDelete, sparseMapGet, sparseMapSet} from "./sparse_map"
 import {defineSystem} from "./system"
 import {makeVec, vecDifference, vecSum} from "./vec"
 import {
   deleteComponentValue,
+  getComponentId,
   getComponentValue,
+  getEntityNode,
   getResource,
+  resolveComponent,
   setComponentValue,
   type World,
 } from "./world"
@@ -126,8 +133,6 @@ export function rebindEntity(
 ) {
   if (transient === authoritative) return
 
-
-
   const index = sparseMapGet(world.index.entityToIndex, transient)
   if (index === undefined) {
     return
@@ -139,7 +144,7 @@ export function rebindEntity(
   world.index.indexToEntity[index] = authoritative
   sparseMapDelete(world.index.entityToIndex, transient)
 
-  const node = sparseMapGet(world.entityGraph.byEntity, transient as number)
+  const node = getEntityNode(world, transient)
   if (node) {
     entityGraphNodeRemoveEntity(node, transient)
     entityGraphNodeAddEntity(node, authoritative, index)
@@ -147,13 +152,13 @@ export function rebindEntity(
     sparseMapDelete(world.entityGraph.byEntity, transient as number)
   }
 
-  const incoming = world.relations.objectToSubjects.get(transient)
+  const incoming = getObjectSubjects(world, transient as number)
   if (incoming) {
     const relationsToMove = Array.from(incoming)
     for (let i = 0; i < relationsToMove.length; i++) {
       const {subject, relationId} = relationsToMove[i] as RelationSubject
       const relation = ((object: Entity) => ({
-        relation: world.componentRegistry.getComponent(relationId) as Relation,
+        relation: resolveComponent(world, relationId) as Relation,
         object,
       })) as unknown as (object: Entity) => ComponentLike
 
@@ -161,7 +166,7 @@ export function rebindEntity(
 
       addComponent(world, subject as Entity, relation(authoritative))
     }
-    world.relations.objectToSubjects.delete(transient)
+    deleteObjectSubjects(world, transient as number)
   }
 
   const commandBuffer = getResource(world, CommandBuffer)
@@ -188,51 +193,47 @@ export function applyTransaction(world: World, transaction: Transaction) {
     )
   }
 
-  const ops = transaction.ops
-  for (let i = 0; i < ops.length; i++) {
-    const op = ops[i] as ReplicationOp
+  for (let i = 0; i < transaction.ops.length; i++) {
+    const op = transaction.ops[i] as ReplicationOp
     switch (op.type) {
       case "spawn": {
-        const entity = op.entity
-
         if (op.causalKey !== undefined) {
           const transientInfo = world.transientRegistry.get(op.causalKey)
           if (transientInfo !== undefined) {
-            rebindEntity(world, transientInfo.entity, entity)
+            rebindEntity(world, transientInfo.entity, op.entity)
 
             world.transientRegistry.set(op.causalKey, {
               ...transientInfo,
-              entity,
+              entity: op.entity,
             })
           }
         }
 
-        addDomainEntity(domain, entity)
+        addDomainEntity(domain, op.entity)
 
         // Ensure the entity's actual domain (encoded in the entity ID) has
         // its entityId counter advanced past this entity's localId.  Without
         // this, a client that later allocates entities in the same domain
         // (e.g. TRANSIENT_DOMAIN) can produce a colliding entity ID.
-        const entityDomainId = getDomainId(entity)
+        const entityDomainId = getDomainId(op.entity)
         if (entityDomainId !== transaction.domainId) {
           const entityDomain = getDomain(world.registry, entityDomainId)
-          const localId = getLocalId(entity)
+          const localId = getLocalId(op.entity)
           if (entityDomain.entityId <= localId) {
             entityDomain.entityId = localId + 1
           }
         }
 
         const resolved: ComponentLike[] = []
-        const components = op.components
-        for (let j = 0; j < components.length; j++) {
-          const {id, data, rel} = components[j] as SpawnComponent
-          const comp = world.componentRegistry.getComponent(id)
+        for (let j = 0; j < op.components.length; j++) {
+          const {id, data, rel} = op.components[j] as SpawnComponent
+          const comp = resolveComponent(world, id)
           if (!comp) continue
 
           if (data !== undefined) {
             setComponentValue(
               world,
-              entity,
+              op.entity,
               comp as Component<unknown>,
               data,
               transaction.tick,
@@ -241,35 +242,31 @@ export function applyTransaction(world: World, transaction: Transaction) {
           resolved.push(comp)
 
           if (rel) {
-            let relMap = world.relations.relToVirtual.get(rel.relationId)
-            if (!relMap) {
-              relMap = new Map()
-              world.relations.relToVirtual.set(rel.relationId, relMap)
-            }
-            relMap.set(rel.object, id)
-            world.relations.virtualToRel.set(id, rel)
-
+            getOrCreateVirtualMap(world, rel.relationId).set(rel.object, id)
+            setRelationPair(world, id, rel)
             registerIncomingRelation(
               world,
-              entity,
+              op.entity,
               rel.relationId,
               rel.object as Entity,
             )
           }
         }
-        const node = entityGraphFindOrCreateNode(
-          world.entityGraph,
-          makeVec(resolved, world.componentRegistry),
+        setEntityNode(
+          world,
+          op.entity,
+          entityGraphFindOrCreateNode(
+            world.entityGraph,
+            makeVec(resolved, world.componentRegistry),
+          ),
         )
 
-        setEntityNode(world, entity, node)
-
         // Record undo entry for server-applied spawn
-        world.currentUndoEntries.push({type: "undo-spawn", entity})
+        world.currentUndoEntries.push({type: "undo-spawn", entity: op.entity})
         break
       }
       case "despawn": {
-        const node = entityGraphGetEntityNode(world.entityGraph, op.entity)
+        const node = getEntityNode(world, op.entity)
         if (!node) break
 
         // Record undo entry before cleanup
@@ -278,11 +275,11 @@ export function applyTransaction(world: World, transaction: Transaction) {
           const els = node.vec.elements
           for (let k = 0; k < els.length; k++) {
             const comp = els[k] as ComponentLike
-            const compId = world.componentRegistry.getId(comp)
+            const compId = getComponentId(world, comp)
             undoComponents.push({
               id: compId,
               data: getComponentValue(world, op.entity, comp),
-              rel: world.relations.virtualToRel.get(compId),
+              rel: getRelationPair(world, compId),
             })
           }
           world.currentUndoEntries.push({
@@ -292,16 +289,13 @@ export function applyTransaction(world: World, transaction: Transaction) {
           })
         }
 
-        const incoming = world.relations.objectToSubjects.get(op.entity)
-        if (incoming) {
-          world.relations.objectToSubjects.delete(op.entity)
-        }
+        deleteObjectSubjects(world, op.entity as number)
 
         const elements = node.vec.elements
         for (let j = 0; j < elements.length; j++) {
           const comp = elements[j] as ComponentLike
-          const compId = world.componentRegistry.getId(comp)
-          const rel = world.relations.virtualToRel.get(compId)
+          const compId = getComponentId(world, comp)
+          const rel = getRelationPair(world, compId)
           if (rel) {
             unregisterIncomingRelation(
               world,
@@ -321,45 +315,37 @@ export function applyTransaction(world: World, transaction: Transaction) {
         break
       }
       case "set": {
-        const entity = op.entity
-        const comp = world.componentRegistry.getComponent(op.componentId)
+        const comp = resolveComponent(world, op.componentId)
         if (!comp) break
-        const node = entityGraphGetEntityNode(world.entityGraph, entity)
+        const node = getEntityNode(world, op.entity)
         if (!node) break
 
         setComponentValue(
           world,
-          entity,
+          op.entity,
           comp as Component<unknown>,
           op.data,
           op.version ?? transaction.tick,
         )
 
         if (op.rel) {
-          const rel = op.rel
-          const id = op.componentId
-
-          let relMap = world.relations.relToVirtual.get(rel.relationId)
-          if (!relMap) {
-            relMap = new Map()
-            world.relations.relToVirtual.set(rel.relationId, relMap)
-          }
-          relMap.set(rel.object, id)
-          world.relations.virtualToRel.set(id, rel)
-
+          getOrCreateVirtualMap(world, op.rel.relationId).set(
+            op.rel.object,
+            op.componentId,
+          )
+          setRelationPair(world, op.componentId, op.rel)
           registerIncomingRelation(
             world,
-            entity,
-            rel.relationId,
-            rel.object as Entity,
+            op.entity,
+            op.rel.relationId,
+            op.rel.object as Entity,
           )
         }
 
         let hasComp = false
-        const elements = node.vec.elements
-        for (let j = 0; j < elements.length; j++) {
+        for (let j = 0; j < node.vec.elements.length; j++) {
           if (
-            world.componentRegistry.getId(elements[j] as ComponentLike) ===
+            getComponentId(world, node.vec.elements[j] as ComponentLike) ===
             op.componentId
           ) {
             hasComp = true
@@ -371,7 +357,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
           // Record undo entry for server-applied component add
           world.currentUndoEntries.push({
             type: "undo-add",
-            entity,
+            entity: op.entity,
             componentId: op.componentId,
             rel: op.rel,
           })
@@ -384,7 +370,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
               world.componentRegistry,
             ),
           )
-          const prevNode = setEntityNode(world, entity, nextNode)
+          const prevNode = setEntityNode(world, op.entity, nextNode)
           if (prevNode) {
             world.pendingNodePruning.add(prevNode)
           }
@@ -392,33 +378,31 @@ export function applyTransaction(world: World, transaction: Transaction) {
         break
       }
       case "remove": {
-        const entity = op.entity
-        const id = op.componentId
-        const comp = world.componentRegistry.getComponent(id)
+        const comp = resolveComponent(world, op.componentId)
         if (!comp) break
-        const node = entityGraphGetEntityNode(world.entityGraph, entity)
+        const node = getEntityNode(world, op.entity)
         if (!node) break
 
         // Record undo entry before deleting component data
         world.currentUndoEntries.push({
           type: "undo-remove",
-          entity,
-          componentId: id,
-          data: getComponentValue(world, entity, comp),
-          rel: world.relations.virtualToRel.get(id),
+          entity: op.entity,
+          componentId: op.componentId,
+          data: getComponentValue(world, op.entity, comp),
+          rel: getRelationPair(world, op.componentId),
         })
 
-        const relInfo = world.relations.virtualToRel.get(id)
+        const relInfo = getRelationPair(world, op.componentId)
         if (relInfo) {
           unregisterIncomingRelation(
             world,
-            entity,
+            op.entity,
             relInfo.relationId,
             relInfo.object as Entity,
           )
         }
 
-        deleteComponentValue(world, entity, comp)
+        deleteComponentValue(world, op.entity, comp)
 
         const nextNode = entityGraphFindOrCreateNode(
           world.entityGraph,
@@ -428,23 +412,22 @@ export function applyTransaction(world: World, transaction: Transaction) {
             world.componentRegistry,
           ),
         )
-        const prevNode = setEntityNode(world, entity, nextNode)
+        const prevNode = setEntityNode(world, op.entity, nextNode)
         if (prevNode) {
           world.pendingNodePruning.add(prevNode)
         }
         break
       }
       case "add": {
-        const entity = op.entity
-        const comp = world.componentRegistry.getComponent(op.componentId)
+        const comp = resolveComponent(world, op.componentId)
         if (!comp) break
-        const node = entityGraphGetEntityNode(world.entityGraph, entity)
+        const node = getEntityNode(world, op.entity)
         if (!node) break
 
         if (op.data !== undefined) {
           setComponentValue(
             world,
-            entity,
+            op.entity,
             comp as Component<unknown>,
             op.data,
             transaction.tick,
@@ -452,30 +435,23 @@ export function applyTransaction(world: World, transaction: Transaction) {
         }
 
         if (op.rel) {
-          const rel = op.rel
-          const id = op.componentId
-
-          let relMap = world.relations.relToVirtual.get(rel.relationId)
-          if (!relMap) {
-            relMap = new Map()
-            world.relations.relToVirtual.set(rel.relationId, relMap)
-          }
-          relMap.set(rel.object, id)
-          world.relations.virtualToRel.set(id, rel)
-
+          getOrCreateVirtualMap(world, op.rel.relationId).set(
+            op.rel.object,
+            op.componentId,
+          )
+          setRelationPair(world, op.componentId, op.rel)
           registerIncomingRelation(
             world,
-            entity,
-            rel.relationId,
-            rel.object as Entity,
+            op.entity,
+            op.rel.relationId,
+            op.rel.object as Entity,
           )
         }
 
         let hasComp = false
-        const elements = node.vec.elements
-        for (let j = 0; j < elements.length; j++) {
+        for (let j = 0; j < node.vec.elements.length; j++) {
           if (
-            world.componentRegistry.getId(elements[j] as ComponentLike) ===
+            getComponentId(world, node.vec.elements[j] as ComponentLike) ===
             op.componentId
           ) {
             hasComp = true
@@ -487,7 +463,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
           // Record undo entry for server-applied component add
           world.currentUndoEntries.push({
             type: "undo-add",
-            entity,
+            entity: op.entity,
             componentId: op.componentId,
             rel: op.rel,
           })
@@ -500,7 +476,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
               world.componentRegistry,
             ),
           )
-          const prevNode = setEntityNode(world, entity, nextNode)
+          const prevNode = setEntityNode(world, op.entity, nextNode)
           if (prevNode) {
             world.pendingNodePruning.add(prevNode)
           }
@@ -527,17 +503,14 @@ export const emitSnapshots = defineSystem(
     world: World,
   ) => {
     if (!config.snapshotComponents) return
-    const interval = config.snapshotInterval ?? 1
-    if (interval > 1 && world.tick % interval !== 0) return
+    if (
+      (config.snapshotInterval ?? 1) > 1 &&
+      world.tick % (config.snapshotInterval ?? 1) !== 0
+    )
+      return
     // Write directly to a pooled ByteWriter
     const writer = acquireWriter()
-    writeSnapshot(
-      writer,
-      world,
-      config.snapshotComponents,
-      world,
-      world.tick,
-    )
+    writeSnapshot(writer, world, config.snapshotComponents, world, world.tick)
     if (writer.getLength() > 7) {
       // >7 means more than header (5 bytes) + blockCount of 0 (2 bytes)
       stream.snapshots.push(writer.toBytes())

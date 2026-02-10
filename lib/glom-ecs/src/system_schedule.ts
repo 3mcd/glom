@@ -80,20 +80,15 @@ function extractSystemDeps(exec: SystemExecutor): SystemDeps {
     if (!term || typeof term !== "object") return
 
     if (isReadDescriptor(term)) {
-      const c = term.read
-      if (c) reads.add(c)
+      if (term.read) reads.add(term.read)
     } else if (isWriteDescriptor(term)) {
-      const c = term.write
-      if (c) writes.add(c)
+      if (term.write) writes.add(term.write)
     } else if (isAddDescriptor(term)) {
-      const c = term.add
-      if (c) writes.add(c)
+      if (term.add) writes.add(term.add)
     } else if (isRemoveDescriptor(term)) {
-      const c = term.remove
-      if (c) writes.add(c)
+      if (term.remove) writes.add(term.remove)
     } else if (isHasDescriptor(term)) {
-      const c = term.has as ComponentLike
-      if (c) reads.add(c)
+      if (term.has) reads.add(term.has as ComponentLike)
     }
   }
 
@@ -112,17 +107,16 @@ function extractSystemDeps(exec: SystemExecutor): SystemDeps {
 }
 
 function sortSystems(execs: SystemExecutor[]): SystemExecutor[] {
-  const n = execs.length
-  if (n <= 1) return execs
+  if (execs.length <= 1) return execs
 
   const deps = execs.map(extractSystemDeps)
-  const adj: number[][] = Array.from({length: n}, () => [])
-  const inDegree = new Array(n).fill(0)
+  const adj: number[][] = Array.from({length: execs.length}, () => [])
+  const inDegree = new Array(execs.length).fill(0)
 
   const componentWriters: Map<ComponentLike, number[]> = new Map()
   const componentReaders: Map<ComponentLike, number[]> = new Map()
 
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < execs.length; i++) {
     const d = deps[i]
     assertDefined(d)
     for (const writeComp of d.writes) {
@@ -177,7 +171,7 @@ function sortSystems(execs: SystemExecutor[]): SystemExecutor[] {
   }
 
   const queue: number[] = []
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < execs.length; i++) {
     if (inDegree[i] === 0) {
       queue.push(i)
     }
@@ -202,7 +196,7 @@ function sortSystems(execs: SystemExecutor[]): SystemExecutor[] {
     }
   }
 
-  if (sortedIndices.length !== n) {
+  if (sortedIndices.length !== execs.length) {
     const visited = new Set<number>()
     const path: number[] = []
     const onPath = new Set<number>()
@@ -231,7 +225,7 @@ function sortSystems(execs: SystemExecutor[]): SystemExecutor[] {
       return false
     }
 
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < execs.length; i++) {
       if (!visited.has(i) && findCycle(i)) {
         break
       }

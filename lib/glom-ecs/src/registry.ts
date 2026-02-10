@@ -50,10 +50,8 @@ export class ComponentRegistry implements ComponentResolver {
 
     const targetObj = target as Record<string, unknown>
     if (typeof targetObj.id === "number") {
-      const id = targetObj.id
-      if (id >= 1000000) return id
-
-      if (this.idToComp.has(id)) return id
+      if (targetObj.id >= 1000000) return targetObj.id
+      if (this.idToComp.has(targetObj.id)) return targetObj.id
     }
 
     console.error("Unregistered component:", target)

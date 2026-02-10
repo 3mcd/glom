@@ -483,3 +483,43 @@ export function getComponentValueById(
   }
   return store[index]
 }
+
+// ---------------------------------------------------------------------------
+// World-level domain helpers
+// ---------------------------------------------------------------------------
+
+/** Get the numeric component ID for a component reference. */
+export function getComponentId(world: World, comp: ComponentLike): number {
+  return world.componentRegistry.getId(comp)
+}
+
+/** Resolve a numeric component ID back to a ComponentLike reference. */
+export function resolveComponent(
+  world: World,
+  id: number,
+): ComponentLike | undefined {
+  return world.componentRegistry.getComponent(id)
+}
+
+/** Get the serde (encode/decode) for a component by its numeric ID. */
+export function getComponentSerde(world: World, id: number) {
+  return world.componentRegistry.getSerde(id)
+}
+
+/** Resolve a virtual component ID to its Component<void> reference. */
+export function resolveVirtualComponent(world: World, vid: number) {
+  return world.componentRegistry.getVirtualComponent(vid)
+}
+
+/** Allocate a new virtual component ID (used for relation instances). */
+export function allocVirtualComponentId(world: World): number {
+  return world.componentRegistry.allocVirtualId()
+}
+
+/** Get the entity graph node for a given entity. */
+export function getEntityNode(
+  world: World,
+  entity: Entity,
+): EntityGraphNode | undefined {
+  return sparseMapGet(world.entityGraph.byEntity, entity as number)
+}

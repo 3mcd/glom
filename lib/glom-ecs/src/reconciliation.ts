@@ -141,22 +141,20 @@ export function pruneBuffers(world: World, minTick: number) {
   const history = getResource(world, HistoryBuffer)
   if (history) {
     // Prune old snapshots (legacy path)
-    const snapshots = history.snapshots
-    while (snapshots.length > 0) {
-      const first = snapshots[0]
+    while (history.snapshots.length > 0) {
+      const first = history.snapshots[0]
       if (first && first.tick < minTick) {
-        snapshots.shift()
+        history.snapshots.shift()
       } else {
         break
       }
     }
 
     // Prune old checkpoints
-    const checkpoints = history.checkpoints
-    while (checkpoints.length > 0) {
-      const first = checkpoints[0]
+    while (history.checkpoints.length > 0) {
+      const first = history.checkpoints[0]
       if (first && first.tick < minTick) {
-        checkpoints.shift()
+        history.checkpoints.shift()
       } else {
         break
       }

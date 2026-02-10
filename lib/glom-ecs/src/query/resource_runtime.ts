@@ -6,7 +6,7 @@ import type {
   ReadDescriptor,
   WriteDescriptor,
 } from "../descriptors"
-import {getResource, hasResource, type World} from "../world"
+import {getComponentId, getResource, hasResource, type World} from "../world"
 import type {Has, Not, Read, Write} from "./term"
 
 export function makeRead<T>(
@@ -34,7 +34,7 @@ export function makeHas<T extends ComponentLike>(
   const exists = hasResource(world, desc.has)
   if (!exists) {
     throw new Error(
-      `Resource ${world.componentRegistry.getId(desc.has)} not found`,
+      `Resource ${getComponentId(world, desc.has)} not found`,
     )
   }
   return undefined as unknown as Has<T>
@@ -47,7 +47,7 @@ export function makeNot<T extends ComponentLike>(
   const exists = hasResource(world, desc.not)
   if (exists) {
     throw new Error(
-      `Resource ${world.componentRegistry.getId(desc.not)} should not exist`,
+      `Resource ${getComponentId(world, desc.not)} should not exist`,
     )
   }
   return undefined as unknown as Not<T>

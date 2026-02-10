@@ -1,7 +1,7 @@
 import {assertDefined} from "./assert"
 import type {ComponentInstance, ComponentLike} from "./component"
 import type {Entity} from "./entity"
-import {isAll} from "./query/all"
+import {type AnyAll, isAll} from "./query/all"
 import {makeAll, makeUnique, setupAll, teardownAll} from "./query/all_runtime"
 import {MonitorRuntime, makeIn, makeOut} from "./query/monitor_runtime"
 import {makeHas, makeNot, makeRead, makeWrite} from "./query/resource_runtime"
@@ -28,8 +28,8 @@ import {
   isUniqueDescriptor,
   isWorldDescriptor,
   isWriteDescriptor,
-  type SystemDescriptor,
   type JoinDescriptor,
+  type SystemDescriptor,
 } from "./system_descriptor"
 import type {World} from "./world"
 import {addComponent, despawn, removeComponent, spawn} from "./world_api"
@@ -90,8 +90,7 @@ export function setupSystemExecutor<
     const desc = exec.desc.params[i]
     assertDefined(desc)
     if (isReactiveJoinDescriptor(desc)) {
-      const mode = getReactiveJoinMode(desc)
-      const monitor = new MonitorRuntime(desc as any, mode)
+      const monitor = new MonitorRuntime(desc as any, getReactiveJoinMode(desc))
       setupAll(monitor, world)
       args[i] = monitor
     } else if (isAllDescriptor(desc) || isJoinDescriptor(desc)) {
@@ -128,21 +127,19 @@ export function setupSystemExecutor<
       args[i] = ((entity: Entity) =>
         despawn(world, entity)) as unknown as Despawn
     } else if (isAddDescriptor(desc)) {
-      const component = desc.add
       args[i] = ((entity: Entity, value: unknown) => {
-        if (component.isTag) {
-          addComponent(world, entity, component)
+        if (desc.add.isTag) {
+          addComponent(world, entity, desc.add)
         } else {
-          addComponent(world, entity, {component, value})
+          addComponent(world, entity, {component: desc.add, value})
         }
       }) as unknown as Add<ComponentLike>
     } else if (isRemoveDescriptor(desc)) {
-      const component = desc.remove
       args[i] = ((entity: Entity) =>
         removeComponent(
           world,
           entity,
-          component,
+          desc.remove,
         )) as unknown as Remove<ComponentLike>
     }
   }
@@ -151,19 +148,17 @@ export function setupSystemExecutor<
 export function teardownSystemExecutor<
   T extends SystemArgument[] = SystemArgument[],
 >(exec: SystemExecutor<T>): void {
-  const args = exec.args as SystemArgument[]
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]
+  for (let i = 0; i < exec.args.length; i++) {
+    const arg = exec.args[i]!
     if (isAll(arg)) {
-      teardownAll(arg)
+      teardownAll(arg as AnyAll)
     }
   }
 }
 
 export function clearSystemExecutorMonitors(exec: SystemExecutor): void {
-  const args = exec.args as SystemArgument[]
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]
+  for (let i = 0; i < exec.args.length; i++) {
+    const arg = exec.args[i]
     if (arg instanceof MonitorRuntime) {
       arg.clear()
     }

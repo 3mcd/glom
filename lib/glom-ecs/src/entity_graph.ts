@@ -97,9 +97,8 @@ export function entityGraphNodeAddRelation(
   sparseSetAdd(objects, object)
 
   entityGraphNodeTraverseLeft(node, (visit) => {
-    const listeners = visit.listeners
-    for (let i = 0; i < listeners.length; i++) {
-      listeners[i]?.relationAdded?.(subject, relationId, object, node)
+    for (let i = 0; i < visit.listeners.length; i++) {
+      visit.listeners[i]?.relationAdded?.(subject, relationId, object, node)
     }
   })
 }
@@ -122,9 +121,8 @@ export function entityGraphNodeRemoveRelation(
   }
 
   entityGraphNodeTraverseLeft(node, (visit) => {
-    const listeners = visit.listeners
-    for (let i = 0; i < listeners.length; i++) {
-      listeners[i]?.relationRemoved?.(subject, relationId, object, node)
+    for (let i = 0; i < visit.listeners.length; i++) {
+      visit.listeners[i]?.relationRemoved?.(subject, relationId, object, node)
     }
   })
 }
@@ -229,9 +227,8 @@ export function entityGraphNodeEmitNodeCreated(
   target: EntityGraphNode,
   node: EntityGraphNode,
 ): void {
-  const listeners = target.listeners
-  for (let i = 0; i < listeners.length; i++) {
-    listeners[i]?.nodeCreated?.(node)
+  for (let i = 0; i < target.listeners.length; i++) {
+    target.listeners[i]?.nodeCreated?.(node)
   }
 }
 
@@ -240,9 +237,8 @@ export function entityGraphNodeEmitEntitiesIn(
   node: EntityGraphNode,
   entities: Entity[],
 ): void {
-  const listeners = target.listeners
-  for (let i = 0; i < listeners.length; i++) {
-    listeners[i]?.entitiesIn?.(entities, node)
+  for (let i = 0; i < target.listeners.length; i++) {
+    target.listeners[i]?.entitiesIn?.(entities, node)
   }
 }
 
@@ -251,9 +247,8 @@ export function entityGraphNodeEmitEntitiesOut(
   node: EntityGraphNode,
   entities: Entity[],
 ): void {
-  const listeners = target.listeners
-  for (let i = 0; i < listeners.length; i++) {
-    listeners[i]?.entitiesOut?.(entities, node)
+  for (let i = 0; i < target.listeners.length; i++) {
+    target.listeners[i]?.entitiesOut?.(entities, node)
   }
 }
 
@@ -261,9 +256,8 @@ export function entityGraphNodeEmitNodeDestroyed(
   target: EntityGraphNode,
   node: EntityGraphNode,
 ): void {
-  const listeners = target.listeners
-  for (let i = 0; i < listeners.length; i++) {
-    listeners[i]?.nodeDestroyed?.(node)
+  for (let i = 0; i < target.listeners.length; i++) {
+    target.listeners[i]?.nodeDestroyed?.(node)
   }
 }
 

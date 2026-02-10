@@ -5,7 +5,8 @@ import {All} from "./query/all"
 import {Has, World as WorldTerm} from "./query/term"
 import {defineRelation} from "./relation"
 import {defineSystem} from "./system"
-import type {World} from "./world"
+import {getComponentId, resolveComponent, type World} from "./world"
+import {getObjectSubjects} from "./relation_registry"
 import {
   addComponent,
   addResource,
@@ -71,7 +72,7 @@ export function recordCommand<T>(
     const inst = command as ComponentInstance<T>
     commandList.push({
       target,
-      componentId: world.componentRegistry.getId(inst.component),
+      componentId: getComponentId(world, inst.component),
       data: inst.value,
       intentTick,
     })
@@ -79,7 +80,7 @@ export function recordCommand<T>(
     const component = command as ComponentLike
     commandList.push({
       target,
-      componentId: world.componentRegistry.getId(component),
+      componentId: getComponentId(world, component),
       data: undefined,
       intentTick,
     })
@@ -107,7 +108,7 @@ export const spawnEphemeralCommands = defineSystem(
     if (!commands) return
 
     for (const cmd of commands) {
-      const comp = world.componentRegistry.getComponent(cmd.componentId)
+      const comp = resolveComponent(world, cmd.componentId)
       if (!comp) continue
 
       let commandEntity: Entity
@@ -138,9 +139,9 @@ export const spawnEphemeralCommands = defineSystem(
 export const cleanupEphemeralCommands = defineSystem(
   (query: All<Entity, Has<typeof CommandEntity>>, world: World) => {
     for (const [cmdEnt] of query) {
-      const incoming = world.relations.objectToSubjects.get(cmdEnt)
+      const incoming = getObjectSubjects(world, cmdEnt)
       if (incoming) {
-        const commandOfId = world.componentRegistry.getId(CommandOf)
+        const commandOfId = getComponentId(world, CommandOf)
         for (const {subject, relationId} of Array.from(incoming)) {
           if (relationId === commandOfId) {
             removeComponent(world, subject as Entity, CommandOf(cmdEnt))

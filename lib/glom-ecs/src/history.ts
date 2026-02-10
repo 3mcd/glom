@@ -13,9 +13,11 @@ import {addDomainEntity} from "./entity_registry_domain"
 import {ByteReader, ByteWriter} from "./lib/binary"
 import type {SpawnComponent} from "./net_types"
 import {
+  getOrCreateVirtualMap,
   type RelationPair,
   type RelationSubject,
   registerIncomingRelation,
+  setRelationPair,
 } from "./relation_registry"
 import {
   sparseMapClear,
@@ -28,7 +30,10 @@ import {sparseSetAdd, sparseSetClear, sparseSetSize} from "./sparse_set"
 import {makeVec, type Vec, vecDifference, vecSum} from "./vec"
 import {
   deleteComponentValue,
+  getComponentSerde,
+  getEntityNode,
   getOrCreateIndex,
+  resolveComponent,
   setComponentValue,
   type World,
 } from "./world"
@@ -137,13 +142,13 @@ const _serdeReader = new ByteReader(new Uint8Array(0))
 
 export function captureSnapshot(world: World): Snapshot {
   const componentData = new Map<number, unknown[]>()
-  const nextIdx = world.index.nextIndex
+  const nextIndex = world.index.nextIndex
 
   for (const [id, store] of world.components.storage) {
     if (store.length === 0) continue
-    const slice = new Array(nextIdx)
-    const serde = world.componentRegistry.getSerde(id)
-    for (let i = 0; i < nextIdx; i++) {
+    const slice = new Array(nextIndex)
+    const serde = getComponentSerde(world, id)
+    for (let i = 0; i < nextIndex; i++) {
       const v = store[i]
       if (v !== undefined && v !== null && typeof v === "object") {
         if (serde) {
@@ -169,19 +174,19 @@ export function captureSnapshot(world: World): Snapshot {
   const componentVersions = new Map<number, Uint32Array>()
   for (const [id, versions] of world.components.versions) {
     if (versions.length === 0) continue
-    const len = Math.min(versions.length, nextIdx)
+    const len = Math.min(versions.length, nextIndex)
     const clone = new Uint32Array(len)
     clone.set(versions.subarray(0, len))
     componentVersions.set(id, clone)
   }
 
-  const entityArchetypes = new Int32Array(nextIdx)
+  const entityArchetypes = new Int32Array(nextIndex)
   const nodeVecs = new Map<number, Vec>()
 
   sparseMapForEach(world.entityGraph.byEntity, (entity, node) => {
-    const idx = sparseMapGet(world.index.entityToIndex, entity)
-    if (idx !== undefined) {
-      entityArchetypes[idx] = node.id
+    const index = sparseMapGet(world.index.entityToIndex, entity)
+    if (index !== undefined) {
+      entityArchetypes[index] = node.id
       if (!nodeVecs.has(node.id)) {
         nodeVecs.set(node.id, node.vec)
       }
@@ -237,7 +242,7 @@ export function captureSnapshot(world: World): Snapshot {
     nodeVecs,
     registryDomains,
     entityToIndex,
-    indexToEntity: world.index.indexToEntity.slice(0, nextIdx),
+    indexToEntity: world.index.indexToEntity.slice(0, nextIndex),
     freeIndices: [...world.index.freeIndices],
     nextIndex: world.index.nextIndex,
     relations: {
@@ -319,7 +324,7 @@ export function rollbackToSnapshot(world: World, snapshot: Snapshot) {
     // are stored at index 0 (RESOURCE_ENTITY) and contain temporal data
     // that should not be overwritten during checkpoint restoration.
     const savedResource = currentStore[0]
-    const serde = world.componentRegistry.getSerde(id)
+    const serde = getComponentSerde(world, id)
     currentStore.length = store.length
     for (let i = 0; i < store.length; i++) {
       if (i === 0) {
@@ -433,7 +438,7 @@ export function rollbackToSnapshot(world: World, snapshot: Snapshot) {
   }
 
   for (const [obj, subjects] of world.relations.objectToSubjects) {
-    const node = sparseMapGet(world.entityGraph.byEntity, obj as number)
+    const node = getEntityNode(world, obj as Entity)
     if (node) {
       for (const {subject, relationId} of subjects) {
         entityGraphNodeAddRelation(
@@ -481,29 +486,30 @@ export function rollbackToCheckpoint(
   history: HistoryBuffer,
   tick: number,
 ): boolean {
-  const checkpoints = history.checkpoints
-  let best: Checkpoint | undefined
+  let bestCheckpoint: Checkpoint | undefined
   let bestIdx = -1
-  for (let i = checkpoints.length - 1; i >= 0; i--) {
-    const cp = checkpoints[i]!
-    if (cp.tick <= tick) {
-      best = cp
+  for (let i = history.checkpoints.length - 1; i >= 0; i--) {
+    const checkpoint = history.checkpoints[i]!
+    if (checkpoint.tick <= tick) {
+      bestCheckpoint = checkpoint
       bestIdx = i
       break
     }
   }
 
-  if (!best) return false
+  if (!bestCheckpoint) {
+    return false
+  }
 
-  restoreCheckpoint(world, best)
+  restoreCheckpoint(world, bestCheckpoint)
 
   // Truncate checkpoints after this one
-  checkpoints.length = bestIdx + 1
+  history.checkpoints.length = bestIdx + 1
 
   // Trim undo log entries at or after the checkpoint tick
   while (
     history.undoLog.length > 0 &&
-    history.undoLog[history.undoLog.length - 1]!.tick >= best.tick
+    history.undoLog[history.undoLog.length - 1]!.tick >= bestCheckpoint.tick
   ) {
     history.undoLog.pop()
   }
@@ -514,7 +520,7 @@ export function rollbackToCheckpoint(
 // --- Undo log application ---
 
 function undoSpawn(world: World, entity: Entity) {
-  const node = sparseMapGet(world.entityGraph.byEntity, entity as number)
+  const node = getEntityNode(world, entity)
   if (node) {
     const elements = node.vec.elements
     for (let i = 0; i < elements.length; i++) {
@@ -545,20 +551,15 @@ function undoDespawn(
   const resolved: ComponentLike[] = []
   for (let i = 0; i < components.length; i++) {
     const {id, data, rel} = components[i]!
-    const comp = world.componentRegistry.getComponent(id)
+    const comp = resolveComponent(world, id)
     if (!comp) continue
     if (data !== undefined) {
       setComponentValue(world, entity, comp as Component<unknown>, data)
     }
     resolved.push(comp)
     if (rel) {
-      let relMap = world.relations.relToVirtual.get(rel.relationId)
-      if (!relMap) {
-        relMap = new Map()
-        world.relations.relToVirtual.set(rel.relationId, relMap)
-      }
-      relMap.set(rel.object, id)
-      world.relations.virtualToRel.set(id, rel)
+      getOrCreateVirtualMap(world, rel.relationId).set(rel.object, id)
+      setRelationPair(world, id, rel)
       registerIncomingRelation(
         world,
         entity,
@@ -576,10 +577,10 @@ function undoDespawn(
 }
 
 function undoAddComponent(world: World, entity: Entity, componentId: number) {
-  const comp = world.componentRegistry.getComponent(componentId)
+  const comp = resolveComponent(world, componentId)
   if (!comp) return
 
-  const node = sparseMapGet(world.entityGraph.byEntity, entity as number)
+  const node = getEntityNode(world, entity)
   if (!node) return
 
   deleteComponentValue(world, entity, comp)
@@ -605,24 +606,23 @@ function undoRemoveComponent(
   data: unknown,
   rel?: RelationPair,
 ) {
-  const comp = world.componentRegistry.getComponent(componentId)
-  if (!comp) return
+  const component = resolveComponent(world, componentId)
+  if (!component) {
+    return
+  }
 
-  const node = sparseMapGet(world.entityGraph.byEntity, entity as number)
-  if (!node) return
+  const node = getEntityNode(world, entity)
+  if (!node) {
+    return
+  }
 
   if (data !== undefined) {
-    setComponentValue(world, entity, comp as Component<unknown>, data)
+    setComponentValue(world, entity, component, data)
   }
 
   if (rel) {
-    let relMap = world.relations.relToVirtual.get(rel.relationId)
-    if (!relMap) {
-      relMap = new Map()
-      world.relations.relToVirtual.set(rel.relationId, relMap)
-    }
-    relMap.set(rel.object, componentId)
-    world.relations.virtualToRel.set(componentId, rel)
+    getOrCreateVirtualMap(world, rel.relationId).set(rel.object, componentId)
+    setRelationPair(world, componentId, rel)
     registerIncomingRelation(
       world,
       entity,
@@ -633,7 +633,7 @@ function undoRemoveComponent(
 
   const nextVec = vecSum(
     node.vec,
-    makeVec([comp], world.componentRegistry),
+    makeVec([component], world.componentRegistry),
     world.componentRegistry,
   )
   const nextNode = entityGraphFindOrCreateNode(world.entityGraph, nextVec)
@@ -652,11 +652,11 @@ export function applyUndoLog(
 ) {
   for (let i = undoLog.length - 1; i >= 0; i--) {
     const entry = undoLog[i]!
-    if (entry.tick < targetTick) break
-
-    const ops = entry.ops
-    for (let j = ops.length - 1; j >= 0; j--) {
-      const op = ops[j]!
+    if (entry.tick < targetTick) {
+      break
+    }
+    for (let j = entry.ops.length - 1; j >= 0; j--) {
+      const op = entry.ops[j]!
       switch (op.type) {
         case "undo-spawn":
           undoSpawn(world, op.entity)
@@ -685,14 +685,16 @@ export function rollbackToTick(
   tick: number,
 ): boolean {
   const buffer = "snapshots" in history ? history : getResource(world, history)
-  if (!buffer) return false
+  if (!buffer) {
+    return false
+  }
 
   // Check checkpoints first (new path)
   if (buffer.checkpoints && buffer.checkpoints.length > 0) {
-    const cp = buffer.checkpoints.find((s) => s.tick === tick)
-    if (cp) {
-      rollbackToSnapshot(world, cp)
-      const cpIdx = buffer.checkpoints.indexOf(cp)
+    const checkpoint = buffer.checkpoints.find((s) => s.tick === tick)
+    if (checkpoint) {
+      rollbackToSnapshot(world, checkpoint)
+      const cpIdx = buffer.checkpoints.indexOf(checkpoint)
       buffer.checkpoints.length = cpIdx + 1
       // Trim undo log
       while (
@@ -708,9 +710,10 @@ export function rollbackToTick(
 
   // Fall back to legacy snapshots
   const snapshot = buffer.snapshots.find((s) => s.tick === tick)
-  if (!snapshot) return false
+  if (!snapshot) {
+    return false
+  }
   rollbackToSnapshot(world, snapshot)
-
   const index = buffer.snapshots.indexOf(snapshot)
   buffer.snapshots.length = index + 1
   return true

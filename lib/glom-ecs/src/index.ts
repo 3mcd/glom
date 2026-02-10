@@ -107,6 +107,18 @@ export {
   type Relationship,
 } from "./relation"
 export {
+  deleteObjectSubjects,
+  getObjectSubjects,
+  getOrCreateObjectSubjects,
+  getOrCreateVirtualMap,
+  getRelationPair,
+  getVirtualId,
+  getVirtualMap,
+  type RelationPair,
+  type RelationSubject,
+  setRelationPair,
+} from "./relation_registry"
+export {
   advanceWorldTick,
   applyTransaction,
   clearReplicationStream,
@@ -168,16 +180,22 @@ export {
 } from "./timestep"
 export {
   addResource,
+  allocVirtualComponentId,
   deleteComponentValue,
   forceSetComponentValue,
   forceSetComponentValueById,
+  getComponentId,
+  getComponentSerde,
   getComponentValue,
   getComponentValueById,
+  getEntityNode,
   getResource,
   getVersionDomainId,
   getVersionTick,
   makeVersion,
   makeWorld,
+  resolveComponent,
+  resolveVirtualComponent,
   setComponentValue,
   setComponentValueById,
   type World,
