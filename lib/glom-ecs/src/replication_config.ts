@@ -1,5 +1,5 @@
 import {defineComponent, defineTag} from "./component"
-import type {Transaction} from "./net_types"
+import type {SnapshotMessage, Transaction} from "./net_types"
 import type {SystemSchedule} from "./system_schedule"
 
 export const Replicated = defineTag(0)

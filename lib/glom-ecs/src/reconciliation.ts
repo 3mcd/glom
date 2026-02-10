@@ -1,10 +1,8 @@
 import {pruneCommands} from "./command"
 import {getDomainId} from "./entity"
 import {
-  HistoryBuffer,
   type Checkpoint,
-  pushCheckpoint,
-  restoreCheckpoint,
+  HistoryBuffer,
   rollbackToCheckpoint,
   rollbackToTick,
   type Snapshot,
@@ -181,10 +179,7 @@ export function performBatchReconciliation(
   return performReconciliation(world, schedule)
 }
 
-export function performReconciliation(
-  world: World,
-  schedule: SystemSchedule,
-) {
+export function performReconciliation(world: World, schedule: SystemSchedule) {
   const history = getResource(world, HistoryBuffer)
   if (!history) return
 
@@ -386,7 +381,7 @@ export const applyRemoteSnapshotsVersioned = defineSystem(
 )
 
 export const performRollback = defineSystem(
-  (config: typeof ReplicationConfig, world: World) => {
+  (config: Read<typeof ReplicationConfig>, world: World) => {
     if (!config.reconcileSchedule) return
     performReconciliation(world, config.reconcileSchedule)
   },
@@ -397,7 +392,7 @@ export const performRollback = defineSystem(
 )
 
 export const cleanupGhosts = defineSystem(
-  (config: typeof ReplicationConfig, world: World) => {
+  (config: Read<typeof ReplicationConfig>, world: World) => {
     const window = config.ghostCleanupWindow ?? 60
     cleanupTransientEntities(world, world.tick - window)
   },

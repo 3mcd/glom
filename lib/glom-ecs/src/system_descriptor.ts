@@ -1,3 +1,4 @@
+import type {ComponentLike} from "./component"
 import type {
   AddDescriptor,
   DespawnDescriptor,
@@ -13,7 +14,8 @@ import type {
   WriteDescriptor,
 } from "./descriptors"
 import type {All, In, Join, Out} from "./query/all"
-import type {Has, Not, Read, Write} from "./query/term"
+import type {Has, Not, Read, Term, Write} from "./query/term"
+import type {Relation} from "./relation"
 import type {
   Add,
   Despawn,

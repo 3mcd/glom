@@ -58,7 +58,8 @@ export function runSystemExecutor<
 
 function isReactiveJoinDescriptor(desc: any): boolean {
   if (!isJoinDescriptor(desc)) return false
-  const [left, right] = (desc as JoinDescriptor).join
+  const [left, right] = (desc as JoinDescriptor<unknown, unknown, undefined>)
+    .join
   return (
     isInDescriptor(left) ||
     isOutDescriptor(left) ||
@@ -73,7 +74,8 @@ function getReactiveJoinMode(desc: any): "in" | "out" {
   if (isOutDescriptor(desc)) return "out"
   if (isInDescriptor(desc)) return "in"
   if (isJoinDescriptor(desc)) {
-    const [left, right] = (desc as JoinDescriptor).join
+    const [left, right] = (desc as JoinDescriptor<unknown, unknown, undefined>)
+      .join
     const leftMode = getReactiveJoinMode(left)
     if (leftMode === "out") return "out"
     const rightMode = getReactiveJoinMode(right)

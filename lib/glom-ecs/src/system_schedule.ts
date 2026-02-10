@@ -49,7 +49,9 @@ type SystemResources<T extends any[]> = {
 export function addSystem<R extends ComponentLike, T extends any[]>(
   schedule: SystemSchedule<R>,
   system: (...args: T) => void,
-): asserts schedule is SystemSchedule<R | SystemResources<T>> {
+): asserts schedule is SystemSchedule<
+  R | Extract<SystemResources<T>, ComponentLike>
+> {
   const descriptor = Reflect.get(system, systemDescriptorKey)
   if (!descriptor) {
     return

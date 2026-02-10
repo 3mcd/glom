@@ -498,7 +498,7 @@ export const commitPendingMutations = defineSystem(
 
 export const emitSnapshots = defineSystem(
   (
-    config: typeof ReplicationConfig,
+    config: Read<typeof ReplicationConfig>,
     stream: Write<typeof ReplicationStream>,
     world: World,
   ) => {
@@ -523,7 +523,7 @@ export const emitSnapshots = defineSystem(
 )
 
 export const pruneTemporalBuffers = defineSystem(
-  (config: typeof ReplicationConfig, world: World) => {
+  (config: Read<typeof ReplicationConfig>, world: World) => {
     const window = config.historyWindow ?? 64
     const minTick = world.tick - window
     if (minTick > 0) {
