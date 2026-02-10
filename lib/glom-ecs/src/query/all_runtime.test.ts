@@ -4,7 +4,7 @@ import type {AllDescriptor, JoinDescriptor} from "../descriptors"
 import {Entity, makeEntity} from "../entity"
 import {type EntityGraphNode, entityGraphSetEntityNode} from "../entity_graph"
 import {defineRelation} from "../relation"
-import {makeWorld, setComponentValue, getOrCreateIndex} from "../world"
+import {getOrCreateIndex, makeWorld, setComponentValue} from "../world"
 import {addComponent, spawn} from "../world_api"
 import {AllRuntime, makeAll, setupAll, teardownAll} from "./all_runtime"
 
@@ -45,13 +45,13 @@ describe("allRuntime", () => {
 
     const node = all._anchor_node as EntityGraphNode
     entityGraphSetEntityNode(
-      world.entityGraph,
+      world.graph,
       e1,
       node,
       getOrCreateIndex(world, e1 as unknown as number),
     )
     entityGraphSetEntityNode(
-      world.entityGraph,
+      world.graph,
       e2,
       node,
       getOrCreateIndex(world, e2 as unknown as number),
@@ -84,7 +84,7 @@ describe("allRuntime", () => {
 
     const node = all._anchor_node as EntityGraphNode
     entityGraphSetEntityNode(
-      world.entityGraph,
+      world.graph,
       e1,
       node,
       getOrCreateIndex(world, e1 as unknown as number),
@@ -111,7 +111,7 @@ describe("allRuntime", () => {
 
     const node = all._anchor_node as EntityGraphNode
     entityGraphSetEntityNode(
-      world.entityGraph,
+      world.graph,
       e1,
       node,
       getOrCreateIndex(world, e1 as unknown as number),
@@ -138,7 +138,7 @@ describe("allRuntime", () => {
 
     const node = all._anchor_node as EntityGraphNode
     entityGraphSetEntityNode(
-      world.entityGraph,
+      world.graph,
       e1,
       node,
       getOrCreateIndex(world, e1 as unknown as number),
@@ -220,7 +220,7 @@ describe("allRuntime", () => {
     teardownAll(all)
     expect(all.nodes.dense.length).toBe(0)
 
-    const node = world.entityGraph.byHash.get(anchorNode.vec.hash)
+    const node = world.graph.byHash.get(anchorNode.vec.hash)
     expect(node?.listeners).not.toContain(all)
   })
 })

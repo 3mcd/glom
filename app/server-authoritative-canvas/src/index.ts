@@ -304,14 +304,14 @@ function loop() {
     const reader = new g.ByteReader(packet)
     const header = g.readMessageHeader(reader)
     if (header.type === g.MessageType.Command) {
-      const commands = g.readCommands(reader, server.world)
-      const targetTick = Math.max(server.world.tick, header.tick)
+      const commands = g.readCommands(reader, server.world.componentRegistry)
+      const tick = Math.max(server.world.tick, header.tick)
       for (const command of commands) {
         g.recordCommand(
           server.world,
           command.target as g.Entity,
           command,
-          targetTick,
+          tick,
           header.tick,
         )
       }
@@ -350,7 +350,11 @@ function loop() {
         }
       }
     } else if (header.type === g.MessageType.Transaction) {
-      const transaction = g.readTransaction(reader, header.tick, client.world)
+      const transaction = g.readTransaction(
+        reader,
+        header.tick,
+        client.world.componentRegistry,
+      )
       g.receiveTransaction(client.world, transaction)
     } else if (header.type === g.MessageType.Snapshot) {
       const snapshot = g.readSnapshot(reader, header.tick)
@@ -386,7 +390,12 @@ function loop() {
       const commands = commandBuffer?.get(client.world.tick)
       if (commands && commands.length > 0) {
         sharedWriter.reset()
-        g.writeCommands(sharedWriter, client.world.tick, commands, client.world)
+        g.writeCommands(
+          sharedWriter,
+          client.world.tick,
+          commands,
+          client.world.componentRegistry,
+        )
         clientToServer.push({
           time: performance.now() + LATENCY_MS,
           packet: sharedWriter.toBytes(),
@@ -403,7 +412,11 @@ function loop() {
     if (stream) {
       for (const transaction of stream.transactions) {
         sharedWriter.reset()
-        g.writeTransaction(sharedWriter, transaction, server.world)
+        g.writeTransaction(
+          sharedWriter,
+          transaction,
+          server.world.componentRegistry,
+        )
         serverToClient.push({
           time: performance.now() + LATENCY_MS,
           packet: sharedWriter.toBytes(),

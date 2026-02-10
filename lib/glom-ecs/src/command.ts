@@ -39,11 +39,14 @@ export const IntentTick = defineComponent<number>("glom/IntentTick", {
   },
 })
 
-export type CommandInstance = {
+export type Command = {
   target: Entity
   componentId: number
   data: unknown
-  intentTick: number
+}
+
+export type CommandInstance = Command & {
+  tick: number
 }
 
 export function recordCommand<T>(
@@ -75,7 +78,7 @@ export function recordCommand<T>(
       target,
       componentId: raw.componentId,
       data: raw.data,
-      intentTick,
+      tick: intentTick,
     })
   } else if (command && typeof command === "object" && "component" in command) {
     const inst = command as ComponentInstance<T>
@@ -83,7 +86,7 @@ export function recordCommand<T>(
       target,
       componentId: getComponentId(world, inst.component),
       data: inst.value,
-      intentTick,
+      tick: intentTick,
     })
   } else {
     const component = command as ComponentLike
@@ -91,7 +94,7 @@ export function recordCommand<T>(
       target,
       componentId: getComponentId(world, component),
       data: undefined,
-      intentTick,
+      tick: intentTick,
     })
   }
 }
@@ -123,7 +126,7 @@ export const spawnEphemeralCommands = defineSystem(
         continue
       }
       let commandEntity: Entity
-      const baseComponents = [IntentTick(command.intentTick), CommandEntity]
+      const baseComponents = [IntentTick(command.tick), CommandEntity]
       if (command.data !== undefined) {
         commandEntity = spawnInDomain(
           world,

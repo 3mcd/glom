@@ -30,7 +30,12 @@ describe("history", () => {
 
   test("capture and restore checkpoint component data", () => {
     const world = makeWorld({domainId: 1})
-    const history = {checkpoints: [] as any[], undoLog: [] as any[], maxSize: 10, checkpointInterval: 1}
+    const history = {
+      checkpoints: [] as any[],
+      undoLog: [] as any[],
+      maxSize: 10,
+      checkpointInterval: 1,
+    }
     addResource(world, HistoryBuffer(history))
     pushCheckpoint(world, history)
 
@@ -55,7 +60,12 @@ describe("history", () => {
 
   test("rollback entity spawn", () => {
     const world = makeWorld({domainId: 1})
-    const history = {checkpoints: [] as any[], undoLog: [] as any[], maxSize: 10, checkpointInterval: 1}
+    const history = {
+      checkpoints: [] as any[],
+      undoLog: [] as any[],
+      maxSize: 10,
+      checkpointInterval: 1,
+    }
     addResource(world, HistoryBuffer(history))
     pushCheckpoint(world, history)
 
@@ -72,7 +82,12 @@ describe("history", () => {
 
   test("rollback entity despawn", () => {
     const world = makeWorld({domainId: 1})
-    const history = {checkpoints: [] as any[], undoLog: [] as any[], maxSize: 10, checkpointInterval: 1}
+    const history = {
+      checkpoints: [] as any[],
+      undoLog: [] as any[],
+      maxSize: 10,
+      checkpointInterval: 1,
+    }
     addResource(world, HistoryBuffer(history))
 
     const entity = spawn(world, Position({x: 10, y: 10}))
@@ -96,7 +111,12 @@ describe("history", () => {
 
   test("resimulate forward after rollback", () => {
     const world = makeWorld({domainId: 1})
-    const history = {checkpoints: [] as any[], undoLog: [] as any[], maxSize: 10, checkpointInterval: 1}
+    const history = {
+      checkpoints: [] as any[],
+      undoLog: [] as any[],
+      maxSize: 10,
+      checkpointInterval: 1,
+    }
     addResource(world, HistoryBuffer(history))
     const inputBuffer = new Map<number, unknown>()
     addResource(world, InputBuffer(inputBuffer))
@@ -169,7 +189,7 @@ describe("history", () => {
     restoreCheckpoint(world, checkpoint)
     expect(world.relations.objectToSubjects.has(parent)).toBe(true)
 
-    const node = sparseMapGet(world.entityGraph.byEntity, parent as number)
+    const node = sparseMapGet(world.graph.byEntity, parent as number)
     expect(node?.relMaps[world.componentRegistry.getId(ChildOf)]).toBeDefined()
   })
 

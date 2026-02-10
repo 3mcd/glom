@@ -29,7 +29,13 @@ import {
   sparseMapSet,
 } from "../sparse_map"
 import {makeVec, type Vec, vecIsSupersetOf} from "../vec"
-import {getComponentId, getComponentStore, getEntityNode, resolveVirtualComponent, type World} from "../world"
+import {
+  getComponentId,
+  getComponentStore,
+  getEntityNode,
+  resolveVirtualComponent,
+  type World,
+} from "../world"
 import type {AnyAll} from "./all"
 
 export type TermInfo =
@@ -78,10 +84,7 @@ export class JoinLevel implements EntityGraphNodeListener {
       this.joinOn = {id: getComponentId(world, joinOn)}
     }
 
-    this.anchorNode = entityGraphFindOrCreateNode(
-      world.entityGraph,
-      this.requiredVec,
-    )
+    this.anchorNode = entityGraphFindOrCreateNode(world.graph, this.requiredVec)
     entityGraphNodeAddListener(this.anchorNode, this, true)
 
     // Populate with existing nodes
@@ -289,8 +292,7 @@ export class AllRuntime implements AnyAll {
     assertDefined(this._world)
     if (info.type === "entity") return [entity]
     if (info.type === "component") {
-      const actualNode =
-        node ?? getEntityNode(this._world, entity as Entity)
+      const actualNode = node ?? getEntityNode(this._world, entity as Entity)
       if (actualNode === undefined) return []
       if (!actualNode.vec.sparse.has(info.componentId)) return []
 
@@ -318,9 +320,9 @@ export class AllRuntime implements AnyAll {
       return [val]
     }
     if (info.type === "has" || info.type === "not") {
-      const actualNode =
-        node ?? getEntityNode(this._world, entity as Entity)
-      if (actualNode === undefined) return info.type === "not" ? [undefined] : []
+      const actualNode = node ?? getEntityNode(this._world, entity as Entity)
+      if (actualNode === undefined)
+        return info.type === "not" ? [undefined] : []
 
       const hasComponent = actualNode.vec.sparse.has(info.componentId)
 
@@ -485,7 +487,7 @@ export class AllRuntime implements AnyAll {
       joinIndex: currentJoinIndex,
     }
     if (type === "component" && isWrite) {
-      (info as Extract<TermInfo, {type: "component"}>).isWrite = true
+      ;(info as Extract<TermInfo, {type: "component"}>).isWrite = true
     }
     return info
   }

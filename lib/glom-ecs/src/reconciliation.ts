@@ -1,10 +1,6 @@
 import {pruneCommands} from "./command"
 import {getDomainId} from "./entity"
-import {
-  HistoryBuffer,
-  rollbackToTick,
-  type Checkpoint,
-} from "./history"
+import {type Checkpoint, HistoryBuffer, rollbackToTick} from "./history"
 import type {SnapshotMessage} from "./net_types"
 import {Read, World as WorldTerm} from "./query/term"
 import {
@@ -296,14 +292,14 @@ export function cleanupTransientEntities(
   world: World,
   authoritativeTick: number,
 ) {
-  for (const [key, info] of world.transientRegistry.entries()) {
+  for (const [key, info] of world.transients.entries()) {
     if (info.tick < authoritativeTick) {
       if (getDomainId(info.entity) === TRANSIENT_DOMAIN) {
         despawn(world, info.entity)
         console.log("despawned transient entity", info.entity)
       }
 
-      world.transientRegistry.delete(key)
+      world.transients.delete(key)
     }
   }
 }

@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {defineComponent, type ComponentResolver} from "../component"
+import {type ComponentResolver, defineComponent} from "../component"
 import {HistoryBuffer, pushCheckpoint} from "../history"
 import {ByteWriter} from "../lib/binary"
 import type {SnapshotMessage} from "../net_types"
@@ -55,7 +55,7 @@ function makeSnapshotMessage(
       }
     }
   }
-  return {tick, _raw: w.getBytes()}
+  return {tick, data: w.getBytes()}
 }
 
 describe("reconciliation", () => {
@@ -183,13 +183,13 @@ describe("reconciliation", () => {
       [Position({x: 0, y: 0})],
       TRANSIENT_DOMAIN,
     )
-    expect(world.transientRegistry.size).toBe(1)
+    expect(world.transients.size).toBe(1)
 
     world.tick = 20
 
     cleanupTransientEntities(world, 15)
 
-    expect(world.transientRegistry.size).toBe(0)
+    expect(world.transients.size).toBe(0)
     expect(getComponentValue(world, entity, Position)).toBeUndefined()
   })
 
@@ -202,11 +202,13 @@ describe("reconciliation", () => {
 
     const snapshot = makeSnapshotMessage(
       0,
-      [{
-        componentId: world.componentRegistry.getId(Position),
-        entities: [entity as number],
-        data: [{x: 42, y: 43}],
-      }],
+      [
+        {
+          componentId: world.componentRegistry.getId(Position),
+          entities: [entity as number],
+          data: [{x: 42, y: 43}],
+        },
+      ],
       world.componentRegistry,
     )
 

@@ -64,37 +64,24 @@ export type GraphMove = {
   to?: EntityGraphNode
 }
 
-export type Command = {
-  target: Entity
-  componentId: number
-  data: unknown
-  intentTick: number
-}
-
 export type World<R extends ComponentLike = any> = {
   readonly __resources: (val: R) => void
-  readonly registry: EntityRegistry
+  readonly clocksync: ClocksyncManager
   readonly componentRegistry: ComponentRegistry
-  readonly entityGraph: EntityGraph
-  readonly graphChanges: SparseMap<GraphMove>
-  readonly pendingDeletions: Set<Entity>
-  readonly pendingRemovals: Map<Entity, ComponentLike[]>
-  readonly pendingNodePruning: Set<EntityGraphNode>
   readonly components: ComponentStore
+  readonly graph: EntityGraph
+  readonly graphChanges: SparseMap<GraphMove>
   readonly index: EntityIndex
+  readonly pendingDeletions: Set<Entity>
+  readonly pendingPrunes: Set<EntityGraphNode>
+  readonly pendingOps: ReplicationOp[]
+  readonly pendingRemovals: Map<Entity, ComponentLike[]>
+  readonly registry: EntityRegistry
   readonly relations: RelationRegistry
+  readonly transients: Map<number, {entity: Entity; tick: number}>
+  readonly undoOps: UndoOp[]
   tick: number
   tickSpawnCount: number
-  readonly transientRegistry: Map<number, {entity: Entity; tick: number}>
-  readonly pendingOps: ReplicationOp[]
-  readonly clocksync: ClocksyncManager
-
-  readonly currentUndoEntries: UndoOp[]
-
-  readonly _reduction_entity_to_ops: Map<Entity, ReplicationOp[]>
-  readonly _reduction_component_changes: Map<number, ReplicationOp>
-  readonly _reduction_component_removals: Set<number>
-  readonly _batch_map: Map<number, unknown>
 }
 
 export type WorldOptions = {
@@ -119,26 +106,22 @@ export function makeWorld(options: WorldOptions = {}): World {
   ])
 
   const world = {
-    registry: makeEntityRegistry(domainId),
+    clocksync: makeClocksyncManager(),
     componentRegistry,
-    entityGraph: makeEntityGraph(componentRegistry),
-    graphChanges: makeSparseMap<GraphMove>(),
-    pendingDeletions: new Set<Entity>(),
-    pendingRemovals: new Map<Entity, ComponentLike[]>(),
-    pendingNodePruning: new Set<EntityGraphNode>(),
     components: makeComponentStore(),
+    graph: makeEntityGraph(componentRegistry),
+    graphChanges: makeSparseMap<GraphMove>(),
     index: makeEntityIndex(),
+    pendingDeletions: new Set<Entity>(),
+    pendingOps: [],
+    pendingPrunes: new Set<EntityGraphNode>(),
+    pendingRemovals: new Map<Entity, ComponentLike[]>(),
+    registry: makeEntityRegistry(domainId),
     relations: makeRelationRegistry(),
     tick: 0,
     tickSpawnCount: 0,
-    transientRegistry: new Map(),
-    pendingOps: [],
-    clocksync: makeClocksyncManager(),
-    currentUndoEntries: [],
-    _reduction_entity_to_ops: new Map(),
-    _reduction_component_changes: new Map(),
-    _reduction_component_removals: new Set(),
-    _batch_map: new Map(),
+    transients: new Map(),
+    undoOps: [],
   } as unknown as World
   world.index.indexToEntity[0] = RESOURCE_ENTITY
   return world
@@ -505,5 +488,5 @@ export function getEntityNode(
   world: World,
   entity: Entity,
 ): EntityGraphNode | undefined {
-  return sparseMapGet(world.entityGraph.byEntity, entity as number)
+  return sparseMapGet(world.graph.byEntity, entity as number)
 }

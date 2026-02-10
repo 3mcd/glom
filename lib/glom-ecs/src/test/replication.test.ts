@@ -84,7 +84,7 @@ describe("replication", () => {
     commitTransaction(worldA)
     sync(worldA, worldB)
 
-    const nodeB = sparseMapGet(worldB.entityGraph.byEntity, entityA as number)
+    const nodeB = sparseMapGet(worldB.graph.byEntity, entityA as number)
     expect(nodeB).toBeDefined()
     expect(nodeB?.vec.ids).toContain(worldB.componentRegistry.getId(IsStatic))
   })
@@ -269,7 +269,7 @@ describe("replication", () => {
       TRANSIENT_DOMAIN,
     )
 
-    world.transientRegistry.set(causalKey, {
+    world.transients.set(causalKey, {
       entity: transientEntity,
       tick: world.tick,
     })
@@ -308,7 +308,7 @@ describe("replication", () => {
       expect(posServer.x).toBe(105)
     }
 
-    expect(world.transientRegistry.has(causalKey)).toBe(true)
+    expect(world.transients.has(causalKey)).toBe(true)
   })
 
   test("automatic causal key generation and rebinding", () => {
@@ -327,7 +327,7 @@ describe("replication", () => {
       [Position({x: 1, y: 1}), Replicated],
       TRANSIENT_DOMAIN,
     )
-    expect(worldClient.transientRegistry.size).toBe(1)
+    expect(worldClient.transients.size).toBe(1)
 
     const authoritativeEntity = spawn(
       worldServer,
@@ -362,7 +362,7 @@ describe("replication", () => {
       expect(posAuthoritative.x).toBe(2)
     }
 
-    expect(worldClient.transientRegistry.size).toBe(1)
+    expect(worldClient.transients.size).toBe(1)
   })
 
   test("relationship object rebinding", () => {
@@ -375,7 +375,7 @@ describe("replication", () => {
       [Position({x: 10, y: 10}), Replicated],
       TRANSIENT_DOMAIN,
     )
-    world.transientRegistry.set(causalKey, {
+    world.transients.set(causalKey, {
       entity: transientParent,
       tick: world.tick,
     })

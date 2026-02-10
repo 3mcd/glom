@@ -1,15 +1,15 @@
-import {describe, expect, test, mock} from "bun:test"
+import {describe, expect, mock, test} from "bun:test"
 import {defineComponent, defineTag} from "./component"
+import {entityGraphGetEntityNode} from "./entity_graph"
 import {
+  clearSystemExecutorMonitors,
   makeSystemExecutor,
+  runSystemExecutor,
   setupSystemExecutor,
   teardownSystemExecutor,
-  runSystemExecutor,
-  clearSystemExecutorMonitors,
 } from "./system_executor"
-import {makeWorld, addResource, getComponentValue} from "./world"
+import {addResource, getComponentValue, makeWorld} from "./world"
 import {spawn} from "./world_api"
-import {entityGraphGetEntityNode} from "./entity_graph"
 
 describe("system_executor", () => {
   const Position = defineComponent<{x: number; y: number}>("Position")
@@ -85,7 +85,7 @@ describe("system_executor", () => {
     ) => {
       // Test variadic spawn
       const e = spawnFn(IsStatic, Position({x: 5, y: 5}))
-      const nodeE = entityGraphGetEntityNode(world.entityGraph, e)
+      const nodeE = entityGraphGetEntityNode(world.graph, e)
       expect(
         nodeE?.vec.sparse.has(world.componentRegistry.getId(IsStatic)),
       ).toBe(true)
@@ -123,7 +123,7 @@ describe("system_executor", () => {
     setupSystemExecutor(exec, world)
     runSystemExecutor(exec)
 
-    const node = entityGraphGetEntityNode(world.entityGraph, entity)
+    const node = entityGraphGetEntityNode(world.graph, entity)
     expect(node?.vec.sparse.has(world.componentRegistry.getId(IsStatic))).toBe(
       true,
     )

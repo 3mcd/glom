@@ -174,7 +174,7 @@ export function captureCheckpoint(world: World): Checkpoint {
   const entityArchetypes = new Int32Array(nextIndex)
   const nodeVecs = new Map<number, Vec>()
 
-  sparseMapForEach(world.entityGraph.byEntity, (entity, node) => {
+  sparseMapForEach(world.graph.byEntity, (entity, node) => {
     const index = sparseMapGet(world.index.entityToIndex, entity)
     if (index !== undefined) {
       entityArchetypes[index] = node.id
@@ -385,7 +385,7 @@ export function restoreCheckpoint(world: World, checkpoint: Checkpoint) {
   }
   world.componentRegistry.setNextVirtualId(checkpoint.relations.nextVirtualId)
 
-  for (const node of world.entityGraph.byHash.values()) {
+  for (const node of world.graph.byHash.values()) {
     if (sparseSetSize(node.entities) > 0) {
       sparseSetClear(node.entities)
     }
@@ -398,11 +398,11 @@ export function restoreCheckpoint(world: World, checkpoint: Checkpoint) {
   world.pendingRemovals.clear()
 
   const nodesById: Map<number, EntityGraphNode> = new Map()
-  for (const node of world.entityGraph.byHash.values()) {
+  for (const node of world.graph.byHash.values()) {
     nodesById.set(node.id, node)
   }
 
-  sparseMapClear(world.entityGraph.byEntity)
+  sparseMapClear(world.graph.byEntity)
   for (let i = 0; i < checkpoint.entityArchetypes.length; i++) {
     const nodeId = checkpoint.entityArchetypes[i] as number
     if (nodeId === 0) continue
@@ -416,16 +416,12 @@ export function restoreCheckpoint(world: World, checkpoint: Checkpoint) {
       // Recreate it from the stored vec so the entity is not silently lost.
       const vec = checkpoint.nodeVecs?.get(nodeId)
       if (vec !== undefined) {
-        node = entityGraphFindOrCreateNode(world.entityGraph, vec)
+        node = entityGraphFindOrCreateNode(world.graph, vec)
         nodesById.set(nodeId, node)
       }
     }
     if (node !== undefined) {
-      sparseMapSet(
-        world.entityGraph.byEntity,
-        entity as unknown as number,
-        node,
-      )
+      sparseMapSet(world.graph.byEntity, entity as unknown as number, node)
       sparseSetAdd(node.entities, entity)
       node.indices.push(i)
     }
@@ -464,7 +460,7 @@ function undoSpawn(world: World, entity: Entity) {
       deleteComponentValue(world, entity, elements[i] as ComponentLike)
     }
     entityGraphNodeRemoveEntity(node, entity)
-    sparseMapDelete(world.entityGraph.byEntity, entity as number)
+    sparseMapDelete(world.graph.byEntity, entity as number)
   }
 
   const idx = sparseMapGet(world.index.entityToIndex, entity)
@@ -509,10 +505,10 @@ function undoDespawn(
   }
 
   const vec = makeVec(resolved, world.componentRegistry)
-  const node = entityGraphFindOrCreateNode(world.entityGraph, vec)
+  const node = entityGraphFindOrCreateNode(world.graph, vec)
   const index = getOrCreateIndex(world, entity as number)
   entityGraphNodeAddEntity(node, entity, index)
-  sparseMapSet(world.entityGraph.byEntity, entity as number, node)
+  sparseMapSet(world.graph.byEntity, entity as number, node)
 }
 
 function undoAddComponent(world: World, entity: Entity, componentId: number) {
@@ -529,12 +525,12 @@ function undoAddComponent(world: World, entity: Entity, componentId: number) {
     makeVec([comp], world.componentRegistry),
     world.componentRegistry,
   )
-  const nextNode = entityGraphFindOrCreateNode(world.entityGraph, nextVec)
+  const nextNode = entityGraphFindOrCreateNode(world.graph, nextVec)
   const index = sparseMapGet(world.index.entityToIndex, entity)
   if (index !== undefined) {
     entityGraphNodeRemoveEntity(node, entity)
     entityGraphNodeAddEntity(nextNode, entity, index)
-    sparseMapSet(world.entityGraph.byEntity, entity as number, nextNode)
+    sparseMapSet(world.graph.byEntity, entity as number, nextNode)
   }
 }
 
@@ -575,12 +571,12 @@ function undoRemoveComponent(
     makeVec([component], world.componentRegistry),
     world.componentRegistry,
   )
-  const nextNode = entityGraphFindOrCreateNode(world.entityGraph, nextVec)
+  const nextNode = entityGraphFindOrCreateNode(world.graph, nextVec)
   const index = sparseMapGet(world.index.entityToIndex, entity)
   if (index !== undefined) {
     entityGraphNodeRemoveEntity(node, entity)
     entityGraphNodeAddEntity(nextNode, entity, index)
-    sparseMapSet(world.entityGraph.byEntity, entity as number, nextNode)
+    sparseMapSet(world.graph.byEntity, entity as number, nextNode)
   }
 }
 

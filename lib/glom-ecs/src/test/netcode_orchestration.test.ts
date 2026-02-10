@@ -58,7 +58,7 @@ describe("netcode orchestration", () => {
     expect(world.tick).toBe(1)
     expect(getComponentValue(world, player, Position)?.y).toBe(10)
 
-    const node = sparseMapGet(world.entityGraph.byEntity, player as number)
+    const node = sparseMapGet(world.graph.byEntity, player as number)
     const commandOfId = world.componentRegistry.getId(commands.CommandOf)
     expect(
       node?.vec.elements.some(

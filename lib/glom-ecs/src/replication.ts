@@ -148,8 +148,8 @@ export function rebindEntity(
   if (node !== undefined) {
     entityGraphNodeRemoveEntity(node, transient)
     entityGraphNodeAddEntity(node, authoritative, index)
-    sparseMapSet(world.entityGraph.byEntity, authoritative as number, node)
-    sparseMapDelete(world.entityGraph.byEntity, transient as number)
+    sparseMapSet(world.graph.byEntity, authoritative as number, node)
+    sparseMapDelete(world.graph.byEntity, transient as number)
   }
 
   const incoming = getObjectSubjects(world, transient as number)
@@ -198,11 +198,11 @@ export function applyTransaction(world: World, transaction: Transaction) {
     switch (op.type) {
       case "spawn": {
         if (op.causalKey !== undefined) {
-          const transientInfo = world.transientRegistry.get(op.causalKey)
+          const transientInfo = world.transients.get(op.causalKey)
           if (transientInfo !== undefined) {
             rebindEntity(world, transientInfo.entity, op.entity)
 
-            world.transientRegistry.set(op.causalKey, {
+            world.transients.set(op.causalKey, {
               ...transientInfo,
               entity: op.entity,
             })
@@ -256,13 +256,13 @@ export function applyTransaction(world: World, transaction: Transaction) {
           world,
           op.entity,
           entityGraphFindOrCreateNode(
-            world.entityGraph,
+            world.graph,
             makeVec(resolved, world.componentRegistry),
           ),
         )
 
         // Record undo entry for server-applied spawn
-        world.currentUndoEntries.push({type: "undo-spawn", entity: op.entity})
+        world.undoOps.push({type: "undo-spawn", entity: op.entity})
         break
       }
       case "despawn": {
@@ -282,7 +282,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
               rel: getRelationPair(world, compId),
             })
           }
-          world.currentUndoEntries.push({
+          world.undoOps.push({
             type: "undo-despawn",
             entity: op.entity,
             components: undoComponents,
@@ -307,9 +307,9 @@ export function applyTransaction(world: World, transaction: Transaction) {
           deleteComponentValue(world, op.entity, comp)
         }
 
-        const prevNode = setEntityNode(world, op.entity, world.entityGraph.root)
+        const prevNode = setEntityNode(world, op.entity, world.graph.root)
         if (prevNode !== undefined) {
-          world.pendingNodePruning.add(prevNode)
+          world.pendingPrunes.add(prevNode)
         }
         removeDomainEntity(domain, op.entity)
         break
@@ -355,7 +355,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
 
         if (!hasComp) {
           // Record undo entry for server-applied component add
-          world.currentUndoEntries.push({
+          world.undoOps.push({
             type: "undo-add",
             entity: op.entity,
             componentId: op.componentId,
@@ -363,7 +363,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
           })
 
           const nextNode = entityGraphFindOrCreateNode(
-            world.entityGraph,
+            world.graph,
             vecSum(
               node.vec,
               makeVec([comp], world.componentRegistry),
@@ -372,7 +372,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
           )
           const prevNode = setEntityNode(world, op.entity, nextNode)
           if (prevNode !== undefined) {
-            world.pendingNodePruning.add(prevNode)
+            world.pendingPrunes.add(prevNode)
           }
         }
         break
@@ -384,7 +384,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
         if (node === undefined) break
 
         // Record undo entry before deleting component data
-        world.currentUndoEntries.push({
+        world.undoOps.push({
           type: "undo-remove",
           entity: op.entity,
           componentId: op.componentId,
@@ -405,7 +405,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
         deleteComponentValue(world, op.entity, comp)
 
         const nextNode = entityGraphFindOrCreateNode(
-          world.entityGraph,
+          world.graph,
           vecDifference(
             node.vec,
             makeVec([comp], world.componentRegistry),
@@ -414,7 +414,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
         )
         const prevNode = setEntityNode(world, op.entity, nextNode)
         if (prevNode !== undefined) {
-          world.pendingNodePruning.add(prevNode)
+          world.pendingPrunes.add(prevNode)
         }
         break
       }
@@ -461,7 +461,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
 
         if (!hasComp) {
           // Record undo entry for server-applied component add
-          world.currentUndoEntries.push({
+          world.undoOps.push({
             type: "undo-add",
             entity: op.entity,
             componentId: op.componentId,
@@ -469,7 +469,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
           })
 
           const nextNode = entityGraphFindOrCreateNode(
-            world.entityGraph,
+            world.graph,
             vecSum(
               node.vec,
               makeVec([comp], world.componentRegistry),
@@ -478,7 +478,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
           )
           const prevNode = setEntityNode(world, op.entity, nextNode)
           if (prevNode !== undefined) {
-            world.pendingNodePruning.add(prevNode)
+            world.pendingPrunes.add(prevNode)
           }
         }
         break
@@ -510,7 +510,13 @@ export const emitSnapshots = defineSystem(
       return
     // Write directly to a pooled ByteWriter
     const writer = acquireWriter()
-    writeSnapshot(writer, world, config.snapshotComponents, world, world.tick)
+    writeSnapshot(
+      writer,
+      world,
+      config.snapshotComponents,
+      world.componentRegistry,
+      world.tick,
+    )
     if (writer.getLength() > 7) {
       // >7 means more than header (5 bytes) + blockCount of 0 (2 bytes)
       stream.snapshots.push(writer.toBytes())

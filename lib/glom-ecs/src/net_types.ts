@@ -3,8 +3,7 @@ import type {RelationPair} from "./relation_registry"
 
 export type SnapshotMessage = {
   tick: number
-  /** Raw serialized snapshot body (binary). */
-  _raw: Uint8Array
+  data: Uint8Array
 }
 
 export type SpawnComponent = {

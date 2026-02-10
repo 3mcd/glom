@@ -51,7 +51,7 @@ function makeSnapshotMessage(
       }
     }
   }
-  return {tick, _raw: w.getBytes()}
+  return {tick, data: w.getBytes()}
 }
 
 const Position = defineComponent<{x: number; y: number}>("Position", {
@@ -433,9 +433,21 @@ describe("P2P reconciliation", () => {
 
     // Exchange snapshots via binary round-trip
     const writerA = new ByteWriter()
-    writeSnapshot(writerA, peerA, [posId], peerA, makeVersion(20, 1))
+    writeSnapshot(
+      writerA,
+      peerA,
+      [posId],
+      peerA.componentRegistry,
+      makeVersion(20, 1),
+    )
     const writerB = new ByteWriter()
-    writeSnapshot(writerB, peerB, [posId], peerB, makeVersion(18, 2))
+    writeSnapshot(
+      writerB,
+      peerB,
+      [posId],
+      peerB.componentRegistry,
+      makeVersion(18, 2),
+    )
 
     // Apply B's snapshot to A (versioned)
     const readerB = new ByteReader(writerB.getBytes())

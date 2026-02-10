@@ -36,7 +36,8 @@ const MoveCommand = g.defineComponent<{dx: number; dy: number}>("MoveCommand", {
 })
 
 const SPEED = 2
-const CanvasContext = g.defineComponent<CanvasRenderingContext2D>("CanvasContext")
+const CanvasContext =
+  g.defineComponent<CanvasRenderingContext2D>("CanvasContext")
 const schema = [Position, Color, MoveCommand, CanvasContext]
 
 const movementSystem = (
@@ -174,10 +175,14 @@ function loop() {
   if (streamA) {
     for (const tx of streamA.transactions) {
       sharedWriter.reset()
-      g.writeTransaction(sharedWriter, tx, peerA.world)
+      g.writeTransaction(sharedWriter, tx, peerA.world.componentRegistry)
       const reader = new g.ByteReader(sharedWriter.toBytes())
       const header = g.readMessageHeader(reader)
-      const decoded = g.readTransaction(reader, header.tick, peerB.world)
+      const decoded = g.readTransaction(
+        reader,
+        header.tick,
+        peerB.world.componentRegistry,
+      )
       g.receiveTransaction(peerB.world, decoded)
     }
     for (const raw of streamA.snapshots) {
@@ -193,10 +198,14 @@ function loop() {
   if (streamB) {
     for (const tx of streamB.transactions) {
       sharedWriter.reset()
-      g.writeTransaction(sharedWriter, tx, peerB.world)
+      g.writeTransaction(sharedWriter, tx, peerB.world.componentRegistry)
       const reader = new g.ByteReader(sharedWriter.toBytes())
       const header = g.readMessageHeader(reader)
-      const decoded = g.readTransaction(reader, header.tick, peerA.world)
+      const decoded = g.readTransaction(
+        reader,
+        header.tick,
+        peerA.world.componentRegistry,
+      )
       g.receiveTransaction(peerA.world, decoded)
     }
     for (const raw of streamB.snapshots) {

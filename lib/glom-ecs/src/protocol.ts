@@ -1,3 +1,4 @@
+import type {Command} from "./command"
 import type {ComponentResolver} from "./component"
 import type {Entity} from "./entity"
 import type {ByteReader, ByteWriter} from "./lib/binary"
@@ -5,20 +6,12 @@ import type {SnapshotMessage} from "./net_types"
 import type {RelationPair} from "./relation_registry"
 import type {ReplicationOp, SpawnComponent, Transaction} from "./replication"
 
-export type ResolverLike =
-  | ComponentResolver
-  | {readonly componentRegistry: ComponentResolver}
-
-function toResolver(res: ResolverLike): ComponentResolver {
-  return "componentRegistry" in res ? res.componentRegistry : res
-}
-
 export enum MessageType {
   Handshake = 0x01,
   Clocksync = 0x02,
   Transaction = 0x03,
-  Command = 0x04,
-  Snapshot = 0x05,
+  Snapshot = 0x04,
+  Command = 0x05,
 }
 
 export type MessageHeader = {
@@ -111,10 +104,9 @@ export function readClocksync(reader: ByteReader): Clocksync {
 export function writeCommands(
   writer: ByteWriter,
   tick: number,
-  commands: {target: number; componentId: number; data: unknown}[],
-  resolverLike: ResolverLike,
+  commands: Command[],
+  resolver: ComponentResolver,
 ) {
-  const resolver = toResolver(resolverLike)
   writeMessageHeader(writer, MessageType.Command, tick)
   writer.writeUint16(commands.length)
   for (const cmd of commands) {
@@ -131,13 +123,12 @@ export function writeCommands(
 
 export function readCommands(
   reader: ByteReader,
-  resolverLike: ResolverLike,
-): {target: number; componentId: number; data: unknown}[] {
-  const resolver = toResolver(resolverLike)
+  resolver: ComponentResolver,
+): Command[] {
   const count = reader.readUint16()
-  const commands: {target: number; componentId: number; data: unknown}[] = []
+  const commands: Command[] = []
   for (let i = 0; i < count; i++) {
-    const target = reader.readVarint()
+    const target = reader.readVarint() as Entity
     const id = reader.readVarint()
     let data: unknown
     if (!resolver.isTag(id)) {
@@ -164,11 +155,11 @@ export function readSnapshot(
   reader: ByteReader,
   tick: number,
 ): SnapshotMessage {
-  const raw = reader.buffer.slice(reader.cursor)
+  const data = reader.buffer.slice(reader.cursor)
   reader.cursor = reader.buffer.byteLength
   return {
     tick,
-    _raw: raw,
+    data,
   }
 }
 
@@ -183,9 +174,8 @@ enum OpCode {
 export function writeTransaction(
   writer: ByteWriter,
   transaction: Transaction,
-  resolverLike: ResolverLike,
+  resolver: ComponentResolver,
 ) {
-  const resolver = toResolver(resolverLike)
   writeMessageHeader(writer, MessageType.Transaction, transaction.tick)
   writer.writeUint8(transaction.domainId)
   writer.writeVarint(transaction.seq)
@@ -197,18 +187,18 @@ export function writeTransaction(
         writer.writeUint8(OpCode.Spawn)
         writer.writeVarint(op.entity as number)
         writer.writeUint16(op.components.length)
-        for (const c of op.components) {
-          writer.writeVarint(c.id)
-          if (!resolver.isTag(c.id)) {
-            const serde = resolver.getSerde(c.id)
+        for (const component of op.components) {
+          writer.writeVarint(component.id)
+          if (!resolver.isTag(component.id)) {
+            const serde = resolver.getSerde(component.id)
             if (serde !== undefined) {
-              serde.encode(c.data, writer)
+              serde.encode(component.data, writer)
             }
           }
-          if (c.rel !== undefined) {
+          if (component.rel !== undefined) {
             writer.writeUint8(1)
-            writer.writeVarint(c.rel.relationId)
-            writer.writeVarint(c.rel.object)
+            writer.writeVarint(component.rel.relationId)
+            writer.writeVarint(component.rel.object)
           } else {
             writer.writeUint8(0)
           }
@@ -285,9 +275,8 @@ export function writeTransaction(
 export function readTransaction(
   reader: ByteReader,
   tick: number,
-  resolverLike: ResolverLike,
+  resolver: ComponentResolver,
 ): Transaction {
-  const resolver = toResolver(resolverLike)
   const domainId = reader.readUint8()
   const seq = reader.readVarint()
   const opCount = reader.readUint16()
@@ -298,9 +287,9 @@ export function readTransaction(
     switch (code) {
       case OpCode.Spawn: {
         const entity = reader.readVarint() as Entity
-        const compCount = reader.readUint16()
+        const componentCount = reader.readUint16()
         const components: SpawnComponent[] = []
-        for (let j = 0; j < compCount; j++) {
+        for (let j = 0; j < componentCount; j++) {
           const id = reader.readVarint()
           let data: unknown
           if (!resolver.isTag(id)) {

@@ -1,7 +1,7 @@
 import type {ComponentResolver} from "./component"
 import {ByteReader, type ByteWriter} from "./lib/binary"
 import type {SnapshotMessage} from "./net_types"
-import {MessageType, type ResolverLike, writeMessageHeader} from "./protocol"
+import {MessageType, writeMessageHeader} from "./protocol"
 import {Replicated} from "./replication_config"
 import {
   forceSetComponentValueById,
@@ -10,10 +10,6 @@ import {
   setComponentValueById,
   type World,
 } from "./world"
-
-function toResolver(res: ResolverLike): ComponentResolver {
-  return "componentRegistry" in res ? res.componentRegistry : res
-}
 
 // Reusable buffers to avoid per-call allocations
 const _replicatedEntities: number[] = []
@@ -29,7 +25,7 @@ function collectReplicatedEntities(
   entityFilter?: (entity: number) => boolean,
 ): number {
   _replicatedEntities.length = 0
-  for (const node of world.entityGraph.byHash.values()) {
+  for (const node of world.graph.byHash.values()) {
     let isReplicated = false
     const elements = node.vec.elements
     for (let j = 0; j < elements.length; j++) {
@@ -58,11 +54,10 @@ export function writeSnapshot(
   writer: ByteWriter,
   world: World,
   componentIds: number[],
-  resolverLike: ResolverLike,
+  resolver: ComponentResolver,
   tick: number,
   entityFilter?: (entity: number) => boolean,
 ): void {
-  const resolver = toResolver(resolverLike)
   const entityCount = collectReplicatedEntities(world, entityFilter)
 
   // Pass 1: count blocks and entities per component
@@ -149,7 +144,7 @@ function readAndApplySnapshot(
  * Intended for authoritative (server → client) topologies.
  */
 export function applySnapshotStream(world: World, message: SnapshotMessage) {
-  _sharedReader.reset(message._raw)
+  _sharedReader.reset(message.data)
   readAndApplySnapshot(world, _sharedReader, message.tick, true)
 }
 
@@ -162,6 +157,6 @@ export function applySnapshotStreamVersioned(
   world: World,
   message: SnapshotMessage,
 ) {
-  _sharedReader.reset(message._raw)
+  _sharedReader.reset(message.data)
   readAndApplySnapshot(world, _sharedReader, message.tick, false)
 }

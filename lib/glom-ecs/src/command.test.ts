@@ -46,7 +46,7 @@ describe("command api", () => {
 
     const checkSystem = defineSystem(
       (_world: World) => {
-        const node = sparseMapGet(world.entityGraph.byEntity, player as number)
+        const node = sparseMapGet(world.graph.byEntity, player as number)
         expect(node).toBeDefined()
         if (node) {
           for (const comp of node.vec.elements) {
@@ -59,7 +59,7 @@ describe("command api", () => {
               const cmdEnt = rel.object
 
               const cmdNode = sparseMapGet(
-                world.entityGraph.byEntity,
+                world.graph.byEntity,
                 cmdEnt as number,
               )
               const jumpId = world.componentRegistry.getId(Jump)
@@ -89,8 +89,7 @@ describe("command api", () => {
     expect(moveVal).toEqual({x: 5, y: 10})
 
     expect(
-      sparseMapGet(world.entityGraph.byEntity, player as number)?.vec.elements
-        .length,
+      sparseMapGet(world.graph.byEntity, player as number)?.vec.elements.length,
     ).toBe(0)
   })
 

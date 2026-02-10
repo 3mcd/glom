@@ -89,6 +89,12 @@ export {
   type World,
 }
 
+// Module-level scratch containers, cleared before each use to avoid per-call allocations.
+const _reduction_entity_to_ops: Map<Entity, ReplicationOp[]> = new Map()
+const _reduction_component_changes: Map<number, ReplicationOp> = new Map()
+const _reduction_component_removals: Set<number> = new Set()
+const _batch_map: Map<number, unknown> = new Map()
+
 function recordGraphMove(
   world: World,
   entity: Entity,
@@ -96,7 +102,7 @@ function recordGraphMove(
   nextNode: EntityGraphNode | undefined,
 ) {
   if (prevNode !== undefined) {
-    world.pendingNodePruning.add(prevNode)
+    world.pendingPrunes.add(prevNode)
   }
   let move = sparseMapGet(world.graphChanges, entity as number)
   if (move === undefined) {
@@ -114,7 +120,7 @@ export function setEntityNode(
 ): EntityGraphNode | undefined {
   const index = getOrCreateIndex(world, entity as number)
   const prevNode = entityGraphSetEntityNode(
-    world.entityGraph,
+    world.graph,
     entity,
     nextNode,
     index,
@@ -187,7 +193,7 @@ export function spawnInDomain(
   const causalKey = makeCausalKey(causalTick, causalIndex)
 
   let entity: Entity
-  const existing = world.transientRegistry.get(causalKey)
+  const existing = world.transients.get(causalKey)
   if (existing !== undefined) {
     entity = existing.entity
     addDomainEntity(getDomain(world.registry, getDomainId(entity)), entity)
@@ -231,7 +237,7 @@ export function spawnInDomain(
   }
 
   if (getDomainId(entity) === TRANSIENT_DOMAIN && domainId !== COMMAND_DOMAIN) {
-    world.transientRegistry.set(causalKey, {
+    world.transients.set(causalKey, {
       entity,
       tick: world.tick,
     })
@@ -267,13 +273,13 @@ export function spawnInDomain(
   }
 
   const nextVec = makeVec(resolvedComponents, world.componentRegistry)
-  const nextNode = entityGraphFindOrCreateNode(world.entityGraph, nextVec)
+  const nextNode = entityGraphFindOrCreateNode(world.graph, nextVec)
   const prevNode = setEntityNode(world, entity, nextNode)
 
   recordGraphMove(world, entity, prevNode, nextNode)
 
   if (getDomainId(entity) !== COMMAND_DOMAIN) {
-    world.currentUndoEntries.push({type: "undo-spawn", entity})
+    world.undoOps.push({type: "undo-spawn", entity})
   }
 
   return entity
@@ -297,7 +303,7 @@ export function despawn(world: World, entity: Entity): void {
         rel: getRelationPair(world, componentId),
       })
     }
-    world.currentUndoEntries.push({
+    world.undoOps.push({
       type: "undo-despawn",
       entity,
       components: undoComponents,
@@ -366,7 +372,7 @@ export function despawn(world: World, entity: Entity): void {
       }
     }
     entityGraphNodeRemoveEntity(prevNode, entity)
-    sparseMapDelete(world.entityGraph.byEntity, entity as number)
+    sparseMapDelete(world.graph.byEntity, entity as number)
     recordGraphMove(world, entity, prevNode, undefined)
   }
 }
@@ -411,7 +417,7 @@ function removeRelation(
     }
   }
 
-  const nextNode = entityGraphFindOrCreateNode(world.entityGraph, nextVec)
+  const nextNode = entityGraphFindOrCreateNode(world.graph, nextVec)
   const prevNode = setEntityNode(world, entity, nextNode)
   recordGraphMove(world, entity, prevNode, nextNode)
   unregisterIncomingRelation(world, entity, relationId, object)
@@ -457,7 +463,7 @@ export function addComponent(
       for (let i = 0; i < toAdd.length; i++) {
         const component = toAdd[i] as ComponentLike
         const componentId = getComponentId(world, component)
-        world.currentUndoEntries.push({
+        world.undoOps.push({
           type: "undo-add",
           entity,
           componentId,
@@ -550,7 +556,7 @@ export function addComponent(
       makeVec(toAdd, world.componentRegistry),
       world.componentRegistry,
     )
-    const nextNode = entityGraphFindOrCreateNode(world.entityGraph, nextVec)
+    const nextNode = entityGraphFindOrCreateNode(world.graph, nextVec)
     const prevNode = setEntityNode(world, entity, nextNode)
     recordGraphMove(world, entity, prevNode, nextNode)
   }
@@ -608,7 +614,7 @@ export function removeComponent(
       for (let i = 0; i < toRemove.length; i++) {
         const component = toRemove[i] as ComponentLike
         const componentId = getComponentId(world, component)
-        world.currentUndoEntries.push({
+        world.undoOps.push({
           type: "undo-remove",
           entity,
           componentId,
@@ -657,7 +663,7 @@ export function removeComponent(
       makeVec(toRemove, world.componentRegistry),
       world.componentRegistry,
     )
-    const nextNode = entityGraphFindOrCreateNode(world.entityGraph, nextVec)
+    const nextNode = entityGraphFindOrCreateNode(world.graph, nextVec)
     const prevNode = setEntityNode(world, entity, nextNode)
     recordGraphMove(world, entity, prevNode, nextNode)
   }
@@ -675,19 +681,19 @@ export function commitTransaction(world: World): void {
 
   const domainId = world.registry.domainId
   const reducedOps: ReplicationOp[] = []
-  world._reduction_entity_to_ops.clear()
+  _reduction_entity_to_ops.clear()
 
   for (let i = 0; i < world.pendingOps.length; i++) {
     const op = world.pendingOps[i] as ReplicationOp
-    let list = world._reduction_entity_to_ops.get(op.entity)
+    let list = _reduction_entity_to_ops.get(op.entity)
     if (list === undefined) {
       list = []
-      world._reduction_entity_to_ops.set(op.entity, list)
+      _reduction_entity_to_ops.set(op.entity, list)
     }
     list.push(op)
   }
 
-  for (const [entity, ops] of world._reduction_entity_to_ops) {
+  for (const [entity, ops] of _reduction_entity_to_ops) {
     let wasSpawned = false
     for (let j = 0; j < ops.length; j++) {
       if ((ops[j] as ReplicationOp).type === "spawn") {
@@ -743,21 +749,21 @@ export function commitTransaction(world: World): void {
       continue
     }
 
-    world._reduction_component_changes.clear()
-    world._reduction_component_removals.clear()
+    _reduction_component_changes.clear()
+    _reduction_component_removals.clear()
 
     for (let j = 0; j < ops.length; j++) {
       const op = ops[j] as ReplicationOp
       if (op.type === "add" || op.type === "set") {
-        world._reduction_component_changes.set(op.componentId, op)
-        world._reduction_component_removals.delete(op.componentId)
+        _reduction_component_changes.set(op.componentId, op)
+        _reduction_component_removals.delete(op.componentId)
       } else if (op.type === "remove") {
-        world._reduction_component_removals.add(op.componentId)
-        world._reduction_component_changes.delete(op.componentId)
+        _reduction_component_removals.add(op.componentId)
+        _reduction_component_changes.delete(op.componentId)
       }
     }
 
-    for (const opOrig of world._reduction_component_changes.values()) {
+    for (const opOrig of _reduction_component_changes.values()) {
       if (opOrig.type === "add") {
         const op = poolGetOp("add")
         op.entity = entity
@@ -783,7 +789,7 @@ export function commitTransaction(world: World): void {
         reducedOps.push(op)
       }
     }
-    for (const id of world._reduction_component_removals) {
+    for (const id of _reduction_component_removals) {
       const op = poolGetOp("remove")
       op.entity = entity
       op.componentId = id
@@ -820,13 +826,13 @@ export function advanceTick(world: World, skipSnapshot = false): void {
   const history = getResource(world, HistoryBuffer)
 
   // Batch undo entries for the current tick (before increment)
-  if (history && !skipSnapshot && world.currentUndoEntries.length > 0) {
+  if (history && !skipSnapshot && world.undoOps.length > 0) {
     history.undoLog.push({
       tick: world.tick,
-      ops: [...world.currentUndoEntries],
+      ops: [...world.undoOps],
     })
   }
-  world.currentUndoEntries.length = 0
+  world.undoOps.length = 0
 
   world.tick++
 
@@ -843,7 +849,7 @@ export function advanceTick(world: World, skipSnapshot = false): void {
 }
 
 export function flushGraphChanges(world: World) {
-  const batches = world._batch_map as Map<number, EntityGraphBatch>
+  const batches = _batch_map as Map<number, EntityGraphBatch>
   batches.clear()
 
   sparseMapForEach(world.graphChanges, (entity, move) => {
@@ -872,15 +878,15 @@ export function flushGraphChanges(world: World) {
 
   sparseMapClear(world.graphChanges)
 
-  world.pendingNodePruning.forEach((node) => {
+  world.pendingPrunes.forEach((node) => {
     if (
       node.strategy === PruneStrategy.WhenEmpty &&
       sparseSetSize(node.entities) === 0
     ) {
-      entityGraphNodePrune(world.entityGraph, node)
+      entityGraphNodePrune(world.graph, node)
     }
   })
-  world.pendingNodePruning.clear()
+  world.pendingPrunes.clear()
 }
 
 export function flushDeletions(world: World) {
@@ -897,9 +903,9 @@ export function flushDeletions(world: World) {
     // ghost cleanup can never despawn a *different* entity that later
     // reuses the same recycled ID.
     if (getDomainId(entity) === TRANSIENT_DOMAIN) {
-      for (const [key, info] of world.transientRegistry.entries()) {
+      for (const [key, info] of world.transients.entries()) {
         if (info.entity === entity) {
-          world.transientRegistry.delete(key)
+          world.transients.delete(key)
         }
       }
     }

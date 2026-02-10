@@ -35,7 +35,7 @@ describe("snapshot streaming", () => {
 
     // Write snapshot to binary
     const writer = new ByteWriter()
-    writeSnapshot(writer, worldA, [posId], worldA, 100)
+    writeSnapshot(writer, worldA, [posId], worldA.componentRegistry, 100)
     const bytes = writer.getBytes()
 
     // Read snapshot from binary
@@ -64,7 +64,7 @@ describe("snapshot streaming", () => {
     // Create a snapshot with an older tick
     const writer = new ByteWriter()
     // Write a manual snapshot body (blockCount=1, componentId, entityCount=1, entity, data)
-    writeSnapshot(writer, world, [posId], world, 40)
+    writeSnapshot(writer, world, [posId], world.componentRegistry, 40)
     // The snapshot captured the current value (50,50).
     // Overwrite the entity's value so we can test that the older snapshot still applies.
     const pos = getComponentValue(world, entity, Position)!
@@ -88,7 +88,7 @@ describe("snapshot streaming", () => {
 
     // Capture the current state as an "old" snapshot at tick 40
     const oldWriter = new ByteWriter()
-    writeSnapshot(oldWriter, world, [posId], world, 40)
+    writeSnapshot(oldWriter, world, [posId], world.componentRegistry, 40)
     // Mutate the live value so it differs from the snapshot
     const pos = getComponentValue(world, entity, Position)!
     pos.x = 999
@@ -104,7 +104,7 @@ describe("snapshot streaming", () => {
 
     // Now capture a "new" snapshot at tick 60
     const newWriter = new ByteWriter()
-    writeSnapshot(newWriter, world, [posId], world, 60)
+    writeSnapshot(newWriter, world, [posId], world.componentRegistry, 60)
 
     const newReader = new ByteReader(newWriter.getBytes())
     const newHeader = readMessageHeader(newReader)
