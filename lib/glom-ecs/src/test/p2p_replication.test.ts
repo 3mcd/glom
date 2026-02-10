@@ -1,13 +1,31 @@
 import {describe, expect, test} from "bun:test"
-import {defineComponent, type ComponentResolver} from "../component"
-import {getComponentValue, makeVersion, makeWorld, getVersionTick, getVersionDomainId, setComponentValue} from "../world"
-import {applySnapshotStreamVersioned, writeSnapshot} from "../snapshot_stream"
+import {type ComponentResolver, defineComponent} from "../component"
 import {ByteReader, ByteWriter} from "../lib/binary"
-import {readMessageHeader, readSnapshot, writeMessageHeader, MessageType} from "../protocol"
-import {Replicated, ReplicationConfig} from "../replication_config"
-import {addComponent, addResource, commitTransaction, getResource, spawn} from "../world_api"
-import {applyTransaction} from "../replication"
 import type {SetOp, SnapshotMessage, Transaction} from "../net_types"
+import {
+  MessageType,
+  readMessageHeader,
+  readSnapshot,
+  writeMessageHeader,
+} from "../protocol"
+import {applyTransaction} from "../replication"
+import {Replicated, ReplicationConfig} from "../replication_config"
+import {applySnapshotStreamVersioned, writeSnapshot} from "../snapshot_stream"
+import {
+  getComponentValue,
+  getVersionDomainId,
+  getVersionTick,
+  makeVersion,
+  makeWorld,
+  setComponentValue,
+} from "../world"
+import {
+  addComponent,
+  addResource,
+  commitTransaction,
+  getResource,
+  spawn,
+} from "../world_api"
 
 /**
  * Build a SnapshotMessage with _raw bytes from inline block data.
@@ -83,38 +101,64 @@ describe("LWW via setComponentValue", () => {
   test("higher tick wins regardless of arrival order", () => {
     const world = makeWorld({domainId: 0})
     const entity = spawn(world, Position({x: 0, y: 0}), Replicated)
-    const posId = world.componentRegistry.getId(Position)
-    const comp = {id: posId, __component_brand: true} as any
 
     // Write at tick 10
-    setComponentValue(world, entity, comp, {x: 10, y: 10}, makeVersion(10, 0))
+    setComponentValue(
+      world,
+      entity,
+      Position,
+      {x: 10, y: 10},
+      makeVersion(10, 0),
+    )
     expect(getComponentValue(world, entity, Position)?.x).toBe(10)
 
     // Stale write at tick 5 — rejected
-    setComponentValue(world, entity, comp, {x: 5, y: 5}, makeVersion(5, 0))
+    setComponentValue(world, entity, Position, {x: 5, y: 5}, makeVersion(5, 0))
     expect(getComponentValue(world, entity, Position)?.x).toBe(10)
 
     // Newer write at tick 20 — accepted
-    setComponentValue(world, entity, comp, {x: 20, y: 20}, makeVersion(20, 0))
+    setComponentValue(
+      world,
+      entity,
+      Position,
+      {x: 20, y: 20},
+      makeVersion(20, 0),
+    )
     expect(getComponentValue(world, entity, Position)?.x).toBe(20)
   })
 
   test("same-tick tiebreaker: higher domainId wins", () => {
     const world = makeWorld({domainId: 0})
     const entity = spawn(world, Position({x: 0, y: 0}), Replicated)
-    const posId = world.componentRegistry.getId(Position)
-    const comp = {id: posId, __component_brand: true} as any
 
     // Peer 0 writes at tick 10
-    setComponentValue(world, entity, comp, {x: 100, y: 0}, makeVersion(10, 0))
+    setComponentValue(
+      world,
+      entity,
+      Position,
+      {x: 100, y: 0},
+      makeVersion(10, 0),
+    )
     expect(getComponentValue(world, entity, Position)?.x).toBe(100)
 
     // Peer 1 writes at same tick 10, higher domainId wins
-    setComponentValue(world, entity, comp, {x: 200, y: 0}, makeVersion(10, 1))
+    setComponentValue(
+      world,
+      entity,
+      Position,
+      {x: 200, y: 0},
+      makeVersion(10, 1),
+    )
     expect(getComponentValue(world, entity, Position)?.x).toBe(200)
 
     // Peer 0 arrives late at same tick — lower domainId rejected
-    setComponentValue(world, entity, comp, {x: 50, y: 0}, makeVersion(10, 0))
+    setComponentValue(
+      world,
+      entity,
+      Position,
+      {x: 50, y: 0},
+      makeVersion(10, 0),
+    )
     expect(getComponentValue(world, entity, Position)?.x).toBe(200)
   })
 })
@@ -126,17 +170,17 @@ describe("applySnapshotStreamVersioned", () => {
     const posId = world.componentRegistry.getId(Position)
 
     // Set version to tick 50 by writing at that version
-    setComponentValue(
-      world,
-      entity,
-      {id: posId, __component_brand: true} as any,
-      {x: 50, y: 50},
-      50,
-    )
+    setComponentValue(world, entity, Position, {x: 50, y: 50}, 50)
 
     const staleSnapshot = makeSnapshotMessage(
       40,
-      [{componentId: posId, entities: [entity as number], data: [{x: 40, y: 40}]}],
+      [
+        {
+          componentId: posId,
+          entities: [entity as number],
+          data: [{x: 40, y: 40}],
+        },
+      ],
       world.componentRegistry,
     )
     applySnapshotStreamVersioned(world, staleSnapshot)
@@ -151,7 +195,13 @@ describe("applySnapshotStreamVersioned", () => {
 
     const newerSnapshot = makeSnapshotMessage(
       60,
-      [{componentId: posId, entities: [entity as number], data: [{x: 60, y: 60}]}],
+      [
+        {
+          componentId: posId,
+          entities: [entity as number],
+          data: [{x: 60, y: 60}],
+        },
+      ],
       world.componentRegistry,
     )
     applySnapshotStreamVersioned(world, newerSnapshot)
@@ -230,7 +280,7 @@ describe("P2P reconciliation", () => {
         {
           type: "spawn",
           entity,
-          components: [{id: posId, data: {x: 0, y: 0}}, {id: Replicated.id!}],
+          components: [{id: posId, data: {x: 0, y: 0}}, {id: Replicated.id}],
         },
       ],
     }
@@ -245,7 +295,7 @@ describe("P2P reconciliation", () => {
     setComponentValue(
       peerA,
       entity,
-      {id: posId, __component_brand: true} as any,
+      Position,
       {x: 100, y: 0},
       makeVersion(15, 1), // domainId=1
     )
@@ -254,7 +304,7 @@ describe("P2P reconciliation", () => {
     setComponentValue(
       peerB,
       entity,
-      {id: posId, __component_brand: true} as any,
+      Position,
       {x: 200, y: 0},
       makeVersion(15, 2), // domainId=2
     )
@@ -308,7 +358,7 @@ describe("P2P reconciliation", () => {
     setComponentValue(
       world,
       entity,
-      {id: posId, __component_brand: true} as any,
+      Position,
       {x: 100, y: 100},
       makeVersion(20, 1),
     )
@@ -316,7 +366,13 @@ describe("P2P reconciliation", () => {
     // Receive snapshot from slower peer at tick 15
     const slowSnapshot = makeSnapshotMessage(
       makeVersion(15, 2), // even with higher domainId, tick 15 < 20
-      [{componentId: posId, entities: [entity as number], data: [{x: 50, y: 50}]}],
+      [
+        {
+          componentId: posId,
+          entities: [entity as number],
+          data: [{x: 50, y: 50}],
+        },
+      ],
       world.componentRegistry,
     )
     applySnapshotStreamVersioned(world, slowSnapshot)
@@ -349,7 +405,7 @@ describe("P2P reconciliation", () => {
         {
           type: "spawn",
           entity,
-          components: [{id: posId, data: {x: 0, y: 0}}, {id: Replicated.id!}],
+          components: [{id: posId, data: {x: 0, y: 0}}, {id: Replicated.id}],
         },
       ],
     }
@@ -360,7 +416,7 @@ describe("P2P reconciliation", () => {
     setComponentValue(
       peerA,
       entity,
-      {id: posId, __component_brand: true} as any,
+      Position,
       {x: 50, y: 50},
       makeVersion(20, 1),
     )
@@ -370,7 +426,7 @@ describe("P2P reconciliation", () => {
     setComponentValue(
       peerB,
       entity,
-      {id: posId, __component_brand: true} as any,
+      Position,
       {x: 99, y: 99},
       makeVersion(18, 2),
     )
@@ -398,4 +454,3 @@ describe("P2P reconciliation", () => {
     expect(getComponentValue(peerB, entity, Position)?.x).toBe(50)
   })
 })
-

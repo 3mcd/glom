@@ -185,7 +185,15 @@ function setupServer() {
 
 function setupClient(domainId: number) {
   const world = g.makeWorld({domainId})
-  g.addResource(world, g.HistoryBuffer({checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(
+    world,
+    g.HistoryBuffer({
+      checkpoints: [],
+      undoLog: [],
+      maxSize: 120,
+      checkpointInterval: 1,
+    }),
+  )
   g.addResource(world, g.CommandBuffer(new Map()))
   g.addResource(world, g.IncomingTransactions(new Map()))
   g.addResource(world, g.IncomingSnapshots(new Map()))
@@ -240,21 +248,15 @@ class NetworkSimulation {
       const reader = new g.ByteReader(packet)
       const header = g.readMessageHeader(reader)
       if (header.type === g.MessageType.Command) {
-        const cmdMsg = g.readCommands(reader, header.tick, this.server.world)
-        const targetTick = Math.max(this.server.world.tick, cmdMsg.tick)
-        for (const cmd of cmdMsg.commands) {
+        const commands = g.readCommands(reader, this.server.world)
+        const targetTick = Math.max(this.server.world.tick, header.tick)
+        for (const cmd of commands) {
           g.recordCommand(
             this.server.world,
             cmd.target as g.Entity,
-            {
-              component: {
-                id: cmd.componentId,
-                __component_brand: true,
-              } as g.Component<unknown>,
-              value: cmd.data,
-            },
+            cmd,
             targetTick,
-            cmdMsg.tick,
+            header.tick,
           )
         }
       }
@@ -292,11 +294,7 @@ class NetworkSimulation {
         )
       }
       for (const raw of stream.snapshots) {
-        this.serverToClient.send(
-          raw,
-          this.server.world.tick,
-          this.latencyTicks,
-        )
+        this.serverToClient.send(raw, this.server.world.tick, this.latencyTicks)
       }
       stream.transactions.length = 0
       stream.snapshots.length = 0
@@ -310,7 +308,8 @@ class NetworkSimulation {
       const writer = new g.ByteWriter()
       g.writeCommands(
         writer,
-        {tick: this.client.world.tick, commands},
+        this.client.world.tick,
+        commands,
         this.server.world,
       )
       this.clientToServer.send(
@@ -563,7 +562,15 @@ test("canvas repro: client player persists after first command", () => {
   )
   // Canvas example adds HistoryBuffer to the server – this is the key
   // difference from the existing setupServer() helper.
-  g.addResource(serverWorld, g.HistoryBuffer({checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(
+    serverWorld,
+    g.HistoryBuffer({
+      checkpoints: [],
+      undoLog: [],
+      maxSize: 120,
+      checkpointInterval: 1,
+    }),
+  )
   g.addResource(
     serverWorld,
     g.ReplicationStream({transactions: [], snapshots: []}),
@@ -616,7 +623,15 @@ test("canvas repro: client player persists after first command", () => {
   g.addSystem(reconcileSchedule, movementSystem)
   g.addSystem(reconcileSchedule, commands.cleanupEphemeralCommands)
 
-  g.addResource(clientWorld, g.HistoryBuffer({checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(
+    clientWorld,
+    g.HistoryBuffer({
+      checkpoints: [],
+      undoLog: [],
+      maxSize: 120,
+      checkpointInterval: 1,
+    }),
+  )
   g.addResource(clientWorld, g.CommandBuffer(new Map()))
   g.addResource(clientWorld, g.InputBuffer(new Map()))
   g.addResource(clientWorld, g.IncomingTransactions(new Map()))
@@ -760,7 +775,15 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
       snapshotComponents: [serverWorld.componentRegistry.getId(Position)],
     }),
   )
-  g.addResource(serverWorld, g.HistoryBuffer({checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(
+    serverWorld,
+    g.HistoryBuffer({
+      checkpoints: [],
+      undoLog: [],
+      maxSize: 120,
+      checkpointInterval: 1,
+    }),
+  )
   g.addResource(
     serverWorld,
     g.ReplicationStream({transactions: [], snapshots: []}),
@@ -807,7 +830,15 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
   addLogicalSystems(reconcileSchedule)
   g.addSystem(reconcileSchedule, commands.cleanupEphemeralCommands)
 
-  g.addResource(clientWorld, g.HistoryBuffer({checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(
+    clientWorld,
+    g.HistoryBuffer({
+      checkpoints: [],
+      undoLog: [],
+      maxSize: 120,
+      checkpointInterval: 1,
+    }),
+  )
   g.addResource(clientWorld, g.CommandBuffer(new Map()))
   g.addResource(clientWorld, g.InputBuffer(new Map()))
   g.addResource(clientWorld, g.IncomingTransactions(new Map()))
@@ -882,22 +913,19 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
   const cmdsThisTick = cmdBuffer.get(clientWorld.tick)
   if (cmdsThisTick && cmdsThisTick.length > 0) {
     const w = new g.ByteWriter()
-    g.writeCommands(w, {tick: clientWorld.tick, commands: cmdsThisTick}, clientWorld)
+    g.writeCommands(w, clientWorld.tick, cmdsThisTick, clientWorld)
     const cmdPacket = w.getBytes()
     const reader2 = new g.ByteReader(cmdPacket)
     const header2 = g.readMessageHeader(reader2)
-    const cmdMsg = g.readCommands(reader2, header2.tick, serverWorld)
-    const targetServerTick = Math.max(serverWorld.tick, cmdMsg.tick)
-    for (const cmd of cmdMsg.commands) {
+    const commands = g.readCommands(reader2, serverWorld)
+    const targetServerTick = Math.max(serverWorld.tick, header2.tick)
+    for (const cmd of commands) {
       g.recordCommand(
         serverWorld,
         cmd.target as g.Entity,
-        {
-          component: {id: cmd.componentId, __component_brand: true} as g.ComponentLike,
-          value: cmd.data,
-        },
+        cmd,
         targetServerTick,
-        cmdMsg.tick,
+        header2.tick,
       )
     }
   }
@@ -987,30 +1015,14 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
     const tickCmds = cb.get(clientWorld.tick)
     if (tickCmds && tickCmds.length > 0) {
       const w = new g.ByteWriter()
-      g.writeCommands(
-        w,
-        {tick: clientWorld.tick, commands: tickCmds},
-        clientWorld,
-      )
+      g.writeCommands(w, clientWorld.tick, tickCmds, clientWorld)
       const cmdPacket = w.getBytes()
       const r = new g.ByteReader(cmdPacket)
       const h = g.readMessageHeader(r)
-      const cmdMsg = g.readCommands(r, h.tick, serverWorld)
-      const tgt = Math.max(serverWorld.tick, cmdMsg.tick)
-      for (const cmd of cmdMsg.commands) {
-        g.recordCommand(
-          serverWorld,
-          cmd.target as g.Entity,
-          {
-            component: {
-              id: cmd.componentId,
-              __component_brand: true,
-            } as g.ComponentLike,
-            value: cmd.data,
-          },
-          tgt,
-          cmdMsg.tick,
-        )
+      const cmds = g.readCommands(r, serverWorld)
+      const tgt = Math.max(serverWorld.tick, h.tick)
+      for (const cmd of cmds) {
+        g.recordCommand(serverWorld, cmd.target as g.Entity, cmd, tgt, h.tick)
       }
     }
 
@@ -1079,12 +1091,26 @@ test("canvas repro: ghost cleanup must not despawn recycled entity IDs", () => {
 
   // ---- server ----
   const serverWorld = g.makeWorld({domainId: 0})
-  g.addResource(serverWorld, g.ReplicationConfig({
-    historyWindow: 64,
-    snapshotComponents: [serverWorld.componentRegistry.getId(Position)],
-  }))
-  g.addResource(serverWorld, g.HistoryBuffer({checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
-  g.addResource(serverWorld, g.ReplicationStream({transactions: [], snapshots: []}))
+  g.addResource(
+    serverWorld,
+    g.ReplicationConfig({
+      historyWindow: 64,
+      snapshotComponents: [serverWorld.componentRegistry.getId(Position)],
+    }),
+  )
+  g.addResource(
+    serverWorld,
+    g.HistoryBuffer({
+      checkpoints: [],
+      undoLog: [],
+      maxSize: 120,
+      checkpointInterval: 1,
+    }),
+  )
+  g.addResource(
+    serverWorld,
+    g.ReplicationStream({transactions: [], snapshots: []}),
+  )
   g.addResource(serverWorld, g.CommandBuffer(new Map()))
   g.addResource(serverWorld, g.IncomingTransactions(new Map()))
   g.addResource(serverWorld, g.IncomingSnapshots(new Map()))
@@ -1100,7 +1126,12 @@ test("canvas repro: ghost cleanup must not despawn recycled entity IDs", () => {
   g.addSystem(serverSchedule, replication.advanceWorldTick)
   g.addSystem(serverSchedule, replication.pruneTemporalBuffers)
 
-  const player = g.spawn(serverWorld, Position({x: 125, y: 125}), Color(0), g.Replicated)
+  const player = g.spawn(
+    serverWorld,
+    Position({x: 125, y: 125}),
+    Color(0),
+    g.Replicated,
+  )
   g.runSchedule(serverSchedule, serverWorld as g.World)
 
   const stream = g.getResource(serverWorld, g.ReplicationStream)!
@@ -1118,16 +1149,27 @@ test("canvas repro: ghost cleanup must not despawn recycled entity IDs", () => {
   addLogicalSystems(reconcileSchedule)
   g.addSystem(reconcileSchedule, commands.cleanupEphemeralCommands)
 
-  g.addResource(clientWorld, g.HistoryBuffer({checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(
+    clientWorld,
+    g.HistoryBuffer({
+      checkpoints: [],
+      undoLog: [],
+      maxSize: 120,
+      checkpointInterval: 1,
+    }),
+  )
   g.addResource(clientWorld, g.CommandBuffer(new Map()))
   g.addResource(clientWorld, g.InputBuffer(new Map()))
   g.addResource(clientWorld, g.IncomingTransactions(new Map()))
   g.addResource(clientWorld, g.IncomingSnapshots(new Map()))
-  g.addResource(clientWorld, g.ReplicationConfig({
-    historyWindow: 64,
-    ghostCleanupWindow: GHOST_WINDOW,
-    reconcileSchedule,
-  }))
+  g.addResource(
+    clientWorld,
+    g.ReplicationConfig({
+      historyWindow: 64,
+      ghostCleanupWindow: GHOST_WINDOW,
+      reconcileSchedule,
+    }),
+  )
 
   const clientSchedule = g.makeSystemSchedule()
   g.addSystem(clientSchedule, reconciliation.performRollback)

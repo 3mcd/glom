@@ -22,11 +22,8 @@ export class ComponentRegistry implements ComponentResolver {
   private virtualCache = new Map<number, Component<void>>()
   private nextVirtualId = 1000000
 
-  constructor(fixed: ComponentLike[] = []) {
-    for (const comp of fixed) {
-      if (comp.id === undefined) {
-        throw new Error("Core components must have a fixed ID")
-      }
+  constructor(components: ComponentLike[] = []) {
+    for (const comp of components) {
       this.register(comp, comp.id)
     }
   }
@@ -42,34 +39,18 @@ export class ComponentRegistry implements ComponentResolver {
     if (existing !== undefined) return existing
 
     // Auto-register by name hash
-    if (target.name) {
-      const id = hashNameToComponentId(target.name)
-      const conflict = this.idToComp.get(id)
-      if (conflict !== undefined && conflict !== target) {
-        // Allow overwriting placeholders created by remote data
-        if (!((conflict as any)[PLACEHOLDER] === true)) {
-          throw new Error(
-            `Component ID conflict: "${target.name}" and "${(conflict as ComponentLike).name}" both hash to ${id}`,
-          )
-        }
+    const id = target.id
+    const conflict = this.idToComp.get(id)
+    if (conflict !== undefined && conflict !== target) {
+      // Allow overwriting placeholders created by remote data
+      if (!((conflict as any)[PLACEHOLDER] === true)) {
+        throw new Error(
+          `Component ID conflict: "${target.name}" and "${(conflict as ComponentLike).name}" both hash to ${id}`,
+        )
       }
-      this.register(target, id)
-      return id
     }
-
-    // Fallback for raw numeric IDs (e.g. from protocol or inline stubs)
-    const targetObj = target as Record<string, unknown>
-    if (typeof targetObj.id === "number") {
-      if (targetObj.id >= 1_000_000) return targetObj.id
-      if (this.idToComp.has(targetObj.id)) return targetObj.id
-    }
-
-    console.error("Unregistered component:", target)
-    console.error(
-      "Available components in registry:",
-      Array.from(this.compToId.keys()),
-    )
-    throw new Error("Component not registered in this world's schema")
+    this.register(target, id)
+    return id
   }
 
   getSerde(id: number): ComponentSerde<unknown> | undefined {
@@ -102,17 +83,16 @@ export class ComponentRegistry implements ComponentResolver {
   }
 
   private getOrCreatePlaceholder(id: number): ComponentLike {
-    // Create a lightweight component that serves as a stand-in until the
-    // real component is registered.
-    const placeholder = defineComponent<unknown>(
-      `__placeholder_${id}`,
-      undefined,
-      id,
-    )
+    // Check the global map (populated at module load time) to decide
+    // whether this component is a tag or carries data.
+    const isTag = isGlobalComponentTag(id)
+    const placeholder = isTag
+      ? defineTag(`__placeholder_${id}`)
+      : defineComponent<unknown>(`__placeholder_${id}`)
+    // Override the hash-derived id with the wire id so the registry
+    // maps this placeholder to the correct slot.
+    ;(placeholder as unknown as Record<string, unknown>).id = id
     ;(placeholder as any)[PLACEHOLDER] = true
-    // Register in both maps so getId(placeholder) returns the correct ID.
-    // When the real component is later registered via getId(), the PLACEHOLDER
-    // flag allows it to overwrite this entry.
     this.register(placeholder, id)
     return placeholder
   }
@@ -120,10 +100,10 @@ export class ComponentRegistry implements ComponentResolver {
   getVirtualComponent(id: number): Component<void> {
     let comp = this.virtualCache.get(id)
     if (comp === undefined) {
-      comp = defineTag(`__virtual_${id}`, id)
+      comp = defineTag(`__virtual_${id}`)
+      // Override the hash-derived id with the virtual id.
+      ;(comp as unknown as Record<string, unknown>).id = id
       this.virtualCache.set(id, comp)
-      // Register in compToId so getId() returns the virtual ID directly
-      // instead of falling through to name-hashing.
       this.compToId.set(comp as unknown as ComponentLike, id)
     }
     return comp
@@ -143,7 +123,7 @@ export class ComponentRegistry implements ComponentResolver {
 }
 
 export function makeComponentRegistry(
-  fixed: ComponentLike[] = [],
+  components: ComponentLike[] = [],
 ): ComponentRegistry {
-  return new ComponentRegistry(fixed)
+  return new ComponentRegistry(components)
 }

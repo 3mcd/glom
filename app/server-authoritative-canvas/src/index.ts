@@ -56,16 +56,6 @@ const LATENCY_MS = 100
 const HZ = 60
 const LAG_COMPENSATION_TICKS = 15
 
-const schema = [
-  Position,
-  Color,
-  MoveCommand,
-  Pulse,
-  FireCommand,
-  PulseOf,
-  CanvasContext,
-]
-
 function addLogicalSystems(schedule: g.SystemSchedule) {
   g.addSystem(schedule, movementSystem)
   g.addSystem(schedule, pulseSpawnerSystem)
@@ -99,12 +89,12 @@ function pulseSpawnerSystem(
   >,
   world: g.World,
 ) {
-  for (const [playerEnt, pos, intentTick] of query) {
+  for (const [player, pos, tick] of query) {
     g.spawnInDomain(
       world,
-      [Position({...pos}), Pulse(5), PulseOf(playerEnt), g.Replicated],
-      world.registry.domainId,
-      intentTick,
+      [Position({...pos}), Pulse(5), PulseOf(player), g.Replicated],
+      undefined,
+      tick,
     )
   }
 }
@@ -145,10 +135,8 @@ function renderSystem(
   ctx.fillStyle = "#0f0f0f" // --bg
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height)
 
-  let count = 0
-  for (const [pos, colorId] of query) {
-    count++
-    ctx.fillStyle = (colorId as number) === 0 ? "#aed7f5" : "#d6d4a6"
+  for (const [pos, color] of query) {
+    ctx.fillStyle = (color as number) === 0 ? "#aed7f5" : "#d6d4a6"
     ctx.fillRect(pos.x - 10, pos.y - 10, 20, 20)
   }
 
@@ -309,26 +297,22 @@ function loop() {
 
   while (clientToServer.length > 0 && clientToServer[0].time <= now) {
     const shift = clientToServer.shift()
-    if (!shift) continue
+    if (shift === undefined) {
+      continue
+    }
     const {packet} = shift
     const reader = new g.ByteReader(packet)
     const header = g.readMessageHeader(reader)
     if (header.type === g.MessageType.Command) {
-      const cmdMsg = g.readCommands(reader, header.tick, server.world)
-      const targetTick = Math.max(server.world.tick, cmdMsg.tick)
-      for (const cmd of cmdMsg.commands) {
+      const commands = g.readCommands(reader, server.world)
+      const targetTick = Math.max(server.world.tick, header.tick)
+      for (const command of commands) {
         g.recordCommand(
           server.world,
-          cmd.target as g.Entity,
-          {
-            component: {
-              id: cmd.componentId,
-              __component_brand: true,
-            } as g.ComponentLike,
-            value: cmd.data,
-          },
+          command.target as g.Entity,
+          command,
           targetTick,
-          cmdMsg.tick,
+          header.tick,
         )
       }
     }
@@ -336,28 +320,34 @@ function loop() {
 
   while (serverToClient.length > 0 && serverToClient[0].time <= now) {
     const shift = serverToClient.shift()
-    if (!shift) continue
+    if (shift === undefined) {
+      continue
+    }
     const {packet} = shift
     const reader = new g.ByteReader(packet)
     const header = g.readMessageHeader(reader)
-
     if (header.type === g.MessageType.Handshake) {
       const handshake = g.readHandshakeServer(reader)
       const latencyTicks = Math.ceil(LATENCY_MS / (1000 / HZ))
       const targetTick = handshake.tick + LAG_COMPENSATION_TICKS + latencyTicks
-
       if (!client.isSynced) {
         g.setTick(client.world, targetTick)
         client.isSynced = true
         client.timestep.lastTime = now
         client.timestep.accumulated = 0
         const history = g.getResource(client.world, g.HistoryBuffer)
-        if (history) g.pushCheckpoint(client.world, history)
+        if (history) {
+          g.pushCheckpoint(client.world, history)
+        }
       } else {
         const drift = client.world.tick - targetTick
-        if (Math.abs(drift) > 2) g.setTick(client.world, targetTick)
-        else if (drift > 0) client.timestep.accumulated -= 1
-        else if (drift < 0) client.timestep.accumulated += 1
+        if (Math.abs(drift) > 2) {
+          g.setTick(client.world, targetTick)
+        } else if (drift > 0) {
+          client.timestep.accumulated -= 1
+        } else if (drift < 0) {
+          client.timestep.accumulated += 1
+        }
       }
     } else if (header.type === g.MessageType.Transaction) {
       const transaction = g.readTransaction(reader, header.tick, client.world)
@@ -370,30 +360,33 @@ function loop() {
 
   if (client.isSynced) {
     g.advanceTimestep(client.timestep, now, () => {
-      let dx = 0,
-        dy = 0
-      if (client.activeKeys.has("KeyW")) dy -= 1
-      if (client.activeKeys.has("KeyS")) dy += 1
-      if (client.activeKeys.has("KeyA")) dx -= 1
-      if (client.activeKeys.has("KeyD")) dx += 1
-
-      if (dx !== 0 || dy !== 0)
+      let dx = 0
+      let dy = 0
+      if (client.activeKeys.has("KeyW")) {
+        dy -= 1
+      }
+      if (client.activeKeys.has("KeyS")) {
+        dy += 1
+      }
+      if (client.activeKeys.has("KeyA")) {
+        dx -= 1
+      }
+      if (client.activeKeys.has("KeyD")) {
+        dx += 1
+      }
+      if (dx !== 0 || dy !== 0) {
         g.recordCommand(client.world, player, MoveCommand({dx, dy}))
+      }
       if (client.justPressed.has("Space")) {
         g.recordCommand(client.world, player, FireCommand)
         client.justPressed.delete("Space")
       }
       client.justPressed.clear()
-
       const commandBuffer = g.getResource(client.world, g.CommandBuffer)
       const commands = commandBuffer?.get(client.world.tick)
       if (commands && commands.length > 0) {
         sharedWriter.reset()
-        g.writeCommands(
-          sharedWriter,
-          {tick: client.world.tick, commands},
-          client.world,
-        )
+        g.writeCommands(sharedWriter, client.world.tick, commands, client.world)
         clientToServer.push({
           time: performance.now() + LATENCY_MS,
           packet: sharedWriter.toBytes(),
@@ -416,11 +409,10 @@ function loop() {
           packet: sharedWriter.toBytes(),
         })
       }
-      // snapshots are pre-serialized by emitSnapshots — send directly
-      for (const raw of stream.snapshots) {
+      for (const packet of stream.snapshots) {
         serverToClient.push({
           time: performance.now() + LATENCY_MS,
-          packet: raw,
+          packet,
         })
       }
     }

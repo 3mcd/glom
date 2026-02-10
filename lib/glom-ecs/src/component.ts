@@ -53,7 +53,7 @@ export type ComponentInstance<T> = {
 export type ComponentLike = {
   readonly __component_brand: true
   readonly name: string
-  readonly id?: number
+  readonly id: number
   readonly isTag?: boolean
 }
 
@@ -74,21 +74,24 @@ export interface ComponentResolver {
 export function defineComponent<T>(
   name: string,
   serde?: ComponentSerde<T>,
-  id?: number,
 ): Component<T> {
   const component = ((value: T): ComponentInstance<T> => ({
     component: component as unknown as ComponentLike,
     value,
   })) as unknown as Record<string, unknown>
 
-  Object.defineProperty(component, "name", {value: name, writable: false, configurable: true})
-  if (id !== undefined) component.id = id
+  const componentId = hashNameToComponentId(name)
+  Object.defineProperty(component, "name", {
+    value: name,
+    writable: false,
+    configurable: true,
+  })
+  component.id = componentId
   component.serde = serde
   component.__component_brand = true
 
   // Register in global serde map (first-writer-wins so runtime
   // placeholders never overwrite real definitions from module scope).
-  const componentId = id ?? hashNameToComponentId(name)
   if (!globalComponentInfo.has(componentId)) {
     globalComponentInfo.set(componentId, {
       serde: serde as ComponentSerde<unknown> | undefined,
@@ -99,18 +102,22 @@ export function defineComponent<T>(
   return component as unknown as Component<T>
 }
 
-export function defineTag(name: string, id?: number): Component<void> {
+export function defineTag(name: string): Component<void> {
   const component = ((value: void): ComponentInstance<void> => ({
     component: component as unknown as ComponentLike,
     value,
   })) as unknown as Record<string, unknown>
 
-  Object.defineProperty(component, "name", {value: name, writable: false, configurable: true})
-  if (id !== undefined) component.id = id
+  const componentId = hashNameToComponentId(name)
+  Object.defineProperty(component, "name", {
+    value: name,
+    writable: false,
+    configurable: true,
+  })
+  component.id = componentId
   component.isTag = true
   component.__component_brand = true
 
-  const componentId = id ?? hashNameToComponentId(name)
   if (!globalComponentInfo.has(componentId)) {
     globalComponentInfo.set(componentId, {serde: undefined, isTag: true})
   }

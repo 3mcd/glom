@@ -17,8 +17,8 @@ import {
   spawnInDomain,
 } from "./world_api"
 
-export const CommandOf = defineRelation("glom/CommandOf", 2)
-export const CommandEntity = defineTag("glom/CommandEntity", 3)
+export const CommandOf = defineRelation("glom/CommandOf")
+export const CommandEntity = defineTag("glom/CommandEntity")
 
 export const CommandBuffer = defineComponent<Map<number, CommandInstance[]>>(
   "glom/CommandBuffer",
@@ -27,22 +27,17 @@ export const CommandBuffer = defineComponent<Map<number, CommandInstance[]>>(
     encode: () => {},
     decode: () => new Map(),
   },
-  11,
 )
 
-export const IntentTick = defineComponent<number>(
-  "glom/IntentTick",
-  {
-    bytesPerElement: 4,
-    encode: (val, writer) => {
-      writer.writeUint32(val)
-    },
-    decode: (reader) => {
-      return reader.readUint32()
-    },
+export const IntentTick = defineComponent<number>("glom/IntentTick", {
+  bytesPerElement: 4,
+  encode: (val, writer) => {
+    writer.writeUint32(val)
   },
-  4,
-)
+  decode: (reader) => {
+    return reader.readUint32()
+  },
+})
 
 export type CommandInstance = {
   target: Entity
@@ -54,7 +49,10 @@ export type CommandInstance = {
 export function recordCommand<T>(
   world: World,
   target: Entity,
-  command: ComponentInstance<T> | ComponentLike,
+  command:
+    | ComponentInstance<T>
+    | ComponentLike
+    | {componentId: number; data?: unknown},
   tick = world.tick,
   intentTick = tick,
 ) {
@@ -70,7 +68,16 @@ export function recordCommand<T>(
     commandBuffer.set(tick, commandList)
   }
 
-  if (command && typeof command === "object" && "component" in command) {
+  if (command && typeof command === "object" && "componentId" in command) {
+    // Raw wire format from readCommands — already has componentId + data
+    const raw = command as {componentId: number; data?: unknown}
+    commandList.push({
+      target,
+      componentId: raw.componentId,
+      data: raw.data,
+      intentTick,
+    })
+  } else if (command && typeof command === "object" && "component" in command) {
     const inst = command as ComponentInstance<T>
     commandList.push({
       target,
@@ -103,22 +110,25 @@ export function pruneCommands(world: World, minTick: number) {
 export const spawnEphemeralCommands = defineSystem(
   (world: World) => {
     const commandBuffer = getResource(world, CommandBuffer)
-    if (commandBuffer === undefined) return
-
+    if (commandBuffer === undefined) {
+      return
+    }
     const commands = commandBuffer.get(world.tick)
-    if (commands === undefined) return
-
-    for (const cmd of commands) {
-      const comp = resolveComponent(world, cmd.componentId)
-      if (comp === undefined) continue
-
+    if (commands === undefined) {
+      return
+    }
+    for (const command of commands) {
+      const component = resolveComponent(world, command.componentId)
+      if (component === undefined) {
+        continue
+      }
       let commandEntity: Entity
-      const baseComponents = [IntentTick(cmd.intentTick), CommandEntity]
-      if (cmd.data !== undefined) {
+      const baseComponents = [IntentTick(command.intentTick), CommandEntity]
+      if (command.data !== undefined) {
         commandEntity = spawnInDomain(
           world,
           [
-            {component: comp as Component<unknown>, value: cmd.data},
+            {component: component as Component<unknown>, value: command.data},
             ...baseComponents,
           ],
           COMMAND_DOMAIN,
@@ -126,12 +136,11 @@ export const spawnEphemeralCommands = defineSystem(
       } else {
         commandEntity = spawnInDomain(
           world,
-          [comp, ...baseComponents],
+          [component, ...baseComponents],
           COMMAND_DOMAIN,
         )
       }
-
-      addComponent(world, cmd.target, CommandOf(commandEntity))
+      addComponent(world, command.target, CommandOf(commandEntity))
     }
   },
   {params: [WorldTerm()], name: "spawnEphemeralCommands"},

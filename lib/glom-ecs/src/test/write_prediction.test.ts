@@ -1,9 +1,9 @@
 import {describe, expect, test} from "bun:test"
 import * as commands from "../command"
 import * as g from "../index"
-import {applySnapshotStream} from "../snapshot_stream"
 import * as reconciliation from "../reconciliation"
 import * as replication from "../replication"
+import {applySnapshotStream} from "../snapshot_stream"
 
 // --- SCHEMA ---
 
@@ -211,9 +211,7 @@ describe("end-to-end client prediction with Write + snapshots", () => {
    * Client starts at the same tick as the server (no latency offset)
    * so rollback+replay can reach all server snapshot ticks.
    */
-  function createSimulation(
-    moveSys: any,
-  ) {
+  function createSimulation(moveSys: any) {
     // ---- server ----
     const serverWorld = g.makeWorld({domainId: 0})
     g.addResource(
@@ -252,11 +250,7 @@ describe("end-to-end client prediction with Write + snapshots", () => {
     g.addSystem(serverSchedule, replication.pruneTemporalBuffers)
 
     // ---- spawn player ----
-    const player = g.spawn(
-      serverWorld,
-      Position({x: 0, y: 0}),
-      g.Replicated,
-    )
+    const player = g.spawn(serverWorld, Position({x: 0, y: 0}), g.Replicated)
 
     // ---- server first tick → produces spawn transaction + snapshot ----
     g.runSchedule(serverSchedule, serverWorld as g.World)
@@ -382,50 +376,32 @@ describe("end-to-end client prediction with Write + snapshots", () => {
   /**
    * Sends client commands to the server (0 latency).
    */
-  function sendCommands(
-    clientWorld: g.World,
-    serverWorld: g.World,
-  ) {
+  function sendCommands(clientWorld: g.World, serverWorld: g.World) {
     const commandBuffer = g.getResource(clientWorld, g.CommandBuffer)
     const cmds = commandBuffer?.get(clientWorld.tick)
     if (!cmds || cmds.length === 0) return
     const writer = new g.ByteWriter()
-    g.writeCommands(
-      writer,
-      {tick: clientWorld.tick, commands: cmds},
-      serverWorld,
-    )
+    g.writeCommands(writer, clientWorld.tick, cmds, serverWorld)
     const reader = new g.ByteReader(writer.getBytes())
     const header = g.readMessageHeader(reader)
     if (header.type === g.MessageType.Command) {
-      const cmdMsg = g.readCommands(reader, header.tick, serverWorld)
-      const targetTick = Math.max(serverWorld.tick, cmdMsg.tick)
-      for (const cmd of cmdMsg.commands) {
+      const commands = g.readCommands(reader, serverWorld)
+      const targetTick = Math.max(serverWorld.tick, header.tick)
+      for (const cmd of commands) {
         g.recordCommand(
           serverWorld,
           cmd.target as g.Entity,
-          {
-            component: {
-              id: cmd.componentId,
-              __component_brand: true,
-            } as g.Component<unknown>,
-            value: cmd.data,
-          },
+          cmd,
           targetTick,
-          cmdMsg.tick,
+          header.tick,
         )
       }
     }
   }
 
   test("Write: client prediction preserved despite server snapshots", () => {
-    const {
-      serverWorld,
-      serverSchedule,
-      clientWorld,
-      clientSchedule,
-      player,
-    } = createSimulation(writeMovementSystem)
+    const {serverWorld, serverSchedule, clientWorld, clientSchedule, player} =
+      createSimulation(writeMovementSystem)
 
     const initialPos = g.getComponentValue(clientWorld, player, Position)!
     expect(initialPos.x).toBe(0)
@@ -447,13 +423,8 @@ describe("end-to-end client prediction with Write + snapshots", () => {
   })
 
   test("Add: client prediction preserved despite server snapshots (control)", () => {
-    const {
-      serverWorld,
-      serverSchedule,
-      clientWorld,
-      clientSchedule,
-      player,
-    } = createSimulation(addMovementSystem)
+    const {serverWorld, serverSchedule, clientWorld, clientSchedule, player} =
+      createSimulation(addMovementSystem)
 
     const initialPos = g.getComponentValue(clientWorld, player, Position)!
     expect(initialPos.x).toBe(0)
@@ -472,13 +443,8 @@ describe("end-to-end client prediction with Write + snapshots", () => {
   })
 
   test("Write: position monotonically increases with constant movement", () => {
-    const {
-      serverWorld,
-      serverSchedule,
-      clientWorld,
-      clientSchedule,
-      player,
-    } = createSimulation(writeMovementSystem)
+    const {serverWorld, serverSchedule, clientWorld, clientSchedule, player} =
+      createSimulation(writeMovementSystem)
 
     let prevX = 0
     let monotonicViolations = 0
@@ -509,13 +475,8 @@ describe("end-to-end client prediction with Write + snapshots", () => {
   })
 
   test("Add: position monotonically increases with constant movement (control)", () => {
-    const {
-      serverWorld,
-      serverSchedule,
-      clientWorld,
-      clientSchedule,
-      player,
-    } = createSimulation(addMovementSystem)
+    const {serverWorld, serverSchedule, clientWorld, clientSchedule, player} =
+      createSimulation(addMovementSystem)
 
     let prevX = 0
     let monotonicViolations = 0
@@ -546,13 +507,8 @@ describe("end-to-end client prediction with Write + snapshots", () => {
   })
 
   test("Write: version trace during snapshot application", () => {
-    const {
-      serverWorld,
-      serverSchedule,
-      clientWorld,
-      clientSchedule,
-      player,
-    } = createSimulation(writeMovementSystem)
+    const {serverWorld, serverSchedule, clientWorld, clientSchedule, player} =
+      createSimulation(writeMovementSystem)
 
     const posId = clientWorld.componentRegistry.getId(Position)
 
@@ -621,10 +577,7 @@ describe("idle-to-movement transition with latency", () => {
     }
   }
 
-  function createLatencySim(
-    moveSys: any,
-    checkpointInterval = 5,
-  ) {
+  function createLatencySim(moveSys: any, checkpointInterval = 5) {
     const serverToClient = new FramePipe()
     const clientToServer = new FramePipe()
 
@@ -666,11 +619,7 @@ describe("idle-to-movement transition with latency", () => {
     g.addSystem(serverSchedule, replication.pruneTemporalBuffers)
 
     // ---- spawn player ----
-    const player = g.spawn(
-      serverWorld,
-      Position({x: 0, y: 0}),
-      g.Replicated,
-    )
+    const player = g.spawn(serverWorld, Position({x: 0, y: 0}), g.Replicated)
 
     // ---- server first tick → produces spawn transaction + snapshot ----
     g.runSchedule(serverSchedule, serverWorld as g.World)
@@ -777,21 +726,15 @@ describe("idle-to-movement transition with latency", () => {
       const reader = new g.ByteReader(packet)
       const header = g.readMessageHeader(reader)
       if (header.type === g.MessageType.Command) {
-        const cmdMsg = g.readCommands(reader, header.tick, serverWorld)
-        const targetTick = Math.max(serverWorld.tick, cmdMsg.tick)
-        for (const cmd of cmdMsg.commands) {
+        const commands = g.readCommands(reader, serverWorld)
+        const targetTick = Math.max(serverWorld.tick, header.tick)
+        for (const cmd of commands) {
           g.recordCommand(
             serverWorld,
             cmd.target as g.Entity,
-            {
-              component: {
-                id: cmd.componentId,
-                __component_brand: true,
-              } as g.Component<unknown>,
-              value: cmd.data,
-            },
+            cmd,
             targetTick,
-            cmdMsg.tick,
+            header.tick,
           )
         }
       }
@@ -818,11 +761,7 @@ describe("idle-to-movement transition with latency", () => {
       const reader = new g.ByteReader(packet)
       const header = g.readMessageHeader(reader)
       if (header.type === g.MessageType.Transaction) {
-        const transaction = g.readTransaction(
-          reader,
-          header.tick,
-          serverWorld,
-        )
+        const transaction = g.readTransaction(reader, header.tick, serverWorld)
         g.receiveTransaction(clientWorld, transaction)
       } else if (header.type === g.MessageType.Snapshot) {
         const snapshot = g.readSnapshot(reader, header.tick)
@@ -838,11 +777,7 @@ describe("idle-to-movement transition with latency", () => {
       const cmds = commandBuffer?.get(clientWorld.tick)
       if (cmds && cmds.length > 0) {
         const writer = new g.ByteWriter()
-        g.writeCommands(
-          writer,
-          {tick: clientWorld.tick, commands: cmds},
-          serverWorld,
-        )
+        g.writeCommands(writer, clientWorld.tick, cmds, serverWorld)
         clientToServer.send(writer.getBytes(), frame)
       }
     }

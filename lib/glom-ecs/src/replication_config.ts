@@ -2,7 +2,7 @@ import {defineComponent, defineTag} from "./component"
 import type {SnapshotMessage, Transaction} from "./net_types"
 import type {SystemSchedule} from "./system_schedule"
 
-export const Replicated = defineTag("glom/Replicated", 0)
+export const Replicated = defineTag("glom/Replicated")
 
 export const ReplicationConfig = defineComponent<{
   historyWindow?: number
@@ -16,29 +16,21 @@ export const ReplicationConfig = defineComponent<{
    *  "authoritative" (default): force-overwrite via forceSetComponentValue.
    *  "versioned": version-checked via setComponentValue (P2P). */
   snapshotStrategy?: "authoritative" | "versioned"
-}>(
-  "glom/ReplicationConfig",
-  {
-    bytesPerElement: 0,
-    encode: () => {},
-    decode: () => ({}),
-  },
-  1,
-)
+}>("glom/ReplicationConfig", {
+  bytesPerElement: 0,
+  encode: () => {},
+  decode: () => ({}),
+})
 
 export const ReplicationStream = defineComponent<{
   transactions: Transaction[]
   /** Pre-serialized snapshot packets (output of writeSnapshot). */
   snapshots: Uint8Array[]
-}>(
-  "glom/ReplicationStream",
-  {
-    bytesPerElement: 0,
-    encode: () => {},
-    decode: () => ({transactions: [], snapshots: []}),
-  },
-  2,
-)
+}>("glom/ReplicationStream", {
+  bytesPerElement: 0,
+  encode: () => {},
+  decode: () => ({transactions: [], snapshots: []}),
+})
 
 export const InputBuffer = defineComponent<Map<number, unknown>>(
   "glom/InputBuffer",
@@ -47,7 +39,6 @@ export const InputBuffer = defineComponent<Map<number, unknown>>(
     encode: () => {},
     decode: () => new Map(),
   },
-  12,
 )
 
 export const IncomingTransactions = defineComponent<Map<number, Transaction[]>>(
@@ -57,17 +48,12 @@ export const IncomingTransactions = defineComponent<Map<number, Transaction[]>>(
     encode: () => {},
     decode: () => new Map(),
   },
-  13,
 )
 
 export const IncomingSnapshots = defineComponent<
   Map<number, SnapshotMessage[]>
->(
-  "glom/IncomingSnapshots",
-  {
-    bytesPerElement: 0,
-    encode: () => {},
-    decode: () => new Map(),
-  },
-  14,
-)
+>("glom/IncomingSnapshots", {
+  bytesPerElement: 0,
+  encode: () => {},
+  decode: () => new Map(),
+})

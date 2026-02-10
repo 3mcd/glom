@@ -120,18 +120,18 @@ describe("command api", () => {
     ]
 
     const writer = new ByteWriter()
-    writeCommands(writer, {tick: 50, commands}, resolver)
+    writeCommands(writer, 50, commands, resolver)
 
     const reader = new ByteReader(writer.getBytes())
     const header = readMessageHeader(reader)
-    const result = readCommands(reader, header.tick, resolver)
+    const result = readCommands(reader, resolver)
 
-    const [cmd0, cmd1] = result.commands
+    const [cmd0, cmd1] = result
     assertDefined(cmd0)
     assertDefined(cmd1)
 
-    expect(result.tick).toBe(50)
-    expect(result.commands.length).toBe(2)
+    expect(header.tick).toBe(50)
+    expect(result.length).toBe(2)
     expect(cmd0.target).toBe(1)
     expect(cmd0.componentId).toBe(100)
     expect(cmd1.componentId).toBe(101)

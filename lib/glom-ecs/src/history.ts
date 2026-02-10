@@ -97,20 +97,16 @@ export const HistoryBuffer = defineComponent<{
   undoLog: UndoEntry[]
   maxSize: number
   checkpointInterval: number
-}>(
-  "glom/HistoryBuffer",
-  {
-    bytesPerElement: 0,
-    encode: () => {},
-    decode: () => ({
-      checkpoints: [],
-      undoLog: [],
-      maxSize: 64,
-      checkpointInterval: 1,
-    }),
-  },
-  10, // Assign a unique ID
-)
+}>("glom/HistoryBuffer", {
+  bytesPerElement: 0,
+  encode: () => {},
+  decode: () => ({
+    checkpoints: [],
+    undoLog: [],
+    maxSize: 64,
+    checkpointInterval: 1,
+  }),
+})
 
 export type HistoryBuffer = {
   checkpoints: Checkpoint[]

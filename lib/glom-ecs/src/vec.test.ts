@@ -13,22 +13,31 @@ import {
 } from "./vec"
 
 describe("vec", () => {
-  const c1 = defineComponent<number>("c1", undefined, 1)
-  const c2 = defineComponent<number>("c2", undefined, 2)
-  const c3 = defineComponent<number>("c3", undefined, 3)
+  const c1 = defineComponent<number>("c1")
+  const c2 = defineComponent<number>("c2")
+  const c3 = defineComponent<number>("c3")
   const registry = makeComponentRegistry([c1, c2, c3])
+  // IDs are hash-derived — sort them so we know the expected order
+  const ids = [c1.id, c2.id, c3.id]
+  const sorted = [...ids].sort((a, b) => a - b)
+  const byId = new Map([
+    [c1.id, c1],
+    [c2.id, c2],
+    [c3.id, c3],
+  ])
+  const [s1, s2, s3] = sorted.map((id) => byId.get(id)) as [typeof c1, typeof c2, typeof c3]
   const emptyVec = makeVecSorted([], registry)
 
   test("makeVec sorts components by id", () => {
     const vec = makeVec([c3, c1, c2], registry)
-    expect(vec.elements).toEqual([c1, c2, c3])
-    expect(vec.ids).toEqual([1, 2, 3])
+    expect(vec.elements).toEqual([s1, s2, s3])
+    expect(vec.ids).toEqual(sorted)
   })
 
   test("makeVecSorted expects sorted components", () => {
-    const vec = makeVecSorted([c1, c2, c3], registry)
-    expect(vec.elements).toEqual([c1, c2, c3])
-    expect(vec.ids).toEqual([1, 2, 3])
+    const vec = makeVecSorted([s1, s2, s3], registry)
+    expect(vec.elements).toEqual([s1, s2, s3])
+    expect(vec.ids).toEqual(sorted)
   })
 
   test("emptyVec is indeed empty", () => {
@@ -64,9 +73,9 @@ describe("vec", () => {
     const v2 = makeVec([c2], registry)
     const v12 = vecSum(v1, v2, registry)
 
-    expect(v12.ids).toEqual([1, 2])
-    expect(vecSum(v1, v1, registry).ids).toEqual([1])
-    expect(vecSum(v1, emptyVec, registry).ids).toEqual([1])
+    expect(v12.ids).toEqual([c1.id, c2.id].sort((a, b) => a - b))
+    expect(vecSum(v1, v1, registry).ids).toEqual([c1.id])
+    expect(vecSum(v1, emptyVec, registry).ids).toEqual([c1.id])
 
     const v12Cached = vecSum(v1, v2, registry)
     expect(v12Cached).toBe(v12)
@@ -77,9 +86,11 @@ describe("vec", () => {
     const v23 = makeVec([c2, c3], registry)
     const diff = vecDifference(v12, v23, registry)
 
-    expect(diff.ids).toEqual([1])
+    expect(diff.ids).toEqual([c1.id])
     expect(vecDifference(v12, v12, registry).ids).toEqual([])
-    expect(vecDifference(v12, emptyVec, registry).ids).toEqual([1, 2])
+    expect(vecDifference(v12, emptyVec, registry).ids).toEqual(
+      [c1.id, c2.id].sort((a, b) => a - b),
+    )
   })
 
   test("vecIntersection", () => {
@@ -87,8 +98,10 @@ describe("vec", () => {
     const v23 = makeVec([c2, c3], registry)
     const inter = vecIntersection(v12, v23, registry)
 
-    expect(inter.ids).toEqual([2])
-    expect(vecIntersection(v12, v12, registry).ids).toEqual([1, 2])
+    expect(inter.ids).toEqual([c2.id])
+    expect(vecIntersection(v12, v12, registry).ids).toEqual(
+      [c1.id, c2.id].sort((a, b) => a - b),
+    )
     expect(vecIntersection(v12, emptyVec, registry).ids).toEqual([])
   })
 
@@ -105,10 +118,10 @@ describe("vec", () => {
   })
 
   test("makeVecSorted with custom id map", () => {
-    const vec = makeVecSorted([c1, c2, c3], registry)
-    expect(vec.sparse.get(1)).toBe(0)
-    expect(vec.sparse.get(2)).toBe(1)
-    expect(vec.sparse.get(3)).toBe(2)
+    const vec = makeVecSorted([s1, s2, s3], registry)
+    expect(vec.sparse.get(sorted[0]!)).toBe(0)
+    expect(vec.sparse.get(sorted[1]!)).toBe(1)
+    expect(vec.sparse.get(sorted[2]!)).toBe(2)
   })
 
   test("vecSum caching is symmetric", () => {

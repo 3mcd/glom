@@ -10,23 +10,25 @@ export type Relationship = ComponentLike & {
   object: Entity
 }
 
-export function defineRelation(name: string, id?: number): Relation {
+export function defineRelation(name: string): Relation {
   const rel = ((object: Entity): Relationship => {
     return {
       relation: rel as unknown as Relation,
       object,
     } as Relationship
   }) as unknown as Record<string, unknown>
+
+  const componentId = hashNameToComponentId(name)
   Object.defineProperty(rel, "name", {
     value: name,
     writable: false,
     configurable: true,
   })
-  if (id !== undefined) rel.id = id
+  rel.id = componentId
   rel.isTag = true
   rel.__component_brand = true
 
-  registerGlobalComponent(id ?? hashNameToComponentId(name), undefined, true)
+  registerGlobalComponent(componentId, undefined, true)
 
   return rel as unknown as Relation
 }

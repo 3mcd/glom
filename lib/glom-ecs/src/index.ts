@@ -26,26 +26,25 @@ export {
 export {getDomain} from "./entity_registry"
 export {
   applyUndoLog,
+  type Checkpoint,
   captureCheckpoint,
   HistoryBuffer,
   makeHistoryBuffer,
   pushCheckpoint,
   restoreCheckpoint,
   rollbackToTick,
-  type Checkpoint,
   type UndoEntry,
   type UndoOp,
 } from "./history"
 export {
+  acquireWriter,
   ByteReader,
   ByteWriter,
-  acquireWriter,
   releaseWriter,
 } from "./lib/binary"
 export type {AddOp, SnapshotMessage} from "./net_types"
 export {
   type Clocksync,
-  type CommandMessage,
   type HandshakeClient,
   type HandshakeServer,
   type MessageHeader,

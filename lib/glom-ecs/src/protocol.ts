@@ -108,20 +108,16 @@ export function readClocksync(reader: ByteReader): Clocksync {
   }
 }
 
-export type CommandMessage = {
-  tick: number
-  commands: {target: number; componentId: number; data: unknown}[]
-}
-
 export function writeCommands(
   writer: ByteWriter,
-  data: CommandMessage,
+  tick: number,
+  commands: {target: number; componentId: number; data: unknown}[],
   resolverLike: ResolverLike,
 ) {
   const resolver = toResolver(resolverLike)
-  writeMessageHeader(writer, MessageType.Command, data.tick)
-  writer.writeUint16(data.commands.length)
-  for (const cmd of data.commands) {
+  writeMessageHeader(writer, MessageType.Command, tick)
+  writer.writeUint16(commands.length)
+  for (const cmd of commands) {
     writer.writeVarint(cmd.target)
     writer.writeVarint(cmd.componentId)
     if (cmd.data !== undefined) {
@@ -135,9 +131,8 @@ export function writeCommands(
 
 export function readCommands(
   reader: ByteReader,
-  tick: number,
   resolverLike: ResolverLike,
-): CommandMessage {
+): {target: number; componentId: number; data: unknown}[] {
   const resolver = toResolver(resolverLike)
   const count = reader.readUint16()
   const commands: {target: number; componentId: number; data: unknown}[] = []
@@ -153,10 +148,7 @@ export function readCommands(
     }
     commands.push({target, componentId: id, data})
   }
-  return {
-    tick,
-    commands,
-  }
+  return commands
 }
 
 /**
@@ -208,10 +200,10 @@ export function writeTransaction(
         for (const c of op.components) {
           writer.writeVarint(c.id)
           if (!resolver.isTag(c.id)) {
-          const serde = resolver.getSerde(c.id)
-          if (serde !== undefined) {
-            serde.encode(c.data, writer)
-          }
+            const serde = resolver.getSerde(c.id)
+            if (serde !== undefined) {
+              serde.encode(c.data, writer)
+            }
           }
           if (c.rel !== undefined) {
             writer.writeUint8(1)
