@@ -98,7 +98,7 @@ export class MonitorRuntime extends AllRuntime {
     _node: EntityGraphNode,
     joinIndex: number,
   ): void {
-    if (!this._world) return
+    if (this._world === undefined) return
 
     if (joinIndex === 0) {
       for (let j = 0; j < entities.length; j++) {
@@ -118,7 +118,7 @@ export class MonitorRuntime extends AllRuntime {
     _node: EntityGraphNode,
     joinIndex: number,
   ): void {
-    if (!this._world) return
+    if (this._world === undefined) return
 
     if (joinIndex === 0) {
       for (let j = 0; j < entities.length; j++) {
@@ -187,7 +187,7 @@ export class MonitorRuntime extends AllRuntime {
     joinIndex: number,
     direction: "in" | "out",
   ): void {
-    if (!this._world) return
+    if (this._world === undefined) return
 
     const join = this.joins[joinIndex]
     if (join && join.joinOnId !== undefined && joinIndex > 0) {
@@ -205,7 +205,7 @@ export class MonitorRuntime extends AllRuntime {
 
     for (const entity of entities) {
       const incoming = getObjectSubjects(this._world!, entity)
-      if (!incoming) continue
+      if (incoming === undefined) continue
 
       for (const rel of incoming) {
         if (rel.relationId === relationId) {
@@ -236,7 +236,7 @@ export class MonitorRuntime extends AllRuntime {
   }
 
   override *[Symbol.iterator](): Iterator<unknown[]> {
-    if (!this._world) return
+    if (this._world === undefined) return
 
     const targets = this._mode === "in" ? this.added : this.removed
     const entities = sparseSetValues(targets)
@@ -244,7 +244,7 @@ export class MonitorRuntime extends AllRuntime {
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i]!
       const node = getEntityNode(this._world, entity as Entity)
-      if (!node && this._mode === "in") continue
+      if (node === undefined && this._mode === "in") continue
 
       yield* this._yield_at_level_monitor(
         entity,
@@ -262,7 +262,7 @@ export class MonitorRuntime extends AllRuntime {
     currentResult: unknown[],
   ): IterableIterator<unknown[]> {
     const join = this.joins[joinLevel]
-    if (!join) return
+    if (join === undefined) return
 
     const terms = this._term_infos.filter((t) => t.joinIndex === joinLevel)
     yield* this._yield_terms_at_level_monitor(
@@ -332,17 +332,17 @@ export class MonitorRuntime extends AllRuntime {
     subjectEntity?: Entity,
   ): IterableIterator<unknown[]> {
     const join = this.joins[joinLevel]
-    if (!join) return
+    if (join === undefined) return
 
     let yielded = false
     if (join.joinOnId !== undefined && subjectEntity !== undefined) {
       for (let i = 0; i < join.nodes.length; i++) {
         const n = join.nodes[i] as EntityGraphNode
         const relMap = n.relMaps[join.joinOnId]
-        if (!relMap) continue
+        if (relMap === undefined) continue
 
         const targets = relMap.subjectToObjects.get(subjectEntity as number)
-        if (!targets) continue
+        if (targets === undefined) continue
 
         for (let j = 0; j < targets.dense.length; j++) {
           yielded = true
@@ -392,17 +392,17 @@ export class MonitorRuntime extends AllRuntime {
     info: TermInfo,
     node?: EntityGraphNode,
   ): unknown[] {
-    if (!this._world) return []
+    if (this._world === undefined) return []
 
     if (info.type === "entity") return [entity]
     if (info.type === "component") {
       if (this._mode === "in") {
         const actualNode = node ?? getEntityNode(this._world, entity as Entity)
-        if (!actualNode || !actualNode.vec.sparse.has(info.componentId))
+        if (actualNode === undefined || !actualNode.vec.sparse.has(info.componentId))
           return []
       }
 
-      if (!info.store) return [undefined]
+      if (info.store === undefined) return [undefined]
       const index = sparseMapGet(
         this._world.index.entityToIndex,
         entity as number,
@@ -413,7 +413,7 @@ export class MonitorRuntime extends AllRuntime {
 
       if (info.isWrite) {
         let versions = this._world.components.versions.get(info.componentId)
-        if (!versions) {
+        if (versions === undefined) {
           versions = new Uint32Array(1024)
           this._world.components.versions.set(info.componentId, versions)
         }
@@ -430,7 +430,7 @@ export class MonitorRuntime extends AllRuntime {
     }
     if (info.type === "has" || info.type === "not") {
       const actualNode = node ?? getEntityNode(this._world, entity as Entity)
-      if (!actualNode) return info.type === "not" ? [undefined] : []
+      if (actualNode === undefined) return info.type === "not" ? [undefined] : []
 
       const hasComponent = actualNode.vec.sparse.has(info.componentId)
       if (info.type === "has") {

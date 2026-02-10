@@ -2,13 +2,13 @@ import {describe, expect, test} from "bun:test"
 import * as g from "../index"
 
 describe("join query", () => {
-  const Position = g.defineComponent<{x: number}>()
-  const ChildOf = g.defineRelation()
-  const Name = g.defineComponent<string>()
+  const Position = g.defineComponent<{x: number}>("Position")
+  const ChildOf = g.defineRelation("ChildOf")
+  const Name = g.defineComponent<string>("Name")
   const schema = [Position, ChildOf, Name]
 
   test("Cartesian product join (no relation)", () => {
-    const world = g.makeWorld({domainId: 0, schema})
+    const world = g.makeWorld({domainId: 0})
     g.spawn(world, Position({x: 1}))
     g.spawn(world, Position({x: 2}))
     g.spawn(world, Name("A"))
@@ -43,7 +43,7 @@ describe("join query", () => {
   })
 
   test("Join with relation", () => {
-    const world = g.makeWorld({domainId: 0, schema})
+    const world = g.makeWorld({domainId: 0})
     const parent1 = g.spawn(world, Name("Parent1"))
     const parent2 = g.spawn(world, Name("Parent2"))
 
@@ -82,8 +82,8 @@ describe("join query", () => {
   })
 
   test("Reactive Join (partial In)", () => {
-    const Tag = g.defineTag()
-    const world = g.makeWorld({domainId: 0, schema: [...schema, Tag]})
+    const Tag = g.defineTag("Tag")
+    const world = g.makeWorld({domainId: 0})
     const parent1 = g.spawn(world, Name("Parent1"))
     const parent2 = g.spawn(world, Name("Parent2"))
 
@@ -140,7 +140,7 @@ describe("join query", () => {
   })
 
   test("Reactive Join (partial Out)", () => {
-    const world = g.makeWorld({domainId: 0, schema})
+    const world = g.makeWorld({domainId: 0})
     const parent1 = g.spawn(world, Name("Parent1"))
 
     const results: [{x: number}, string][] = []

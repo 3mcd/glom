@@ -22,12 +22,12 @@ import {getComponentValue, getResource, makeWorld} from "./world"
 import {spawn} from "./world_api"
 
 describe("command api", () => {
-  const Jump = defineTag()
-  const Move = defineComponent<{x: number; y: number}>()
+  const Jump = defineTag("Jump")
+  const Move = defineComponent<{x: number; y: number}>("Move")
   const schema = [Jump, Move]
 
   test("record and execute relational commands", () => {
-    const world = makeWorld({domainId: 1, schema})
+    const world = makeWorld({domainId: 1})
     const player = spawn(world)
 
     recordCommand(world, player, Jump, 10)
@@ -139,7 +139,7 @@ describe("command api", () => {
   })
 
   test("pruning", () => {
-    const world = makeWorld({domainId: 1, schema})
+    const world = makeWorld({domainId: 1})
     const player = spawn(world)
     recordCommand(world, player, Jump, 10)
     recordCommand(world, player, Jump, 20)

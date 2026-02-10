@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {defineComponent, type ComponentResolver} from "../component"
-import {HistoryBuffer, pushSnapshot, type Snapshot} from "../history"
+import {HistoryBuffer, pushCheckpoint} from "../history"
 import {ByteWriter} from "../lib/binary"
 import type {SnapshotMessage} from "../net_types"
 import {All} from "../query/all"
@@ -59,7 +59,7 @@ function makeSnapshotMessage(
 }
 
 describe("reconciliation", () => {
-  const Position = defineComponent<{x: number; y: number}>({
+  const Position = defineComponent<{x: number; y: number}>("Position", {
     bytesPerElement: 16,
     encode: (val, writer) => {
       writer.writeFloat64(val.x)
@@ -69,10 +69,9 @@ describe("reconciliation", () => {
   })
 
   test("reconcile late arriving transaction", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
     const history = {
-      snapshots: [] as Snapshot[],
-      checkpoints: [] as Snapshot[],
+      checkpoints: [] as any[],
       undoLog: [] as any[],
       maxSize: 10,
       checkpointInterval: 1,
@@ -82,7 +81,7 @@ describe("reconciliation", () => {
     addResource(world, InputBuffer(inputBuffer))
     addResource(world, IncomingTransactions(new Map()))
 
-    pushSnapshot(world, history)
+    pushCheckpoint(world, history)
 
     const entity = spawn(world, Position({x: 0, y: 0}))
     commitTransaction(world)
@@ -137,10 +136,9 @@ describe("reconciliation", () => {
   })
 
   test("prune buffers", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
     const history = {
-      snapshots: [] as Snapshot[],
-      checkpoints: [] as Snapshot[],
+      checkpoints: [] as any[],
       undoLog: [] as any[],
       maxSize: 10,
       checkpointInterval: 1,
@@ -177,7 +175,7 @@ describe("reconciliation", () => {
   })
 
   test("cleanup rejected transient entities (ghosts)", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
 
     world.tick = 10
     const entity = spawnInDomain(
@@ -196,7 +194,7 @@ describe("reconciliation", () => {
   })
 
   test("receive and apply remote snapshots", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
     addResource(world, IncomingSnapshots(new Map()))
 
     const entity = spawn(world)
@@ -225,7 +223,7 @@ describe("reconciliation", () => {
   })
 
   test("apply remote transactions", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
     addResource(world, IncomingTransactions(new Map()))
 
     const entity = spawn(world)
@@ -258,10 +256,9 @@ describe("reconciliation", () => {
   })
 
   test("performBatchReconciliation re-simulates multiple ticks", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
     const history = {
-      snapshots: [] as Snapshot[],
-      checkpoints: [] as Snapshot[],
+      checkpoints: [] as any[],
       undoLog: [] as any[],
       maxSize: 10,
       checkpointInterval: 1,
@@ -339,10 +336,9 @@ describe("reconciliation", () => {
   })
 
   test("performBatchReconciliation handles transactions older than history", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
     const history = {
-      snapshots: [] as Snapshot[],
-      checkpoints: [] as Snapshot[],
+      checkpoints: [] as any[],
       undoLog: [] as any[],
       maxSize: 2,
       checkpointInterval: 1,
@@ -354,16 +350,16 @@ describe("reconciliation", () => {
     const entity = spawn(world, Position({x: 0, y: 0}))
     commitTransaction(world)
 
-    // Advance 5 ticks, only 2 snapshots will remain (maxSize=2)
+    // Advance 5 ticks, only 2 checkpoints will remain (maxSize=2)
     for (let i = 0; i < 5; i++) {
       advanceTick(world)
     }
 
-    // world.tick is 5. history should contain snapshots for tick 4 and 5 (or similar).
+    // world.tick is 5. history should contain checkpoints for tick 4 and 5 (or similar).
     // Let's check oldest tick in history
-    const oldestHistorySnapshot = history.snapshots[0]
-    if (oldestHistorySnapshot) {
-      const oldestHistoryTick = oldestHistorySnapshot.tick
+    const oldestCheckpoint = history.checkpoints[0]
+    if (oldestCheckpoint) {
+      const oldestHistoryTick = oldestCheckpoint.tick
       expect(oldestHistoryTick).toBeGreaterThan(0)
     }
 

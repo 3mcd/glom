@@ -74,7 +74,7 @@ export class JoinLevel implements EntityGraphNodeListener {
     this.excludedVecs = excluded.map((c) =>
       makeVec([c], world.componentRegistry),
     )
-    if (joinOn) {
+    if (joinOn !== undefined) {
       this.joinOn = {id: getComponentId(world, joinOn)}
     }
 
@@ -156,7 +156,7 @@ export class AllRuntime implements AnyAll {
     if (this.joins.length === 0) return
 
     const rootJoin = this.joins[0]
-    if (!rootJoin) return
+    if (rootJoin === undefined) return
 
     for (let i = 0; i < rootJoin.nodes.length; i++) {
       const node = rootJoin.nodes[i] as EntityGraphNode
@@ -244,16 +244,16 @@ export class AllRuntime implements AnyAll {
     subjectEntity?: Entity,
   ): IterableIterator<unknown[]> {
     const join = this.joins[joinLevel]
-    if (!join) return
+    if (join === undefined) return
 
     if (join.joinOnId !== undefined && subjectEntity !== undefined) {
       for (let i = 0; i < join.nodes.length; i++) {
         const n = join.nodes[i] as EntityGraphNode
         const relMap = n.relMaps[join.joinOnId]
-        if (!relMap) continue
+        if (relMap === undefined) continue
 
         const targets = relMap.subjectToObjects.get(subjectEntity as number)
-        if (!targets) continue
+        if (targets === undefined) continue
 
         for (let j = 0; j < targets.dense.length; j++) {
           yield* this._yield_at_level(
@@ -291,10 +291,10 @@ export class AllRuntime implements AnyAll {
     if (info.type === "component") {
       const actualNode =
         node ?? getEntityNode(this._world, entity as Entity)
-      if (!actualNode) return []
+      if (actualNode === undefined) return []
       if (!actualNode.vec.sparse.has(info.componentId)) return []
 
-      if (!info.store) return [undefined]
+      if (info.store === undefined) return [undefined]
       const index = sparseMapGet(this._world.index.entityToIndex, entity)
       if (index === undefined) return []
       const val = info.store[index]
@@ -302,7 +302,7 @@ export class AllRuntime implements AnyAll {
 
       if (info.isWrite) {
         let versions = this._world.components.versions.get(info.componentId)
-        if (!versions) {
+        if (versions === undefined) {
           versions = new Uint32Array(1024)
           this._world.components.versions.set(info.componentId, versions)
         }
@@ -320,7 +320,7 @@ export class AllRuntime implements AnyAll {
     if (info.type === "has" || info.type === "not") {
       const actualNode =
         node ?? getEntityNode(this._world, entity as Entity)
-      if (!actualNode) return info.type === "not" ? [undefined] : []
+      if (actualNode === undefined) return info.type === "not" ? [undefined] : []
 
       const hasComponent = actualNode.vec.sparse.has(info.componentId)
 
@@ -361,7 +361,7 @@ export class AllRuntime implements AnyAll {
       joinIndex: number,
       rel?: Relation,
     ) => {
-      if (rel) {
+      if (rel !== undefined) {
         joinConfigs.joinOn[joinIndex] = rel
       }
 
@@ -618,15 +618,15 @@ export class AllRuntime implements AnyAll {
 
   matches(entity: Entity): boolean {
     const world = this._world
-    if (!world) return false
+    if (world === undefined) return false
 
     const node = getEntityNode(world, entity as Entity)
-    if (!node) return false
+    if (node === undefined) return false
 
     // Check if the entity's node matches the first join level
     const join0 = this.joins[0]
-    if (!join0) return false
-    if (!sparseMapGet(join0.nodesMap, node.id)) return false
+    if (join0 === undefined) return false
+    if (sparseMapGet(join0.nodesMap, node.id) === undefined) return false
 
     // Try to yield at least one result for this entity
     const it = this._yield_at_level(

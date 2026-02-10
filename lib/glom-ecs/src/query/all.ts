@@ -21,7 +21,7 @@ export interface AnyAll {
     | InDescriptor
     | OutDescriptor
     | UniqueDescriptor
-    | JoinDescriptor
+    | JoinDescriptor<any, any, any>
   readonly stores: unknown[][]
   readonly joins: JoinLevelInfo[]
   readonly entityToIndex: {
@@ -132,7 +132,7 @@ export function Join<L extends AnyAll, R extends AnyAll, Rel extends Relation>(
   left: L,
   right: R,
   rel?: Rel,
-): JoinDescriptor {
+): JoinDescriptor<any, any, Rel | undefined> {
   return {join: [left.desc as any, right.desc as any, rel]}
 }
 
@@ -194,7 +194,7 @@ export function In<T extends unknown[]>(...terms: T): {in: {all: T}} {
   return {in: {all: terms}}
 }
 
-export function Out<T extends unknown[]>(...terms: T): {out: {all: terms}} {
+export function Out<T extends unknown[]>(...terms: T): {out: {all: T}} {
   return {out: {all: terms}}
 }
 

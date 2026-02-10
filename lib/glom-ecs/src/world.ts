@@ -9,11 +9,7 @@ import {
 } from "./entity_graph"
 import {type EntityRegistry, makeEntityRegistry} from "./entity_registry"
 import {HistoryBuffer, type UndoOp} from "./history"
-import {
-  type ComponentRegistry,
-  makeComponentRegistry,
-  type RegistrySchema,
-} from "./registry"
+import {type ComponentRegistry, makeComponentRegistry} from "./registry"
 import {makeRelationRegistry, type RelationRegistry} from "./relation_registry"
 import type {ReplicationOp} from "./replication"
 import {
@@ -82,7 +78,7 @@ export type World<R extends ComponentLike = any> = {
   readonly entityGraph: EntityGraph
   readonly graphChanges: SparseMap<GraphMove>
   readonly pendingDeletions: Set<Entity>
-  readonly pendingComponentRemovals: Map<Entity, ComponentLike[]>
+  readonly pendingRemovals: Map<Entity, ComponentLike[]>
   readonly pendingNodePruning: Set<EntityGraphNode>
   readonly components: ComponentStore
   readonly index: EntityIndex
@@ -103,16 +99,12 @@ export type World<R extends ComponentLike = any> = {
 
 export type WorldOptions = {
   domainId?: number
-  schema?: RegistrySchema | ComponentLike[]
 }
 
 export function makeWorld(options: WorldOptions = {}): World {
-  const {domainId = 0, schema = {}} = options
-  const normalizedSchema: RegistrySchema = Array.isArray(schema)
-    ? {network: schema}
-    : schema
+  const {domainId = 0} = options
 
-  const componentRegistry = makeComponentRegistry(normalizedSchema, [
+  const componentRegistry = makeComponentRegistry([
     Replicated,
     IntentTick,
     CommandOf,
@@ -132,7 +124,7 @@ export function makeWorld(options: WorldOptions = {}): World {
     entityGraph: makeEntityGraph(componentRegistry),
     graphChanges: makeSparseMap<GraphMove>(),
     pendingDeletions: new Set<Entity>(),
-    pendingComponentRemovals: new Map<Entity, ComponentLike[]>(),
+    pendingRemovals: new Map<Entity, ComponentLike[]>(),
     pendingNodePruning: new Set<EntityGraphNode>(),
     components: makeComponentStore(),
     index: makeEntityIndex(),
@@ -174,7 +166,7 @@ export function getComponentStore<T>(
   }
   const componentId = world.componentRegistry.getId(component)
   let store = world.components.storage.get(componentId)
-  if (!store) {
+  if (store === undefined) {
     store = []
     world.components.storage.set(componentId, store)
   }
@@ -198,7 +190,7 @@ export function setComponentValue<T>(
   const index = getOrCreateIndex(world, entity)
 
   let versions = world.components.versions.get(componentId)
-  if (!versions) {
+  if (versions === undefined) {
     versions = new Uint32Array(1024)
     world.components.versions.set(componentId, versions)
   }
@@ -217,7 +209,7 @@ export function setComponentValue<T>(
   versions[index] = version
 
   const store = getComponentStore<T>(world, component)
-  if (store) {
+  if (store !== undefined) {
     store[index] = value
   }
 }
@@ -244,7 +236,7 @@ export function forceSetComponentValue<T>(
   const index = getOrCreateIndex(world, entity)
 
   let versions = world.components.versions.get(componentId)
-  if (!versions) {
+  if (versions === undefined) {
     versions = new Uint32Array(1024)
     world.components.versions.set(componentId, versions)
   }
@@ -259,7 +251,7 @@ export function forceSetComponentValue<T>(
   versions[index] = version
 
   const store = getComponentStore<T>(world, component)
-  if (store) {
+  if (store !== undefined) {
     store[index] = value
   }
 }
@@ -272,7 +264,7 @@ export function getComponentValue<T>(
   if (world.pendingDeletions.has(entity as Entity)) {
     return undefined
   }
-  const pendingRemovals = world.pendingComponentRemovals.get(entity as Entity)
+  const pendingRemovals = world.pendingRemovals.get(entity as Entity)
   const componentId = world.componentRegistry.getId(component)
   if (
     pendingRemovals?.some(
@@ -298,7 +290,7 @@ export function getComponentValue<T>(
     return undefined
   }
   const store = world.components.storage.get(componentId)
-  if (!store) {
+  if (store === undefined) {
     return undefined
   }
   return store[index] as T | undefined
@@ -320,7 +312,7 @@ export function deleteComponentValue<T>(
       : sparseMapGet(world.index.entityToIndex, entity)
   if (index !== undefined) {
     const store = getComponentStore<T>(world, component)
-    if (store) {
+    if (store !== undefined) {
       store[index] = undefined
     }
   }
@@ -354,8 +346,6 @@ export function hasResource<T extends ComponentLike>(
   return store !== undefined && store[index] !== undefined
 }
 
-// --- Composite version utilities for P2P conflict resolution ---
-
 const DOMAIN_BITS = 11
 const MAX_DOMAIN_ID = (1 << DOMAIN_BITS) - 1 // 2047
 
@@ -379,8 +369,6 @@ export function getVersionDomainId(version: number): number {
   return version % (MAX_DOMAIN_ID + 1)
 }
 
-// --- ById variants (avoid throwaway {id, __component_brand} objects) ---
-
 /**
  * Like setComponentValue but takes a raw componentId instead of a ComponentLike,
  * avoiding the allocation of a throwaway {id, __component_brand} object.
@@ -396,7 +384,7 @@ export function setComponentValueById(
   const index = getOrCreateIndex(world, entity)
 
   let versions = world.components.versions.get(componentId)
-  if (!versions) {
+  if (versions === undefined) {
     versions = new Uint32Array(1024)
     world.components.versions.set(componentId, versions)
   }
@@ -415,7 +403,7 @@ export function setComponentValueById(
   versions[index] = version
 
   let store = world.components.storage.get(componentId)
-  if (!store) {
+  if (store === undefined) {
     store = []
     world.components.storage.set(componentId, store)
   }
@@ -436,7 +424,7 @@ export function forceSetComponentValueById(
   const index = getOrCreateIndex(world, entity)
 
   let versions = world.components.versions.get(componentId)
-  if (!versions) {
+  if (versions === undefined) {
     versions = new Uint32Array(1024)
     world.components.versions.set(componentId, versions)
   }
@@ -451,7 +439,7 @@ export function forceSetComponentValueById(
   versions[index] = version
 
   let store = world.components.storage.get(componentId)
-  if (!store) {
+  if (store === undefined) {
     store = []
     world.components.storage.set(componentId, store)
   }
@@ -478,15 +466,11 @@ export function getComponentValueById(
     return undefined
   }
   const store = world.components.storage.get(componentId)
-  if (!store) {
+  if (store === undefined) {
     return undefined
   }
   return store[index]
 }
-
-// ---------------------------------------------------------------------------
-// World-level domain helpers
-// ---------------------------------------------------------------------------
 
 /** Get the numeric component ID for a component reference. */
 export function getComponentId(world: World, comp: ComponentLike): number {

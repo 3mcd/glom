@@ -13,12 +13,12 @@ import {
 } from "./world"
 
 describe("worldStorage", () => {
-  const Position = defineComponent<{x: number; y: number}>()
-  const Velocity = defineComponent<{x: number; y: number}>()
+  const Position = defineComponent<{x: number; y: number}>("Position")
+  const Velocity = defineComponent<{x: number; y: number}>("Velocity")
   const schema = [Position, Velocity]
 
   test("set and get component values", () => {
-    const world = makeWorld({domainId: 0, schema})
+    const world = makeWorld({domainId: 0})
     const entity = makeEntity(10, 0)
 
     setComponentValue(world, entity, Position, {x: 1, y: 2})
@@ -30,7 +30,7 @@ describe("worldStorage", () => {
   })
 
   test("handle ID collisions across domains via dense mapping", () => {
-    const world = makeWorld({domainId: 0, schema})
+    const world = makeWorld({domainId: 0})
     const e1 = makeEntity(100, 1)
     const e2 = makeEntity(100, 2)
 
@@ -46,13 +46,13 @@ describe("worldStorage", () => {
   })
 
   test("get undefined for missing component", () => {
-    const world = makeWorld({domainId: 0, schema})
+    const world = makeWorld({domainId: 0})
     const entity = makeEntity(10, 0)
     expect(getComponentValue(world, entity, Position)).toBeUndefined()
   })
 
   test("remove component value", () => {
-    const world = makeWorld({domainId: 0, schema})
+    const world = makeWorld({domainId: 0})
     const entity = makeEntity(10, 0)
 
     setComponentValue(world, entity, Position, {x: 1, y: 2})
@@ -62,7 +62,7 @@ describe("worldStorage", () => {
   })
 
   test("multiple components for same entity", () => {
-    const world = makeWorld({domainId: 0, schema})
+    const world = makeWorld({domainId: 0})
     const entity = makeEntity(10, 0)
 
     setComponentValue(world, entity, Position, {x: 1, y: 2})
@@ -73,8 +73,8 @@ describe("worldStorage", () => {
   })
 
   test("tag components as resources", () => {
-    const IsRunning = defineTag()
-    const world = makeWorld({domainId: 0, schema: [IsRunning]})
+    const IsRunning = defineTag("IsRunning")
+    const world = makeWorld({domainId: 0})
 
     addResource(world, IsRunning())
     expect(getResource(world, IsRunning)).toBeUndefined()
@@ -86,8 +86,8 @@ describe("worldStorage", () => {
   })
 
   test("regular components as resources", () => {
-    const Config = defineComponent<{api: string}>()
-    const world = makeWorld({domainId: 0, schema: [Config]})
+    const Config = defineComponent<{api: string}>("Config")
+    const world = makeWorld({domainId: 0})
 
     addResource(world, Config({api: "localhost"}))
     expect(getResource(world, Config)).toEqual({api: "localhost"})

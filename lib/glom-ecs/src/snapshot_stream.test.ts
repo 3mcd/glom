@@ -12,7 +12,7 @@ import {getComponentValue, makeWorld} from "./world"
 import {spawn} from "./world_api"
 
 describe("snapshot streaming", () => {
-  const Position = defineComponent<{x: number; y: number}>({
+  const Position = defineComponent<{x: number; y: number}>("Position", {
     bytesPerElement: 8,
     encode: (val, writer) => {
       writer.writeFloat32(val.x)
@@ -24,8 +24,8 @@ describe("snapshot streaming", () => {
   })
 
   test("capture and apply snapshot via binary round-trip", () => {
-    const worldA = makeWorld({domainId: 1, schema: [Position]})
-    const worldB = makeWorld({domainId: 2, schema: [Position]})
+    const worldA = makeWorld({domainId: 1})
+    const worldB = makeWorld({domainId: 2})
 
     const e1 = spawn(worldA, Position({x: 10, y: 20}), Replicated)
     const e2 = spawn(worldA, Position({x: 100, y: 200}), Replicated)
@@ -56,7 +56,7 @@ describe("snapshot streaming", () => {
   })
 
   test("authoritative snapshots always overwrite (forceSet)", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
     world.tick = 50
     const entity = spawn(world, Position({x: 50, y: 50}), Replicated)
     const posId = world.componentRegistry.getId(Position)
@@ -81,7 +81,7 @@ describe("snapshot streaming", () => {
   })
 
   test("versioned snapshots respect LWW (P2P)", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
     world.tick = 50
     const entity = spawn(world, Position({x: 50, y: 50}), Replicated)
     const posId = world.componentRegistry.getId(Position)

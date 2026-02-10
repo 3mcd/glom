@@ -10,7 +10,7 @@ import {makeWorld} from "./world"
 
 const relationCount = 100
 const relations = Array.from({length: relationCount}, (_, i) =>
-  defineRelation(i),
+  defineRelation(`bench_rel_${i}`),
 )
 const entityCount = 1000
 const entities = Array.from({length: entityCount}, (_, i) => i as Entity)

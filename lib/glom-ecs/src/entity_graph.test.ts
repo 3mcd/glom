@@ -21,10 +21,10 @@ import {makeVec, makeVecSorted} from "./vec"
 import {makeComponentRegistry} from "./registry"
 
 describe("entityGraph", () => {
-  const c1 = defineComponent(undefined, 1)
-  const c2 = defineComponent(undefined, 2)
-  const c3 = defineComponent(undefined, 3)
-  const registry = makeComponentRegistry({}, [c1, c2, c3])
+  const c1 = defineComponent("c1", undefined, 1)
+  const c2 = defineComponent("c2", undefined, 2)
+  const c3 = defineComponent("c3", undefined, 3)
+  const registry = makeComponentRegistry([c1, c2, c3])
   const emptyVec = makeVecSorted([], registry)
 
   const v1 = makeVec([c1], registry)
@@ -169,7 +169,7 @@ describe("entityGraph", () => {
   test("root node is never pruned", () => {
     const graph = makeEntityGraph(registry)
 
-    graph.root.strategy = PruneStrategy.WhenEmpty
+    ;(graph.root as {strategy: PruneStrategy}).strategy = PruneStrategy.WhenEmpty
 
     const entity = 1 as Entity
     entityGraphSetEntityNode(

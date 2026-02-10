@@ -11,12 +11,12 @@ import {getComponentValue, makeWorld} from "../world"
 import {spawn} from "../world_api"
 
 describe("netcode orchestration", () => {
-  const Position = defineComponent<{x: number; y: number}>()
-  const Jump = defineTag()
+  const Position = defineComponent<{x: number; y: number}>("Position")
+  const Jump = defineTag("Jump")
   const schema = [Position, Jump]
 
   test("networked schedule lifecycle", () => {
-    const world = makeWorld({domainId: 1, schema})
+    const world = makeWorld({domainId: 1})
     const player = spawn(world, Position({x: 0, y: 0}), Replicated)
 
     const schedule = makeSystemSchedule()

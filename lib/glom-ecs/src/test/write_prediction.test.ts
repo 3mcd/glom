@@ -7,7 +7,7 @@ import * as replication from "../replication"
 
 // --- SCHEMA ---
 
-const Position = g.defineComponent<{x: number; y: number}>({
+const Position = g.defineComponent<{x: number; y: number}>("Position", {
   bytesPerElement: 16,
   encode: (val, writer) => {
     writer.writeFloat64(val.x)
@@ -18,7 +18,7 @@ const Position = g.defineComponent<{x: number; y: number}>({
   },
 })
 
-const MoveCommand = g.defineComponent<{dx: number; dy: number}>({
+const MoveCommand = g.defineComponent<{dx: number; dy: number}>("MoveCommand", {
   bytesPerElement: 16,
   encode: (val, writer) => {
     writer.writeFloat64(val.dx)
@@ -103,12 +103,12 @@ const addMovementSystem = g.defineSystem(
 // ==========================================================================
 
 describe("snapshot deep-cloning", () => {
-  test("captureSnapshot deep-clones object-typed component values", () => {
-    const world = g.makeWorld({domainId: 0, schema})
+  test("captureCheckpoint deep-clones object-typed component values", () => {
+    const world = g.makeWorld({domainId: 0})
     const entity = g.spawn(world, Position({x: 10, y: 20}), g.Replicated)
     g.commitTransaction(world)
 
-    const snapshot = g.captureSnapshot(world)
+    const snapshot = g.captureCheckpoint(world)
 
     // Mutate the live store
     const livePos = g.getComponentValue(world, entity, Position)!
@@ -125,10 +125,9 @@ describe("snapshot deep-cloning", () => {
     expect(snapPos.y).toBe(20)
   })
 
-  test("rollbackToSnapshot restores independent copies (Write-safe)", () => {
-    const world = g.makeWorld({domainId: 1, schema})
+  test("restoreCheckpoint restores independent copies (Write-safe)", () => {
+    const world = g.makeWorld({domainId: 1})
     const history: g.HistoryBuffer = {
-      snapshots: [],
       checkpoints: [],
       undoLog: [],
       maxSize: 10,
@@ -138,7 +137,7 @@ describe("snapshot deep-cloning", () => {
 
     const entity = g.spawn(world, Position({x: 5, y: 5}))
     g.commitTransaction(world)
-    g.pushSnapshot(world, history) // snapshot at tick 0
+    g.pushCheckpoint(world, history) // snapshot at tick 0
 
     // Mutate in-place (simulate Write)
     const livePos = g.getComponentValue(world, entity, Position)!
@@ -154,7 +153,7 @@ describe("snapshot deep-cloning", () => {
     // The SNAPSHOT should remain unaffected
     restoredPos.x = 200
 
-    const snapPosStore = history.snapshots[0]!.componentData.get(
+    const snapPosStore = history.checkpoints[0]!.componentData.get(
       world.componentRegistry.getId(Position),
     )!
     const snapPos = snapPosStore[
@@ -166,7 +165,7 @@ describe("snapshot deep-cloning", () => {
 
 describe("snapshot force-overwrite", () => {
   test("snapshot always overwrites position (forceSet)", () => {
-    const world = g.makeWorld({domainId: 0, schema})
+    const world = g.makeWorld({domainId: 0})
     const entity = g.spawn(world, Position({x: 0, y: 0}), g.Replicated)
     g.commitTransaction(world)
 
@@ -213,10 +212,10 @@ describe("end-to-end client prediction with Write + snapshots", () => {
    * so rollback+replay can reach all server snapshot ticks.
    */
   function createSimulation(
-    moveSys: g.SystemDescriptor,
+    moveSys: any,
   ) {
     // ---- server ----
-    const serverWorld = g.makeWorld({domainId: 0, schema})
+    const serverWorld = g.makeWorld({domainId: 0})
     g.addResource(
       serverWorld,
       g.ReplicationConfig({
@@ -227,7 +226,6 @@ describe("end-to-end client prediction with Write + snapshots", () => {
     g.addResource(
       serverWorld,
       g.HistoryBuffer({
-        snapshots: [],
         checkpoints: [],
         undoLog: [],
         maxSize: 120,
@@ -272,7 +270,7 @@ describe("end-to-end client prediction with Write + snapshots", () => {
     const snapshotPackets = stream.snapshots
 
     // ---- client ----
-    const clientWorld = g.makeWorld({domainId: 1, schema})
+    const clientWorld = g.makeWorld({domainId: 1})
     const reconcileSchedule = g.makeSystemSchedule()
     g.addSystem(reconcileSchedule, commands.spawnEphemeralCommands)
     g.addSystem(reconcileSchedule, moveSys)
@@ -281,7 +279,6 @@ describe("end-to-end client prediction with Write + snapshots", () => {
     g.addResource(
       clientWorld,
       g.HistoryBuffer({
-        snapshots: [],
         checkpoints: [],
         undoLog: [],
         maxSize: 120,
@@ -315,7 +312,7 @@ describe("end-to-end client prediction with Write + snapshots", () => {
     // ---- handshake: sync client clock to server tick (no latency offset) ----
     g.setTick(clientWorld, serverWorld.tick)
     const history = g.getResource(clientWorld, g.HistoryBuffer)!
-    g.pushSnapshot(clientWorld, history) // empty-world snapshot
+    g.pushCheckpoint(clientWorld, history) // empty-world snapshot
 
     // ---- deliver spawn transaction & snapshot ----
     for (const packet of spawnTxPackets) {
@@ -625,14 +622,14 @@ describe("idle-to-movement transition with latency", () => {
   }
 
   function createLatencySim(
-    moveSys: g.SystemDescriptor,
+    moveSys: any,
     checkpointInterval = 5,
   ) {
     const serverToClient = new FramePipe()
     const clientToServer = new FramePipe()
 
     // ---- server ----
-    const serverWorld = g.makeWorld({domainId: 0, schema})
+    const serverWorld = g.makeWorld({domainId: 0})
     g.addResource(
       serverWorld,
       g.ReplicationConfig({
@@ -643,7 +640,6 @@ describe("idle-to-movement transition with latency", () => {
     g.addResource(
       serverWorld,
       g.HistoryBuffer({
-        snapshots: [],
         checkpoints: [],
         undoLog: [],
         maxSize: 120,
@@ -680,7 +676,7 @@ describe("idle-to-movement transition with latency", () => {
     g.runSchedule(serverSchedule, serverWorld as g.World)
 
     // ---- client ----
-    const clientWorld = g.makeWorld({domainId: 1, schema})
+    const clientWorld = g.makeWorld({domainId: 1})
     const reconcileSchedule = g.makeSystemSchedule()
     g.addSystem(reconcileSchedule, commands.spawnEphemeralCommands)
     g.addSystem(reconcileSchedule, moveSys)
@@ -689,7 +685,6 @@ describe("idle-to-movement transition with latency", () => {
     g.addResource(
       clientWorld,
       g.HistoryBuffer({
-        snapshots: [],
         checkpoints: [],
         undoLog: [],
         maxSize: 120,
@@ -724,7 +719,7 @@ describe("idle-to-movement transition with latency", () => {
     const targetTick = serverWorld.tick + 15 + LATENCY_FRAMES
     g.setTick(clientWorld, targetTick)
     const history = g.getResource(clientWorld, g.HistoryBuffer)!
-    g.pushSnapshot(clientWorld, history)
+    g.pushCheckpoint(clientWorld, history)
 
     const stream = g.getResource(serverWorld, g.ReplicationStream)!
     for (const tx of stream.transactions) {

@@ -93,7 +93,7 @@ const _writerPool: ByteWriter[] = []
 /** Acquire a ByteWriter from the pool (or create one). Call releaseWriter when done. */
 export function acquireWriter(initialCapacity = 1024): ByteWriter {
   const w = _writerPool.pop()
-  if (w) {
+  if (w !== undefined) {
     w.reset()
     return w
   }
@@ -160,7 +160,7 @@ export class ByteReader {
     let shift = 0
     let b: number
     do {
-      b = this.buffer[this.cursor++]
+      b = this.buffer[this.cursor++]!
       val |= (b & 0x7f) << shift
       shift += 7
     } while (b & 0x80)

@@ -107,7 +107,7 @@ export function poolGetOp<T extends ReplicationOp["type"]>(
   type: T,
 ): Extract<ReplicationOp, {type: T}> {
   const op = OP_POOL.pop()
-  if (op) {
+  if (op !== undefined) {
     const mutableOp = op as {type: string}
     mutableOp.type = type
     return op as Extract<ReplicationOp, {type: T}>
@@ -145,7 +145,7 @@ export function rebindEntity(
   sparseMapDelete(world.index.entityToIndex, transient)
 
   const node = getEntityNode(world, transient)
-  if (node) {
+  if (node !== undefined) {
     entityGraphNodeRemoveEntity(node, transient)
     entityGraphNodeAddEntity(node, authoritative, index)
     sparseMapSet(world.entityGraph.byEntity, authoritative as number, node)
@@ -153,7 +153,7 @@ export function rebindEntity(
   }
 
   const incoming = getObjectSubjects(world, transient as number)
-  if (incoming) {
+  if (incoming !== undefined) {
     const relationsToMove = Array.from(incoming)
     for (let i = 0; i < relationsToMove.length; i++) {
       const {subject, relationId} = relationsToMove[i] as RelationSubject
@@ -170,7 +170,7 @@ export function rebindEntity(
   }
 
   const commandBuffer = getResource(world, CommandBuffer)
-  if (commandBuffer) {
+  if (commandBuffer !== undefined) {
     const cmdBuffers = Array.from(commandBuffer.values())
     for (let i = 0; i < cmdBuffers.length; i++) {
       const commands = cmdBuffers[i] as CommandInstance[]
@@ -228,7 +228,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
         for (let j = 0; j < op.components.length; j++) {
           const {id, data, rel} = op.components[j] as SpawnComponent
           const comp = resolveComponent(world, id)
-          if (!comp) continue
+          if (comp === undefined) continue
 
           if (data !== undefined) {
             setComponentValue(
@@ -241,7 +241,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
           }
           resolved.push(comp)
 
-          if (rel) {
+          if (rel !== undefined) {
             getOrCreateVirtualMap(world, rel.relationId).set(rel.object, id)
             setRelationPair(world, id, rel)
             registerIncomingRelation(
@@ -267,7 +267,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
       }
       case "despawn": {
         const node = getEntityNode(world, op.entity)
-        if (!node) break
+        if (node === undefined) break
 
         // Record undo entry before cleanup
         {
@@ -296,7 +296,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
           const comp = elements[j] as ComponentLike
           const compId = getComponentId(world, comp)
           const rel = getRelationPair(world, compId)
-          if (rel) {
+          if (rel !== undefined) {
             unregisterIncomingRelation(
               world,
               op.entity,
@@ -308,7 +308,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
         }
 
         const prevNode = setEntityNode(world, op.entity, world.entityGraph.root)
-        if (prevNode) {
+        if (prevNode !== undefined) {
           world.pendingNodePruning.add(prevNode)
         }
         removeDomainEntity(domain, op.entity)
@@ -316,9 +316,9 @@ export function applyTransaction(world: World, transaction: Transaction) {
       }
       case "set": {
         const comp = resolveComponent(world, op.componentId)
-        if (!comp) break
+        if (comp === undefined) break
         const node = getEntityNode(world, op.entity)
-        if (!node) break
+        if (node === undefined) break
 
         setComponentValue(
           world,
@@ -328,7 +328,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
           op.version ?? transaction.tick,
         )
 
-        if (op.rel) {
+        if (op.rel !== undefined) {
           getOrCreateVirtualMap(world, op.rel.relationId).set(
             op.rel.object,
             op.componentId,
@@ -371,7 +371,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
             ),
           )
           const prevNode = setEntityNode(world, op.entity, nextNode)
-          if (prevNode) {
+          if (prevNode !== undefined) {
             world.pendingNodePruning.add(prevNode)
           }
         }
@@ -379,9 +379,9 @@ export function applyTransaction(world: World, transaction: Transaction) {
       }
       case "remove": {
         const comp = resolveComponent(world, op.componentId)
-        if (!comp) break
+        if (comp === undefined) break
         const node = getEntityNode(world, op.entity)
-        if (!node) break
+        if (node === undefined) break
 
         // Record undo entry before deleting component data
         world.currentUndoEntries.push({
@@ -393,7 +393,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
         })
 
         const relInfo = getRelationPair(world, op.componentId)
-        if (relInfo) {
+        if (relInfo !== undefined) {
           unregisterIncomingRelation(
             world,
             op.entity,
@@ -413,16 +413,16 @@ export function applyTransaction(world: World, transaction: Transaction) {
           ),
         )
         const prevNode = setEntityNode(world, op.entity, nextNode)
-        if (prevNode) {
+        if (prevNode !== undefined) {
           world.pendingNodePruning.add(prevNode)
         }
         break
       }
       case "add": {
         const comp = resolveComponent(world, op.componentId)
-        if (!comp) break
+        if (comp === undefined) break
         const node = getEntityNode(world, op.entity)
-        if (!node) break
+        if (node === undefined) break
 
         if (op.data !== undefined) {
           setComponentValue(
@@ -434,7 +434,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
           )
         }
 
-        if (op.rel) {
+        if (op.rel !== undefined) {
           getOrCreateVirtualMap(world, op.rel.relationId).set(
             op.rel.object,
             op.componentId,
@@ -477,7 +477,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
             ),
           )
           const prevNode = setEntityNode(world, op.entity, nextNode)
-          if (prevNode) {
+          if (prevNode !== undefined) {
             world.pendingNodePruning.add(prevNode)
           }
         }
@@ -502,7 +502,7 @@ export const emitSnapshots = defineSystem(
     stream: Write<typeof ReplicationStream>,
     world: World,
   ) => {
-    if (!config.snapshotComponents) return
+    if (config.snapshotComponents === undefined) return
     if (
       (config.snapshotInterval ?? 1) > 1 &&
       world.tick % (config.snapshotInterval ?? 1) !== 0

@@ -1,10 +1,10 @@
 import type {ComponentLike} from "./component"
 import type {Relation} from "./relation"
 
-export type ReadDescriptor = {
+export type ReadDescriptor<_T = unknown> = {
   read: ComponentLike
 }
-export type WriteDescriptor = {
+export type WriteDescriptor<_T = unknown> = {
   write: ComponentLike
 }
 export type HasDescriptor<T extends ComponentLike = ComponentLike> = {

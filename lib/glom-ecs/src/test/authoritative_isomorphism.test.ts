@@ -6,7 +6,7 @@ import * as replication from "../replication"
 
 // --- SCHEMA & SYSTEMS ---
 
-const Position = g.defineComponent<{x: number; y: number}>({
+const Position = g.defineComponent<{x: number; y: number}>("Position", {
   bytesPerElement: 16,
   encode: (val, writer) => {
     writer.writeFloat64(val.x)
@@ -17,7 +17,7 @@ const Position = g.defineComponent<{x: number; y: number}>({
   },
 })
 
-const MoveCommand = g.defineComponent<{dx: number; dy: number}>({
+const MoveCommand = g.defineComponent<{dx: number; dy: number}>("MoveCommand", {
   bytesPerElement: 16,
   encode: (val, writer) => {
     writer.writeFloat64(val.dx)
@@ -28,9 +28,9 @@ const MoveCommand = g.defineComponent<{dx: number; dy: number}>({
   },
 })
 
-const FireCommand = g.defineTag()
+const FireCommand = g.defineTag("FireCommand")
 
-const Pulse = g.defineComponent<number>({
+const Pulse = g.defineComponent<number>("Pulse", {
   bytesPerElement: 8,
   encode: (val, writer) => {
     writer.writeFloat64(val)
@@ -40,7 +40,7 @@ const Pulse = g.defineComponent<number>({
   },
 })
 
-const PulseOf = g.defineRelation()
+const PulseOf = g.defineRelation("PulseOf")
 
 const schema = [Position, MoveCommand, FireCommand, Pulse, PulseOf]
 
@@ -157,7 +157,7 @@ class MockPipe {
 }
 
 function setupServer() {
-  const world = g.makeWorld({domainId: 0, schema})
+  const world = g.makeWorld({domainId: 0})
   const schedule = g.makeSystemSchedule()
 
   g.addResource(
@@ -184,8 +184,8 @@ function setupServer() {
 }
 
 function setupClient(domainId: number) {
-  const world = g.makeWorld({domainId, schema})
-  g.addResource(world, g.HistoryBuffer({snapshots: [], checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  const world = g.makeWorld({domainId})
+  g.addResource(world, g.HistoryBuffer({checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
   g.addResource(world, g.CommandBuffer(new Map()))
   g.addResource(world, g.IncomingTransactions(new Map()))
   g.addResource(world, g.IncomingSnapshots(new Map()))
@@ -361,7 +361,7 @@ test("rigorous straight-line movement isomorphism", () => {
       if (!clientSynced) {
         clientWorld.tick = handshake.tick + LATENCY_TICKS * 3
         const history = g.getResource(clientWorld, g.HistoryBuffer)
-        if (history) g.pushSnapshot(clientWorld, history)
+        if (history) g.pushCheckpoint(clientWorld, history)
         clientSynced = true
       }
     })
@@ -376,7 +376,7 @@ test("rigorous straight-line movement isomorphism", () => {
       if (checkTick >= 0) {
         const sPos = serverPositions.get(checkTick)
         const history = g.getResource(clientWorld, g.HistoryBuffer)
-        const snapshot = history?.snapshots.find((s) => s.tick === checkTick)
+        const snapshot = history?.checkpoints.find((s) => s.tick === checkTick)
 
         if (sPos && snapshot) {
           const playerIdx = snapshot.entityToIndex.get(player)
@@ -446,7 +446,7 @@ test("stop-and-go movement isomorphism", () => {
       if (checkTick >= 0) {
         const sPos = serverPositions.get(checkTick)
         const history = g.getResource(clientWorld, g.HistoryBuffer)
-        const snapshot = history?.snapshots.find((s) => s.tick === checkTick)
+        const snapshot = history?.checkpoints.find((s) => s.tick === checkTick)
 
         if (sPos && snapshot) {
           const playerIdx = snapshot.entityToIndex.get(player)
@@ -543,7 +543,7 @@ test("canvas repro: client player persists after first command", () => {
   const LATENCY_TICKS = 6
 
   // Extra component used by the canvas example's render query
-  const Color = g.defineComponent<number>({
+  const Color = g.defineComponent<number>("Color", {
     bytesPerElement: 4,
     encode: (val, writer) => writer.writeUint32(val),
     decode: (reader) => reader.readUint32(),
@@ -552,7 +552,7 @@ test("canvas repro: client player persists after first command", () => {
   const canvasSchema = [...schema, Color]
 
   // ---- server (mirrors createServer in canvas example) ----
-  const serverWorld = g.makeWorld({domainId: 0, schema: canvasSchema})
+  const serverWorld = g.makeWorld({domainId: 0})
 
   g.addResource(
     serverWorld,
@@ -563,7 +563,7 @@ test("canvas repro: client player persists after first command", () => {
   )
   // Canvas example adds HistoryBuffer to the server – this is the key
   // difference from the existing setupServer() helper.
-  g.addResource(serverWorld, g.HistoryBuffer({snapshots: [], checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(serverWorld, g.HistoryBuffer({checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
   g.addResource(
     serverWorld,
     g.ReplicationStream({transactions: [], snapshots: []}),
@@ -609,14 +609,14 @@ test("canvas repro: client player persists after first command", () => {
   const snapshotPackets: Uint8Array[] = [...stream.snapshots]
 
   // ---- client (mirrors createClient in canvas example) ----
-  const clientWorld = g.makeWorld({domainId: 1, schema: canvasSchema})
+  const clientWorld = g.makeWorld({domainId: 1})
 
   const reconcileSchedule = g.makeSystemSchedule()
   g.addSystem(reconcileSchedule, commands.spawnEphemeralCommands)
   g.addSystem(reconcileSchedule, movementSystem)
   g.addSystem(reconcileSchedule, commands.cleanupEphemeralCommands)
 
-  g.addResource(clientWorld, g.HistoryBuffer({snapshots: [], checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(clientWorld, g.HistoryBuffer({checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
   g.addResource(clientWorld, g.CommandBuffer(new Map()))
   g.addResource(clientWorld, g.InputBuffer(new Map()))
   g.addResource(clientWorld, g.IncomingTransactions(new Map()))
@@ -647,7 +647,7 @@ test("canvas repro: client player persists after first command", () => {
   const targetTick = serverWorld.tick + 15 + LATENCY_TICKS // matches canvas LAG_COMPENSATION_TICKS + latencyTicks
   g.setTick(clientWorld, targetTick)
   const history = g.getResource(clientWorld, g.HistoryBuffer)!
-  g.pushSnapshot(clientWorld, history) // empty-world snapshot, same as canvas
+  g.pushCheckpoint(clientWorld, history) // empty-world snapshot, same as canvas
 
   // ---- deliver spawn transaction & snapshot to the client ----
   for (const packet of spawnTxPackets) {
@@ -713,7 +713,7 @@ test("canvas repro: client player persists after first command", () => {
 test("canvas repro: player persists with simultaneous move + fire", () => {
   const LATENCY_TICKS = 6
 
-  const Color = g.defineComponent<number>({
+  const Color = g.defineComponent<number>("Color", {
     bytesPerElement: 4,
     encode: (val, writer) => writer.writeUint32(val),
     decode: (reader) => reader.readUint32(),
@@ -751,7 +751,7 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
   }
 
   // ---- server ----
-  const serverWorld = g.makeWorld({domainId: 0, schema: canvasSchema})
+  const serverWorld = g.makeWorld({domainId: 0})
 
   g.addResource(
     serverWorld,
@@ -760,7 +760,7 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
       snapshotComponents: [serverWorld.componentRegistry.getId(Position)],
     }),
   )
-  g.addResource(serverWorld, g.HistoryBuffer({snapshots: [], checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(serverWorld, g.HistoryBuffer({checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
   g.addResource(
     serverWorld,
     g.ReplicationStream({transactions: [], snapshots: []}),
@@ -800,14 +800,14 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
   const snapshotPackets: Uint8Array[] = [...stream.snapshots]
 
   // ---- client ----
-  const clientWorld = g.makeWorld({domainId: 1, schema: canvasSchema})
+  const clientWorld = g.makeWorld({domainId: 1})
 
   const reconcileSchedule = g.makeSystemSchedule()
   g.addSystem(reconcileSchedule, commands.spawnEphemeralCommands)
   addLogicalSystems(reconcileSchedule)
   g.addSystem(reconcileSchedule, commands.cleanupEphemeralCommands)
 
-  g.addResource(clientWorld, g.HistoryBuffer({snapshots: [], checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(clientWorld, g.HistoryBuffer({checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
   g.addResource(clientWorld, g.CommandBuffer(new Map()))
   g.addResource(clientWorld, g.InputBuffer(new Map()))
   g.addResource(clientWorld, g.IncomingTransactions(new Map()))
@@ -837,7 +837,7 @@ test("canvas repro: player persists with simultaneous move + fire", () => {
   const targetTick = serverWorld.tick + 15 + LATENCY_TICKS
   g.setTick(clientWorld, targetTick)
   const history = g.getResource(clientWorld, g.HistoryBuffer)!
-  g.pushSnapshot(clientWorld, history)
+  g.pushCheckpoint(clientWorld, history)
 
   // deliver spawn transaction + snapshot to client
   for (const packet of spawnTxPackets) {
@@ -1041,7 +1041,7 @@ test("canvas repro: ghost cleanup must not despawn recycled entity IDs", () => {
   const LATENCY_TICKS = 6
   const GHOST_WINDOW = 60
 
-  const Color = g.defineComponent<number>({
+  const Color = g.defineComponent<number>("Color", {
     bytesPerElement: 4,
     encode: (val, writer) => writer.writeUint32(val),
     decode: (reader) => reader.readUint32(),
@@ -1078,12 +1078,12 @@ test("canvas repro: ghost cleanup must not despawn recycled entity IDs", () => {
   }
 
   // ---- server ----
-  const serverWorld = g.makeWorld({domainId: 0, schema: canvasSchema})
+  const serverWorld = g.makeWorld({domainId: 0})
   g.addResource(serverWorld, g.ReplicationConfig({
     historyWindow: 64,
     snapshotComponents: [serverWorld.componentRegistry.getId(Position)],
   }))
-  g.addResource(serverWorld, g.HistoryBuffer({snapshots: [], checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(serverWorld, g.HistoryBuffer({checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
   g.addResource(serverWorld, g.ReplicationStream({transactions: [], snapshots: []}))
   g.addResource(serverWorld, g.CommandBuffer(new Map()))
   g.addResource(serverWorld, g.IncomingTransactions(new Map()))
@@ -1112,13 +1112,13 @@ test("canvas repro: ghost cleanup must not despawn recycled entity IDs", () => {
   const snapshotPackets = [...stream.snapshots]
 
   // ---- client ----
-  const clientWorld = g.makeWorld({domainId: 1, schema: canvasSchema})
+  const clientWorld = g.makeWorld({domainId: 1})
   const reconcileSchedule = g.makeSystemSchedule()
   g.addSystem(reconcileSchedule, commands.spawnEphemeralCommands)
   addLogicalSystems(reconcileSchedule)
   g.addSystem(reconcileSchedule, commands.cleanupEphemeralCommands)
 
-  g.addResource(clientWorld, g.HistoryBuffer({snapshots: [], checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
+  g.addResource(clientWorld, g.HistoryBuffer({checkpoints: [], undoLog: [], maxSize: 120, checkpointInterval: 1}))
   g.addResource(clientWorld, g.CommandBuffer(new Map()))
   g.addResource(clientWorld, g.InputBuffer(new Map()))
   g.addResource(clientWorld, g.IncomingTransactions(new Map()))
@@ -1145,7 +1145,7 @@ test("canvas repro: ghost cleanup must not despawn recycled entity IDs", () => {
   const targetTick = serverWorld.tick + 15 + LATENCY_TICKS
   g.setTick(clientWorld, targetTick)
   const history = g.getResource(clientWorld, g.HistoryBuffer)!
-  g.pushSnapshot(clientWorld, history)
+  g.pushCheckpoint(clientWorld, history)
 
   for (const packet of spawnTxPackets) {
     const reader = new g.ByteReader(packet)

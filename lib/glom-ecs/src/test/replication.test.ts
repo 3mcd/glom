@@ -21,10 +21,10 @@ import {
 } from "../world_api"
 
 describe("replication", () => {
-  const Position = defineComponent<{x: number; y: number}>()
-  const Velocity = defineComponent<{dx: number; dy: number}>()
-  const IsStatic = defineTag()
-  const ChildOf = defineRelation()
+  const Position = defineComponent<{x: number; y: number}>("Position")
+  const Velocity = defineComponent<{dx: number; dy: number}>("Velocity")
+  const IsStatic = defineTag("IsStatic")
+  const ChildOf = defineRelation("ChildOf")
   const schema = [Position, Velocity, IsStatic, ChildOf]
 
   function sync(
@@ -41,9 +41,9 @@ describe("replication", () => {
   }
 
   test("basic spawn replication", () => {
-    const worldA = makeWorld({domainId: 1, schema})
+    const worldA = makeWorld({domainId: 1})
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2, schema})
+    const worldB = makeWorld({domainId: 2})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
     const entityA = spawn(worldA, Position({x: 10, y: 20}), Replicated)
     commitTransaction(worldA)
@@ -59,9 +59,9 @@ describe("replication", () => {
   })
 
   test("basic component update replication", () => {
-    const worldA = makeWorld({domainId: 1, schema})
+    const worldA = makeWorld({domainId: 1})
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2, schema})
+    const worldB = makeWorld({domainId: 2})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
     const entityA = spawn(worldA, Position({x: 10, y: 20}), Replicated)
     addComponent(worldA, entityA, Position({x: 30, y: 40}))
@@ -76,9 +76,9 @@ describe("replication", () => {
   })
 
   test("tag replication", () => {
-    const worldA = makeWorld({domainId: 1, schema})
+    const worldA = makeWorld({domainId: 1})
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2, schema})
+    const worldB = makeWorld({domainId: 2})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
     const entityA = spawn(worldA, IsStatic, Replicated)
     commitTransaction(worldA)
@@ -90,9 +90,9 @@ describe("replication", () => {
   })
 
   test("relationship replication", () => {
-    const worldA = makeWorld({domainId: 1, schema})
+    const worldA = makeWorld({domainId: 1})
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2, schema})
+    const worldB = makeWorld({domainId: 2})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
     const parent = spawn(worldA, Position({x: 10, y: 10}), Replicated)
     const child = spawn(worldA, ChildOf(parent), Replicated)
@@ -113,9 +113,9 @@ describe("replication", () => {
   })
 
   test("relationship removal replication", () => {
-    const worldA = makeWorld({domainId: 1, schema})
+    const worldA = makeWorld({domainId: 1})
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2, schema})
+    const worldB = makeWorld({domainId: 2})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
     const parent = spawn(worldA, Position({x: 10, y: 10}), Replicated)
     const child = spawn(worldA, ChildOf(parent), Replicated)
@@ -132,9 +132,9 @@ describe("replication", () => {
   })
 
   test("addComponent replication", () => {
-    const worldA = makeWorld({domainId: 1, schema})
+    const worldA = makeWorld({domainId: 1})
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2, schema})
+    const worldB = makeWorld({domainId: 2})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
     const entityA = spawn(worldA, Position({x: 10, y: 20}), Replicated)
     addComponent(worldA, entityA, Velocity({dx: 1, dy: 1}))
@@ -150,9 +150,9 @@ describe("replication", () => {
   })
 
   test("removeComponent replication", () => {
-    const worldA = makeWorld({domainId: 1, schema})
+    const worldA = makeWorld({domainId: 1})
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2, schema})
+    const worldB = makeWorld({domainId: 2})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
     const entityA = spawn(
       worldA,
@@ -173,9 +173,9 @@ describe("replication", () => {
   })
 
   test("basic despawn replication", () => {
-    const worldA = makeWorld({domainId: 1, schema})
+    const worldA = makeWorld({domainId: 1})
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2, schema})
+    const worldB = makeWorld({domainId: 2})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
     const entityA = spawn(worldA, Position({x: 10, y: 20}), Replicated)
     commitTransaction(worldA)
@@ -189,9 +189,9 @@ describe("replication", () => {
   })
 
   test("LWW conflict resolution (newer tick wins)", () => {
-    const worldA = makeWorld({domainId: 1, schema})
+    const worldA = makeWorld({domainId: 1})
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2, schema})
+    const worldB = makeWorld({domainId: 2})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
     const entity = spawn(worldA, Position({x: 0, y: 0}), Replicated)
     commitTransaction(worldA)
@@ -235,9 +235,9 @@ describe("replication", () => {
   })
 
   test("P2P multi-agent replication", () => {
-    const worldA = makeWorld({domainId: 1, schema})
+    const worldA = makeWorld({domainId: 1})
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2, schema})
+    const worldB = makeWorld({domainId: 2})
     addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
 
     const entityA = spawn(worldA, Position({x: 1, y: 1}), Replicated)
@@ -260,7 +260,7 @@ describe("replication", () => {
   })
 
   test("predictive shadowing and rebinding", () => {
-    const world = makeWorld({domainId: 1, schema})
+    const world = makeWorld({domainId: 1})
     const causalKey = 12345
 
     const transientEntity = spawnInDomain(
@@ -312,8 +312,8 @@ describe("replication", () => {
   })
 
   test("automatic causal key generation and rebinding", () => {
-    const worldClient = makeWorld({domainId: 1, schema})
-    const worldServer = makeWorld({domainId: 0, schema})
+    const worldClient = makeWorld({domainId: 1})
+    const worldServer = makeWorld({domainId: 0})
     addResource(
       worldServer,
       ReplicationStream({transactions: [], snapshots: []}),
@@ -366,7 +366,7 @@ describe("replication", () => {
   })
 
   test("relationship object rebinding", () => {
-    const world = makeWorld({domainId: 1, schema})
+    const world = makeWorld({domainId: 1})
     const causalKey = 54321
 
     // A predicted parent entity
@@ -423,7 +423,7 @@ describe("replication", () => {
   })
 
   test("relationship in set op", () => {
-    const world = makeWorld({domainId: 1, schema})
+    const world = makeWorld({domainId: 1})
     const parent = spawn(world, Position({x: 1, y: 1}), Replicated)
     const child = spawn(world, Position({x: 0, y: 0}), Replicated)
     commitTransaction(world)
@@ -455,7 +455,7 @@ describe("replication", () => {
   })
 
   test("relationship cleanup on despawn", () => {
-    const world = makeWorld({domainId: 1, schema})
+    const world = makeWorld({domainId: 1})
     const parent = spawn(world, Position({x: 1, y: 1}), Replicated)
     const child = spawn(world, ChildOf(parent), Replicated)
     commitTransaction(world)

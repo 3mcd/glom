@@ -2,14 +2,11 @@ import {describe, expect, test} from "bun:test"
 import {defineComponent} from "./component"
 import {
   applyUndoLog,
-  captureSnapshot,
+  captureCheckpoint,
   HistoryBuffer,
   makeHistoryBuffer,
   pushCheckpoint,
-  pushSnapshot,
   restoreCheckpoint,
-  rollbackToCheckpoint,
-  rollbackToSnapshot,
   rollbackToTick,
   type UndoEntry,
 } from "./history"
@@ -29,13 +26,13 @@ import {
 } from "./world_api"
 
 describe("history", () => {
-  const Position = defineComponent<{x: number; y: number}>()
+  const Position = defineComponent<{x: number; y: number}>("Position")
 
-  test("capture and rollback component data", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
-    const history = {snapshots: [] as any[], checkpoints: [] as any[], undoLog: [] as any[], maxSize: 10, checkpointInterval: 1}
+  test("capture and restore checkpoint component data", () => {
+    const world = makeWorld({domainId: 1})
+    const history = {checkpoints: [] as any[], undoLog: [] as any[], maxSize: 10, checkpointInterval: 1}
     addResource(world, HistoryBuffer(history))
-    pushSnapshot(world, history)
+    pushCheckpoint(world, history)
 
     const entity = spawn(world, Position({x: 0, y: 0}))
     commitTransaction(world)
@@ -57,10 +54,10 @@ describe("history", () => {
   })
 
   test("rollback entity spawn", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
-    const history = {snapshots: [] as any[], checkpoints: [] as any[], undoLog: [] as any[], maxSize: 10, checkpointInterval: 1}
+    const world = makeWorld({domainId: 1})
+    const history = {checkpoints: [] as any[], undoLog: [] as any[], maxSize: 10, checkpointInterval: 1}
     addResource(world, HistoryBuffer(history))
-    pushSnapshot(world, history)
+    pushCheckpoint(world, history)
 
     const entity = spawn(world, Position({x: 10, y: 10}))
     commitTransaction(world)
@@ -74,13 +71,13 @@ describe("history", () => {
   })
 
   test("rollback entity despawn", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
-    const history = {snapshots: [] as any[], checkpoints: [] as any[], undoLog: [] as any[], maxSize: 10, checkpointInterval: 1}
+    const world = makeWorld({domainId: 1})
+    const history = {checkpoints: [] as any[], undoLog: [] as any[], maxSize: 10, checkpointInterval: 1}
     addResource(world, HistoryBuffer(history))
 
     const entity = spawn(world, Position({x: 10, y: 10}))
     commitTransaction(world)
-    pushSnapshot(world, history)
+    pushCheckpoint(world, history)
 
     despawn(world, entity)
     commitTransaction(world)
@@ -98,8 +95,8 @@ describe("history", () => {
   })
 
   test("resimulate forward after rollback", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
-    const history = {snapshots: [] as any[], checkpoints: [] as any[], undoLog: [] as any[], maxSize: 10, checkpointInterval: 1}
+    const world = makeWorld({domainId: 1})
+    const history = {checkpoints: [] as any[], undoLog: [] as any[], maxSize: 10, checkpointInterval: 1}
     addResource(world, HistoryBuffer(history))
     const inputBuffer = new Map<number, unknown>()
     addResource(world, InputBuffer(inputBuffer))
@@ -107,7 +104,7 @@ describe("history", () => {
     const entity = spawn(world, Position({x: 0, y: 0}))
     commitTransaction(world)
 
-    pushSnapshot(world, history)
+    pushCheckpoint(world, history)
 
     inputBuffer.set(1, {dx: 1, dy: 1})
     addComponent(world, entity, Position({x: 1, y: 1}))
@@ -150,36 +147,37 @@ describe("history", () => {
   test("makeHistoryBuffer", () => {
     const buffer = makeHistoryBuffer(100)
     expect(buffer.maxSize).toBe(100)
-    expect(buffer.snapshots).toEqual([])
+    expect(buffer.checkpoints).toEqual([])
+    expect(buffer.undoLog).toEqual([])
   })
 
-  test("capture and rollback relations", () => {
-    const ChildOf = defineRelation()
-    const world = makeWorld({domainId: 1, schema: [Position, ChildOf]})
+  test("capture and restore checkpoint relations", () => {
+    const ChildOf = defineRelation("ChildOf")
+    const world = makeWorld({domainId: 1})
 
     const parent = spawn(world, Position({x: 0, y: 0}))
     const child = spawn(world, ChildOf(parent))
     commitTransaction(world)
 
-    const snapshot = captureSnapshot(world)
-    expect(snapshot.relations.objectToSubjects.has(parent)).toBe(true)
+    const checkpoint = captureCheckpoint(world)
+    expect(checkpoint.relations.objectToSubjects.has(parent)).toBe(true)
 
     despawn(world, child)
     commitTransaction(world)
     expect(world.relations.objectToSubjects.has(parent)).toBe(false)
 
-    rollbackToSnapshot(world, snapshot)
+    restoreCheckpoint(world, checkpoint)
     expect(world.relations.objectToSubjects.has(parent)).toBe(true)
 
     const node = sparseMapGet(world.entityGraph.byEntity, parent as number)
     expect(node?.relMaps[world.componentRegistry.getId(ChildOf)]).toBeDefined()
   })
 
-  test("rollbackToSnapshot restores missing domain", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
-    const snapshot = captureSnapshot(world)
+  test("restoreCheckpoint restores missing domain", () => {
+    const world = makeWorld({domainId: 1})
+    const checkpoint = captureCheckpoint(world)
 
-    // Simulate a snapshot from another world or a world that had an extra domain
+    // Simulate a checkpoint from another world or a world that had an extra domain
     const extraDomain = {
       domainId: 5,
       entityId: 100,
@@ -190,13 +188,13 @@ describe("history", () => {
       freeIds: [],
     }
 
-    const modifiedSnapshot = {
-      ...snapshot,
-      registryDomains: [...snapshot.registryDomains],
+    const modifiedCheckpoint = {
+      ...checkpoint,
+      registryDomains: [...checkpoint.registryDomains],
     }
-    modifiedSnapshot.registryDomains[5] = extraDomain
+    modifiedCheckpoint.registryDomains[5] = extraDomain
 
-    rollbackToSnapshot(world, modifiedSnapshot)
+    restoreCheckpoint(world, modifiedCheckpoint)
 
     expect(world.registry.domains[5]).toBeDefined()
     expect(world.registry.domains[5]?.domainId).toBe(5)
@@ -205,18 +203,17 @@ describe("history", () => {
 })
 
 describe("undo log", () => {
-  const Position = defineComponent<{x: number; y: number}>()
-  const Health = defineComponent<{hp: number}>()
+  const Position = defineComponent<{x: number; y: number}>("Position")
+  const Health = defineComponent<{hp: number}>("Health")
 
-  test("makeHistoryBuffer initializes undoLog and checkpoints", () => {
+  test("makeHistoryBuffer initializes undoLog", () => {
     const buffer = makeHistoryBuffer(50)
     expect(buffer.undoLog).toEqual([])
-    expect(buffer.checkpoints).toEqual([])
     expect(buffer.checkpointInterval).toBe(1)
   })
 
   test("advanceTick records undo entries for spawns", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
     const history = makeHistoryBuffer(10)
     addResource(world, HistoryBuffer(history))
 
@@ -232,7 +229,7 @@ describe("undo log", () => {
   })
 
   test("advanceTick records undo entries for despawns", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
     const history = makeHistoryBuffer(10)
     addResource(world, HistoryBuffer(history))
 
@@ -251,7 +248,7 @@ describe("undo log", () => {
   })
 
   test("advanceTick records undo entries for addComponent", () => {
-    const world = makeWorld({domainId: 1, schema: [Position, Health]})
+    const world = makeWorld({domainId: 1})
     const history = makeHistoryBuffer(10)
     addResource(world, HistoryBuffer(history))
 
@@ -270,7 +267,7 @@ describe("undo log", () => {
   })
 
   test("advanceTick records undo entries for removeComponent", () => {
-    const world = makeWorld({domainId: 1, schema: [Position, Health]})
+    const world = makeWorld({domainId: 1})
     const history = makeHistoryBuffer(10)
     addResource(world, HistoryBuffer(history))
 
@@ -293,7 +290,7 @@ describe("undo log", () => {
   })
 
   test("pushCheckpoint populates checkpoints", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
     const history = makeHistoryBuffer(10)
     addResource(world, HistoryBuffer(history))
 
@@ -306,7 +303,7 @@ describe("undo log", () => {
   })
 
   test("advanceTick captures checkpoints at checkpointInterval", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
     const history = makeHistoryBuffer(10)
     history.checkpointInterval = 3
     addResource(world, HistoryBuffer(history))
@@ -324,34 +321,34 @@ describe("undo log", () => {
     expect(history.checkpoints[1]!.tick).toBe(6)
   })
 
-  test("rollbackToCheckpoint restores state to nearest checkpoint", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+  test("rollbackToTick restores state to nearest checkpoint", () => {
+    const world = makeWorld({domainId: 1})
     const history = makeHistoryBuffer(10)
     addResource(world, HistoryBuffer(history))
 
     const entity = spawn(world, Position({x: 0, y: 0}))
     commitTransaction(world)
-    advanceTick(world) // tick becomes 1; checkpoint captures state x=0
+    advanceTick(world) // tick becomes 1; snapshot captures state x=0
 
     addComponent(world, entity, Position({x: 10, y: 10}))
     commitTransaction(world)
-    advanceTick(world) // tick becomes 2; checkpoint captures state x=10
+    advanceTick(world) // tick becomes 2; snapshot captures state x=10
 
     addComponent(world, entity, Position({x: 20, y: 20}))
     commitTransaction(world)
-    advanceTick(world) // tick becomes 3; checkpoint captures state x=20
+    advanceTick(world) // tick becomes 3; snapshot captures state x=20
 
     expect(getComponentValue(world, entity, Position)?.x).toBe(20)
 
-    // Rollback to tick 2 — checkpoint at tick 2 captured x=10
-    const success = rollbackToCheckpoint(world, history, 2)
+    // Rollback to tick 2 — snapshot at tick 2 captured x=10
+    const success = rollbackToTick(world, history, 2)
     expect(success).toBe(true)
     expect(world.tick).toBe(2)
     expect(getComponentValue(world, entity, Position)?.x).toBe(10)
   })
 
-  test("rollbackToCheckpoint truncates checkpoints and undo log", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+  test("rollbackToTick truncates checkpoints and undo log", () => {
+    const world = makeWorld({domainId: 1})
     const history = makeHistoryBuffer(10)
     addResource(world, HistoryBuffer(history))
 
@@ -370,7 +367,7 @@ describe("undo log", () => {
     expect(history.checkpoints.length).toBe(3)
     expect(history.undoLog.length).toBe(3)
 
-    rollbackToCheckpoint(world, history, 2)
+    rollbackToTick(world, history, 2)
 
     // Checkpoints should be truncated to tick <= 2
     expect(history.checkpoints.length).toBe(2)
@@ -381,7 +378,7 @@ describe("undo log", () => {
   })
 
   test("applyUndoLog reverses a spawn", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
     const history = makeHistoryBuffer(10)
     addResource(world, HistoryBuffer(history))
 
@@ -404,7 +401,7 @@ describe("undo log", () => {
   })
 
   test("applyUndoLog reverses a despawn", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
     const history = makeHistoryBuffer(10)
     addResource(world, HistoryBuffer(history))
 
@@ -432,7 +429,7 @@ describe("undo log", () => {
   })
 
   test("applyUndoLog reverses addComponent", () => {
-    const world = makeWorld({domainId: 1, schema: [Position, Health]})
+    const world = makeWorld({domainId: 1})
     const history = makeHistoryBuffer(10)
     addResource(world, HistoryBuffer(history))
 
@@ -457,7 +454,7 @@ describe("undo log", () => {
   })
 
   test("applyUndoLog reverses removeComponent and restores data", () => {
-    const world = makeWorld({domainId: 1, schema: [Position, Health]})
+    const world = makeWorld({domainId: 1})
     const history = makeHistoryBuffer(10)
     addResource(world, HistoryBuffer(history))
 
@@ -482,27 +479,27 @@ describe("undo log", () => {
     expect(getComponentValue(world, entity, Position)).toBeDefined()
   })
 
-  test("rollbackToTick uses checkpoints when available", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+  test("rollbackToTick finds nearest checkpoint at or before target tick", () => {
+    const world = makeWorld({domainId: 1})
     const history = makeHistoryBuffer(10)
     addResource(world, HistoryBuffer(history))
 
     const entity = spawn(world, Position({x: 0, y: 0}))
     commitTransaction(world)
-    advanceTick(world) // tick becomes 1; checkpoint captures state x=0
+    advanceTick(world) // tick becomes 1; snapshot captures state x=0
 
     addComponent(world, entity, Position({x: 50, y: 50}))
     commitTransaction(world)
-    advanceTick(world) // tick becomes 2; checkpoint captures state x=50
+    advanceTick(world) // tick becomes 2; snapshot captures state x=50
 
     addComponent(world, entity, Position({x: 99, y: 99}))
     commitTransaction(world)
-    advanceTick(world) // tick becomes 3; checkpoint captures state x=99
+    advanceTick(world) // tick becomes 3; snapshot captures state x=99
 
     expect(world.tick).toBe(3)
     expect(getComponentValue(world, entity, Position)?.x).toBe(99)
 
-    // rollbackToTick should use checkpoints — tick 2 captured x=50
+    // rollbackToTick should find snapshot at tick 2 with x=50
     const success = rollbackToTick(world, history, 2)
     expect(success).toBe(true)
     expect(world.tick).toBe(2)
@@ -510,7 +507,7 @@ describe("undo log", () => {
   })
 
   test("undo log entries are not recorded for command-domain entities", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
     const history = makeHistoryBuffer(10)
     addResource(world, HistoryBuffer(history))
 
@@ -525,7 +522,7 @@ describe("undo log", () => {
   })
 
   test("checkpoint interval > 1 only captures at multiples", () => {
-    const world = makeWorld({domainId: 1, schema: [Position]})
+    const world = makeWorld({domainId: 1})
     const history = makeHistoryBuffer(10)
     history.checkpointInterval = 5
     addResource(world, HistoryBuffer(history))

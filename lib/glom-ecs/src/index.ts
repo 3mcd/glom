@@ -27,17 +27,12 @@ export {getDomain} from "./entity_registry"
 export {
   applyUndoLog,
   captureCheckpoint,
-  captureSnapshot,
   HistoryBuffer,
-  type Checkpoint,
   makeHistoryBuffer,
   pushCheckpoint,
-  pushSnapshot,
   restoreCheckpoint,
-  rollbackToCheckpoint,
-  rollbackToSnapshot,
   rollbackToTick,
-  type Snapshot,
+  type Checkpoint,
   type UndoEntry,
   type UndoOp,
 } from "./history"
@@ -99,7 +94,6 @@ export {
 export {
   ComponentRegistry,
   makeComponentRegistry,
-  type RegistrySchema,
 } from "./registry"
 export {
   defineRelation,
@@ -165,6 +159,7 @@ export {
 } from "./sparse_set"
 export type {System} from "./system"
 export {defineSystem} from "./system"
+export type {SystemDescriptor} from "./system_descriptor"
 export {
   addSystem,
   makeSystemSchedule,

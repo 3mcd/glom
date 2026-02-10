@@ -135,7 +135,7 @@ export function vecIsSupersetOf(a: Vec, b: Vec): boolean {
 
 export function vecSum(a: Vec, b: Vec, registry: ComponentRegistry): Vec {
   let cached = a.sums.get(b)
-  if (cached) {
+  if (cached !== undefined) {
     return cached
   }
   const aLen = a.ids.length
@@ -190,7 +190,7 @@ export function vecDifference(
   registry: ComponentRegistry,
 ): Vec {
   let cached = a.differences.get(b)
-  if (cached) {
+  if (cached !== undefined) {
     return cached
   }
   const aLen = a.ids.length
@@ -233,7 +233,7 @@ export function vecIntersection(
   registry: ComponentRegistry,
 ): Vec {
   let cached = a.intersections.get(b)
-  if (cached) {
+  if (cached !== undefined) {
     return cached
   }
   const aLen = a.ids.length

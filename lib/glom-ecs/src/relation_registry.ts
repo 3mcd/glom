@@ -58,7 +58,7 @@ export function registerIncomingRelation(
   incoming.add({subject, relationId})
 
   const node = getEntityNode(world, object)
-  if (node) {
+  if (node !== undefined) {
     entityGraphNodeAddRelation(node, relationId, subject, object)
   }
 }
@@ -70,7 +70,7 @@ export function unregisterIncomingRelation(
   object: Entity,
 ): void {
   const incoming = getObjectSubjects(world, object as number)
-  if (incoming) {
+  if (incoming !== undefined) {
     for (const item of incoming) {
       if (item.subject === subject && item.relationId === relationId) {
         incoming.delete(item)
@@ -83,7 +83,7 @@ export function unregisterIncomingRelation(
   }
 
   const node = getEntityNode(world, object)
-  if (node) {
+  if (node !== undefined) {
     entityGraphNodeRemoveRelation(node, relationId, subject, object)
   }
 }
@@ -110,7 +110,7 @@ export function getOrCreateVirtualMap(
   relationId: number,
 ): Map<number, number> {
   let map = world.relations.relToVirtual.get(relationId)
-  if (!map) {
+  if (map === undefined) {
     map = new Map()
     world.relations.relToVirtual.set(relationId, map)
   }
@@ -148,7 +148,7 @@ export function getOrCreateObjectSubjects(
   object: number,
 ): Set<RelationSubject> {
   let subjects = world.relations.objectToSubjects.get(object)
-  if (!subjects) {
+  if (subjects === undefined) {
     subjects = new Set()
     world.relations.objectToSubjects.set(object, subjects)
   }

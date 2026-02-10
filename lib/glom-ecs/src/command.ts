@@ -4,9 +4,10 @@ import {Entity} from "./entity"
 import {All} from "./query/all"
 import {Has, World as WorldTerm} from "./query/term"
 import {defineRelation} from "./relation"
+import {getObjectSubjects} from "./relation_registry"
+import {COMMAND_DOMAIN} from "./replication"
 import {defineSystem} from "./system"
 import {getComponentId, resolveComponent, type World} from "./world"
-import {getObjectSubjects} from "./relation_registry"
 import {
   addComponent,
   addResource,
@@ -15,12 +16,12 @@ import {
   removeComponent,
   spawnInDomain,
 } from "./world_api"
-import {COMMAND_DOMAIN} from "./replication"
 
-export const CommandOf = defineRelation(2)
-export const CommandEntity = defineTag(3)
+export const CommandOf = defineRelation("glom/CommandOf", 2)
+export const CommandEntity = defineTag("glom/CommandEntity", 3)
 
 export const CommandBuffer = defineComponent<Map<number, CommandInstance[]>>(
+  "glom/CommandBuffer",
   {
     bytesPerElement: 0,
     encode: () => {},
@@ -30,6 +31,7 @@ export const CommandBuffer = defineComponent<Map<number, CommandInstance[]>>(
 )
 
 export const IntentTick = defineComponent<number>(
+  "glom/IntentTick",
   {
     bytesPerElement: 4,
     encode: (val, writer) => {
@@ -57,13 +59,13 @@ export function recordCommand<T>(
   intentTick = tick,
 ) {
   let commandBuffer = getResource(world, CommandBuffer)
-  if (!commandBuffer) {
+  if (commandBuffer === undefined) {
     commandBuffer = new Map()
     addResource(world, CommandBuffer(commandBuffer))
   }
 
   let commandList = commandBuffer.get(tick)
-  if (!commandList) {
+  if (commandList === undefined) {
     commandList = []
     commandBuffer.set(tick, commandList)
   }
@@ -87,10 +89,9 @@ export function recordCommand<T>(
   }
 }
 
-
 export function pruneCommands(world: World, minTick: number) {
   const commandBuffer = getResource(world, CommandBuffer)
-  if (!commandBuffer) return
+  if (commandBuffer === undefined) return
 
   for (const tick of commandBuffer.keys()) {
     if (tick < minTick) {
@@ -102,14 +103,14 @@ export function pruneCommands(world: World, minTick: number) {
 export const spawnEphemeralCommands = defineSystem(
   (world: World) => {
     const commandBuffer = getResource(world, CommandBuffer)
-    if (!commandBuffer) return
+    if (commandBuffer === undefined) return
 
     const commands = commandBuffer.get(world.tick)
-    if (!commands) return
+    if (commands === undefined) return
 
     for (const cmd of commands) {
       const comp = resolveComponent(world, cmd.componentId)
-      if (!comp) continue
+      if (comp === undefined) continue
 
       let commandEntity: Entity
       const baseComponents = [IntentTick(cmd.intentTick), CommandEntity]
@@ -140,7 +141,7 @@ export const cleanupEphemeralCommands = defineSystem(
   (query: All<Entity, Has<typeof CommandEntity>>, world: World) => {
     for (const [cmdEnt] of query) {
       const incoming = getObjectSubjects(world, cmdEnt)
-      if (incoming) {
+      if (incoming !== undefined) {
         const commandOfId = getComponentId(world, CommandOf)
         for (const {subject, relationId} of Array.from(incoming)) {
           if (relationId === commandOfId) {

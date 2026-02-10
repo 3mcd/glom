@@ -53,7 +53,7 @@ export function addSystem<R extends ComponentLike, T extends any[]>(
   R | Extract<SystemResources<T>, ComponentLike>
 > {
   const descriptor = Reflect.get(system, systemDescriptorKey)
-  if (!descriptor) {
+  if (descriptor === undefined) {
     return
   }
   const executor = makeSystemExecutor(system as any, descriptor)
@@ -95,7 +95,7 @@ function extractSystemDeps(exec: SystemExecutor): SystemDeps {
   }
 
   for (const param of exec.desc.params) {
-    if (!param) continue
+    if (param === undefined) continue
     if (isAllDescriptor(param)) {
       for (const term of param.all) {
         addTermDeps(term)
@@ -123,7 +123,7 @@ function sortSystems(execs: SystemExecutor[]): SystemExecutor[] {
     assertDefined(d)
     for (const writeComp of d.writes) {
       let writers = componentWriters.get(writeComp)
-      if (!writers) {
+      if (writers === undefined) {
         writers = []
         componentWriters.set(writeComp, writers)
       }
@@ -131,7 +131,7 @@ function sortSystems(execs: SystemExecutor[]): SystemExecutor[] {
     }
     for (const readComp of d.reads) {
       let readers = componentReaders.get(readComp)
-      if (!readers) {
+      if (readers === undefined) {
         readers = []
         componentReaders.set(readComp, readers)
       }
@@ -158,7 +158,7 @@ function sortSystems(execs: SystemExecutor[]): SystemExecutor[] {
     }
 
     const readers = componentReaders.get(component)
-    if (readers) {
+    if (readers !== undefined) {
       for (const writer of writers) {
         for (const reader of readers) {
           if (writer !== reader) {
@@ -210,7 +210,7 @@ function sortSystems(execs: SystemExecutor[]): SystemExecutor[] {
       onPath.add(u)
 
       const neighbors = adj[u]
-      if (neighbors) {
+      if (neighbors !== undefined) {
         for (const v of neighbors) {
           if (onPath.has(v)) {
             cycle = path.slice(path.indexOf(v))
@@ -251,7 +251,15 @@ function sortSystems(execs: SystemExecutor[]): SystemExecutor[] {
   })
 }
 
-export function runSchedule<T extends ComponentLike, U extends ComponentLike>(
+/**
+ * Eagerly initialise a schedule's system executors and register all of their
+ * components with the given world.  This is idempotent — calling it more than
+ * once (or calling it before {@link runSchedule}) is safe.
+ *
+ * Call this **before** deserialising any network packets so that the world's
+ * component registry contains the serdes needed to decode incoming data.
+ */
+export function setupSchedule<T extends ComponentLike, U extends ComponentLike>(
   schedule: SystemSchedule<T>,
   world: World<U> & ([T] extends [NoInfer<U>] ? unknown : never),
 ): void {
@@ -262,6 +270,13 @@ export function runSchedule<T extends ComponentLike, U extends ComponentLike>(
     }
     schedule.phase = SystemSchedulePhase.Run
   }
+}
+
+export function runSchedule<T extends ComponentLike, U extends ComponentLike>(
+  schedule: SystemSchedule<T>,
+  world: World<U> & ([T] extends [NoInfer<U>] ? unknown : never),
+): void {
+  setupSchedule(schedule, world)
   for (const exec of schedule.execs) {
     runSystemExecutor(exec)
   }

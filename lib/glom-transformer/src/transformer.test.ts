@@ -36,7 +36,7 @@ describe("transformer", () => {
   test("transforms simple All query", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
       const move = (q: g.All<g.Write<typeof Position>>) => {
         for (const [pos] of q) {
           pos.x += 1
@@ -52,7 +52,7 @@ describe("transformer", () => {
   test("transforms In query", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
       const onAdded = (added: g.In<typeof Position>) => {
         for (const [pos] of added) {
           console.log(pos)
@@ -68,7 +68,7 @@ describe("transformer", () => {
   test("transforms Out query", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
       const onRemoved = (removed: g.Out<typeof Position>) => {
         for (const [pos] of removed) {
           console.log(pos)
@@ -122,8 +122,8 @@ describe("transformer", () => {
   test("transforms multiple queries in one system", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
-      const Velocity = g.defineComponent<{dx: number; dy: number}>()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
+      const Velocity = g.defineComponent<{dx: number; dy: number}>("Velocity")
       const move = (q1: g.All<g.Write<typeof Position>>, q2: g.All<typeof Velocity>) => {
         for (const [pos] of q1) {
           for (const [vel] of q2) {
@@ -143,8 +143,8 @@ describe("transformer", () => {
   test("transforms Join query", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
-      const TargetOf = g.defineRelation()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
+      const TargetOf = g.defineRelation("TargetOf")
       const follow = (q: g.Join<g.All<g.Write<typeof Position>>, g.All<typeof Position>, typeof TargetOf>) => {
         for (const [pos, targetPos] of q) {
           pos.x = targetPos.x
@@ -162,9 +162,9 @@ describe("transformer", () => {
   test("transforms Join query with correct variable bindings", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
-      const MoveCommand = g.defineComponent<{dx: number; dy: number}>()
-      const CommandOf = g.defineRelation()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
+      const MoveCommand = g.defineComponent<{dx: number; dy: number}>("MoveCommand")
+      const CommandOf = g.defineRelation("CommandOf")
       const movementSystem = (q: g.Join<g.All<g.Write<typeof Position>>, g.All<typeof MoveCommand>, typeof CommandOf>) => {
         for (const [pos, move] of q) {
           pos.x += move.dx
@@ -186,7 +186,7 @@ describe("transformer", () => {
   test("transforms function declaration", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
       function move(q: g.All<g.Write<typeof Position>>) {
         for (const [pos] of q) {
           pos.x += 1
@@ -202,7 +202,7 @@ describe("transformer", () => {
   test("transforms anonymous arrow function (wrapWithMetadata)", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
       const schedule = {} as any
       g.addSystem(schedule, (q: g.All<g.Write<typeof Position>>) => {
         for (const [pos] of q) {
@@ -219,8 +219,8 @@ describe("transformer", () => {
   test("transforms Has, Not, and Entity terms", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const A = g.defineComponent<{}>()
-      const B = g.defineComponent<{}>()
+      const A = g.defineComponent<{}>("A")
+      const B = g.defineComponent<{}>("B")
       const system = (q: g.All<g.Entity, g.Has<typeof A>, g.Not<typeof B>>) => {
         for (const [entity] of q) {
           console.log(entity)
@@ -236,7 +236,7 @@ describe("transformer", () => {
   test("transforms Add, Remove, Spawn, Despawn, and World parameters", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const A = g.defineComponent<{}>()
+      const A = g.defineComponent<{}>("A")
       const system = (
         world: g.World,
         add: g.Add<typeof A>,
@@ -264,7 +264,7 @@ describe("transformer", () => {
   test("transforms unboxed component (implicit Read)", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
       const move = (q: g.All<typeof Position>) => {
         for (const [pos] of q) {
           pos.x += 1
@@ -279,7 +279,7 @@ describe("transformer", () => {
   test("transforms unboxed component in system parameter", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
       const mySystem = (pos: typeof Position) => {}
     `
     const output = transform(input)
@@ -289,7 +289,7 @@ describe("transformer", () => {
   test("transforms Unique query parameter", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
       const mySystem = (pos: g.Unique<typeof Position>) => {
         console.log(pos.x)
       }
@@ -302,7 +302,7 @@ describe("transformer", () => {
   test("transforms Unique query parameter with destructuring", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
       const mySystem = ([pos]: g.Unique<typeof Position>) => {
         console.log(pos.x)
       }
@@ -327,8 +327,8 @@ describe("transformer", () => {
   test("transforms Join query (Cartesian product)", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
-      const Name = g.defineComponent<string>()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
+      const Name = g.defineComponent<string>("Name")
       const system = (q: g.Join<g.All<typeof Position>, g.All<typeof Name>>) => {
         for (const [pos, name] of q) {
           console.log(pos, name)
@@ -347,9 +347,9 @@ describe("transformer", () => {
   test("transforms Join query (with relation)", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
-      const Name = g.defineComponent<string>()
-      const ChildOf = g.defineRelation()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
+      const Name = g.defineComponent<string>("Name")
+      const ChildOf = g.defineRelation("ChildOf")
       const system = (q: g.Join<g.All<typeof Position>, g.All<typeof Name>, typeof ChildOf>) => {
         for (const [pos, name] of q) {
           console.log(pos, name)
@@ -368,9 +368,9 @@ describe("transformer", () => {
   test("transforms Join query (partial In)", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
-      const Name = g.defineComponent<string>()
-      const ChildOf = g.defineRelation()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
+      const Name = g.defineComponent<string>("Name")
+      const ChildOf = g.defineRelation("ChildOf")
       const system = (q: g.Join<g.In<typeof Position>, g.All<typeof Name>, typeof ChildOf>) => {
         for (const [pos, name] of q) {
           console.log(pos, name)
@@ -388,9 +388,9 @@ describe("transformer", () => {
   test("transforms In wrapping Join query", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
-      const Name = g.defineComponent<string>()
-      const ChildOf = g.defineRelation()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
+      const Name = g.defineComponent<string>("Name")
+      const ChildOf = g.defineRelation("ChildOf")
       const system = (added: g.In<g.Join<g.All<typeof Position>, g.All<typeof Name>, typeof ChildOf>>) => {
         for (const [pos, name] of added) {
           console.log(pos, name)
@@ -408,8 +408,8 @@ describe("transformer", () => {
   test("transforms movementSystem from canvas example", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
-      const MoveCommand = g.defineComponent<{dx: number; dy: number}>()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
+      const MoveCommand = g.defineComponent<{dx: number; dy: number}>("MoveCommand")
       const SPEED = 1;
       const movementSystem = (
         query: g.Join<
@@ -443,8 +443,8 @@ describe("transformer", () => {
         export const defineComponent = <T>() => ({ __component_brand: true } as any);
         export const CommandOf = { __component_brand: true } as any;
       }
-      const Position = g.defineComponent<{x: number; y: number}>()
-      const MoveCommand = g.defineComponent<{dx: number; dy: number}>()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
+      const MoveCommand = g.defineComponent<{dx: number; dy: number}>("MoveCommand")
       type Query = g.Join<
         g.All<g.Entity, typeof Position>,
         g.All<typeof MoveCommand>,
@@ -473,8 +473,8 @@ describe("transformer", () => {
   test("transforms Write term in Join query with version bump (canvas movementSystem)", () => {
     const input = `
       import * as g from "@glom/ecs"
-      const Position = g.defineComponent<{x: number; y: number}>()
-      const MoveCommand = g.defineComponent<{dx: number; dy: number}>()
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
+      const MoveCommand = g.defineComponent<{dx: number; dy: number}>("MoveCommand")
       const SPEED = 2
       function movementSystem(
         query: g.Join<
@@ -507,7 +507,7 @@ describe("transformer", () => {
         export type Join<L, R, Rel=undefined> = { __join: true };
         export const defineComponent = <T>() => ({ __component_brand: true } as any);
       }
-      const Pos = g.defineComponent<{x: number}>();
+      const Pos = g.defineComponent<{x: number}>("Pos");
       type PosAll = g.All<typeof Pos>;
       type BaseQuery = g.Join<PosAll, PosAll>;
       type FinalQuery = BaseQuery;

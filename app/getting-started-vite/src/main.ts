@@ -23,16 +23,16 @@ import {
 } from "@glom/ecs"
 
 // 2. Defining Components
-const Pos = defineComponent<{x: number; y: number}>()
-const Vel = defineComponent<{dx: number; dy: number}>()
-const Sfx = defineComponent<{clip: string}>()
+const Pos = defineComponent<{x: number; y: number}>("Pos")
+const Vel = defineComponent<{dx: number; dy: number}>("Vel")
+const Sfx = defineComponent<{clip: string}>("Sfx")
 
-const Player = defineTag()
-const Item = defineTag()
-const Collected = defineTag()
-const SfxManager = defineTag()
+const Player = defineTag("Player")
+const Item = defineTag("Item")
+const Collected = defineTag("Collected")
+const SfxManager = defineTag("SfxManager")
 
-const PlaysOn = defineRelation()
+const PlaysOn = defineRelation("PlaysOn")
 
 // 3. Writing Systems
 

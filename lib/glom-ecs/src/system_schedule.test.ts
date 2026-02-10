@@ -5,9 +5,8 @@ import {addSystem, makeSystemSchedule, runSchedule} from "./system_schedule"
 import {addResource, makeWorld, type World} from "./world"
 
 describe("systemSchedule sorting", () => {
-  const A = defineComponent<number>()
-  const B = defineComponent<number>()
-  const schema = [A, B]
+  const A = defineComponent<number>("A")
+  const B = defineComponent<number>("B")
 
   test("writer before reader", () => {
     const order: string[] = []
@@ -17,20 +16,20 @@ describe("systemSchedule sorting", () => {
     }
     defineSystem(systemRead, {
       params: [{read: A}],
-    })
+    } as any)
 
     const systemWrite = () => {
       order.push("write")
     }
     defineSystem(systemWrite, {
       params: [{write: A}],
-    })
+    } as any)
 
     const schedule = makeSystemSchedule()
     addSystem(schedule, systemRead)
     addSystem(schedule, systemWrite)
 
-    const world = makeWorld({domainId: 1, schema})
+    const world = makeWorld({domainId: 1})
     addResource(world, A(0))
     runSchedule(schedule, world as World)
 
@@ -45,20 +44,20 @@ describe("systemSchedule sorting", () => {
     }
     defineSystem(w1, {
       params: [{write: A}],
-    })
+    } as any)
 
     const w2 = () => {
       order.push(2)
     }
     defineSystem(w2, {
       params: [{write: A}],
-    })
+    } as any)
 
     const schedule = makeSystemSchedule()
     addSystem(schedule, w1)
     addSystem(schedule, w2)
 
-    const world = makeWorld({domainId: 1, schema})
+    const world = makeWorld({domainId: 1})
     addResource(world, A(0))
     runSchedule(schedule, world as World)
 
@@ -72,21 +71,21 @@ describe("systemSchedule sorting", () => {
     }
     defineSystem(s3, {
       params: [{read: B}],
-    })
+    } as any)
 
     const s2 = () => {
       order.push("S2")
     }
     defineSystem(s2, {
       params: [{read: A}, {write: B}],
-    })
+    } as any)
 
     const s1 = () => {
       order.push("S1")
     }
     defineSystem(s1, {
       params: [{write: A}],
-    })
+    } as any)
 
     const schedule = makeSystemSchedule()
 
@@ -94,7 +93,7 @@ describe("systemSchedule sorting", () => {
     addSystem(schedule, s2)
     addSystem(schedule, s1)
 
-    const world = makeWorld({domainId: 1, schema})
+    const world = makeWorld({domainId: 1})
     addResource(world, A(0))
     addResource(world, B(0))
     runSchedule(schedule, world as World)
@@ -106,18 +105,18 @@ describe("systemSchedule sorting", () => {
     const s1 = () => {}
     defineSystem(s1, {
       params: [{write: A}, {read: B}],
-    })
+    } as any)
 
     const s2 = () => {}
     defineSystem(s2, {
       params: [{write: B}, {read: A}],
-    })
+    } as any)
 
     const schedule = makeSystemSchedule()
     addSystem(schedule, s1)
     addSystem(schedule, s2)
 
-    const world = makeWorld({domainId: 1, schema})
+    const world = makeWorld({domainId: 1})
     expect(() => runSchedule(schedule, world as World)).toThrow(
       "Cycle detected in system dependencies",
     )
@@ -131,20 +130,20 @@ describe("systemSchedule sorting", () => {
     }
     defineSystem(s1, {
       params: [{read: A}],
-    })
+    } as any)
 
     const s2 = () => {
       order.push(2)
     }
     defineSystem(s2, {
       params: [{read: B}],
-    })
+    } as any)
 
     const schedule = makeSystemSchedule()
     addSystem(schedule, s1)
     addSystem(schedule, s2)
 
-    const world = makeWorld({domainId: 1, schema})
+    const world = makeWorld({domainId: 1})
     addResource(world, A(0))
     addResource(world, B(0))
     runSchedule(schedule, world as World)

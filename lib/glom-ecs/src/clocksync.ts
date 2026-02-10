@@ -40,7 +40,7 @@ export function addClocksyncSample(
   t2: number,
 ) {
   let sync = manager.agents.get(agentId)
-  if (!sync) {
+  if (sync === undefined) {
     sync = {
       samples: [],
       smoothedRtt: 0,

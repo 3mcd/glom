@@ -3,7 +3,7 @@ import * as commands from "@glom/ecs/command"
 import * as reconciliation from "@glom/ecs/reconciliation"
 import * as replication from "@glom/ecs/replication"
 
-const Position = g.defineComponent<{x: number; y: number}>({
+const Position = g.defineComponent<{x: number; y: number}>("Position", {
   bytesPerElement: 8,
   encode: (val, writer) => {
     writer.writeFloat32(val.x)
@@ -14,7 +14,7 @@ const Position = g.defineComponent<{x: number; y: number}>({
   },
 })
 
-const Color = g.defineComponent<number>({
+const Color = g.defineComponent<number>("Color", {
   bytesPerElement: 4,
   encode: (val, writer) => {
     writer.writeUint32(val)
@@ -24,7 +24,7 @@ const Color = g.defineComponent<number>({
   },
 })
 
-const MoveCommand = g.defineComponent<{dx: number; dy: number}>({
+const MoveCommand = g.defineComponent<{dx: number; dy: number}>("MoveCommand", {
   bytesPerElement: 8,
   encode: (val, writer) => {
     writer.writeFloat32(val.dx)
@@ -36,7 +36,7 @@ const MoveCommand = g.defineComponent<{dx: number; dy: number}>({
 })
 
 const SPEED = 2
-const CanvasContext = g.defineComponent<CanvasRenderingContext2D>()
+const CanvasContext = g.defineComponent<CanvasRenderingContext2D>("CanvasContext")
 const schema = [Position, Color, MoveCommand, CanvasContext]
 
 const movementSystem = (
@@ -80,7 +80,7 @@ function createPeer(
 ) {
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement
   const ctx = canvas.getContext("2d") as CanvasRenderingContext2D
-  const world = g.makeWorld({domainId, schema})
+  const world = g.makeWorld({domainId})
   const schedule = g.makeSystemSchedule()
 
   g.addResource(world, CanvasContext(ctx))
@@ -157,6 +157,8 @@ const peerB = createPeer(2, "canvasB", {
   left: "ArrowLeft",
   right: "ArrowRight",
 })
+
+// before deserialising the other peer's transactions.
 
 const entityA = peerA.spawnPlayer()
 const entityB = peerB.spawnPlayer()

@@ -21,3 +21,16 @@ export function hashWords(words: number[]): number {
 export function hashToUint(hash: number): number {
   return hash >>> 0
 }
+
+export function hashString(str: string): number {
+  let hash = HASH_BASE
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i)
+    hash = Math.imul(hash, HASH_ENTROPY)
+  }
+  return hash >>> 0
+}
+
+export function hashNameToComponentId(name: string): number {
+  return 100 + (hashString(name) % 999_900)
+}

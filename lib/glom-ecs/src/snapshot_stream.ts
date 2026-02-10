@@ -103,7 +103,7 @@ export function writeSnapshot(
       const val = getComponentValueById(world, entity, compId)
       if (val !== undefined) {
         writer.writeVarint(entity)
-        if (!isTag && serde) {
+        if (!isTag && serde !== undefined) {
           serde.encode(val, writer)
         }
       }
@@ -131,7 +131,7 @@ function readAndApplySnapshot(
 
     for (let j = 0; j < entityCount; j++) {
       const entity = reader.readVarint()
-      if (!isTag && serde) {
+      if (!isTag && serde !== undefined) {
         const data = serde.decode(reader, undefined as unknown)
         if (force) {
           forceSetComponentValueById(world, entity, componentId, data, tick)

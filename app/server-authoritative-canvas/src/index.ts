@@ -4,7 +4,7 @@ import * as commands from "@glom/ecs/command"
 import * as reconciliation from "@glom/ecs/reconciliation"
 import * as replication from "@glom/ecs/replication"
 
-const Position = g.defineComponent<{x: number; y: number}>({
+const Position = g.defineComponent<{x: number; y: number}>("Position", {
   bytesPerElement: 16,
   encode: (val, writer) => {
     writer.writeFloat64(val.x)
@@ -15,7 +15,7 @@ const Position = g.defineComponent<{x: number; y: number}>({
   },
 })
 
-const Color = g.defineComponent<number>({
+const Color = g.defineComponent<number>("Color", {
   bytesPerElement: 4,
   encode: (val, writer) => {
     writer.writeUint32(val)
@@ -25,7 +25,7 @@ const Color = g.defineComponent<number>({
   },
 })
 
-const MoveCommand = g.defineComponent<{dx: number; dy: number}>({
+const MoveCommand = g.defineComponent<{dx: number; dy: number}>("MoveCommand", {
   bytesPerElement: 16,
   encode: (val, writer) => {
     writer.writeFloat64(val.dx)
@@ -36,7 +36,7 @@ const MoveCommand = g.defineComponent<{dx: number; dy: number}>({
   },
 })
 
-const Pulse = g.defineComponent<number>({
+const Pulse = g.defineComponent<number>("Pulse", {
   bytesPerElement: 8,
   encode: (val, writer) => {
     writer.writeFloat64(val)
@@ -46,9 +46,10 @@ const Pulse = g.defineComponent<number>({
   },
 })
 
-const FireCommand = g.defineTag()
-const PulseOf = g.defineRelation()
-const CanvasContext = g.defineComponent<CanvasRenderingContext2D>()
+const FireCommand = g.defineTag("FireCommand")
+const PulseOf = g.defineRelation("PulseOf")
+const CanvasContext =
+  g.defineComponent<CanvasRenderingContext2D>("CanvasContext")
 
 const SPEED = 2
 const LATENCY_MS = 100
@@ -163,7 +164,7 @@ function renderSystem(
 function createServer() {
   const canvas = document.getElementById("canvasServer") as HTMLCanvasElement
   const ctx = canvas.getContext("2d") as CanvasRenderingContext2D
-  const world = g.makeWorld({domainId: 0, schema}) as g.World
+  const world = g.makeWorld({domainId: 0}) as g.World
   const schedule = g.makeSystemSchedule()
   const timestep = g.makeTimestep(HZ)
 
@@ -198,13 +199,12 @@ function createServer() {
 function createClient(domainId: number, reconcileSchedule: g.SystemSchedule) {
   const canvas = document.getElementById("canvasClient") as HTMLCanvasElement
   const ctx = canvas.getContext("2d") as CanvasRenderingContext2D
-  const world = g.makeWorld({domainId, schema}) as g.World
+  const world = g.makeWorld({domainId}) as g.World
   const timestep = g.makeTimestep(HZ)
 
   g.addResource(
     world,
     g.HistoryBuffer({
-      snapshots: [],
       checkpoints: [],
       undoLog: [],
       maxSize: 120,
@@ -264,24 +264,13 @@ addLogicalSystems(reconcileSchedule)
 g.addSystem(reconcileSchedule, commands.cleanupEphemeralCommands)
 
 const client = createClient(1, reconcileSchedule)
+
+// all serdes before any network packets are deserialised.
+
 const clientToServer = [] as {time: number; packet: Uint8Array}[]
 const serverToClient = [] as {time: number; packet: Uint8Array}[]
 
-const devtools = createDevtools(client.world, {
-  componentNames: new Map([
-    [Position, "Position"],
-    [Color, "Color"],
-    [MoveCommand, "MoveCommand"],
-    [Pulse, "Pulse"],
-    [FireCommand, "FireCommand"],
-    [PulseOf, "PulseOf"],
-    [CanvasContext, "CanvasContext"],
-    [g.Replicated, "Replicated"],
-    [g.IntentTick, "IntentTick"],
-    [g.CommandEntity, "CommandEntity"],
-    [g.CommandOf, "CommandOf"],
-  ]),
-})
+const devtools = createDevtools(client.world)
 
 const player = g.spawn(
   server.world,
@@ -363,7 +352,7 @@ function loop() {
         client.timestep.lastTime = now
         client.timestep.accumulated = 0
         const history = g.getResource(client.world, g.HistoryBuffer)
-        if (history) g.pushSnapshot(client.world, history)
+        if (history) g.pushCheckpoint(client.world, history)
       } else {
         const drift = client.world.tick - targetTick
         if (Math.abs(drift) > 2) g.setTick(client.world, targetTick)

@@ -1,5 +1,7 @@
 import type {Component, ComponentLike} from "./component"
+import {registerGlobalComponent} from "./component"
 import type {Entity} from "./entity"
+import {hashNameToComponentId} from "./lib/hash"
 
 export type Relation = Component<void> & ((object: Entity) => Relationship)
 
@@ -8,16 +10,24 @@ export type Relationship = ComponentLike & {
   object: Entity
 }
 
-export function defineRelation(id?: number): Relation {
+export function defineRelation(name: string, id?: number): Relation {
   const rel = ((object: Entity): Relationship => {
     return {
       relation: rel as unknown as Relation,
       object,
     } as Relationship
   }) as unknown as Record<string, unknown>
+  Object.defineProperty(rel, "name", {
+    value: name,
+    writable: false,
+    configurable: true,
+  })
   if (id !== undefined) rel.id = id
   rel.isTag = true
   rel.__component_brand = true
+
+  registerGlobalComponent(id ?? hashNameToComponentId(name), undefined, true)
+
   return rel as unknown as Relation
 }
 

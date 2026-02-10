@@ -14,8 +14,8 @@ import {makeVec} from "./vec"
 import {makeComponentRegistry} from "./registry"
 
 const componentCount = 200
-const components = Array.from({length: componentCount}, () => defineComponent())
-const componentRegistry = makeComponentRegistry({local: components})
+const components = Array.from({length: componentCount}, (_, i) => defineComponent(`bench_comp_${i}`))
+const componentRegistry = makeComponentRegistry()
 const nodeCount = 100
 const nodes: EntityGraphNode[] = []
 const entityCount = 10000

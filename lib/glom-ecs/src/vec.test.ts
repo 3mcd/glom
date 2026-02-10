@@ -13,10 +13,10 @@ import {
 } from "./vec"
 
 describe("vec", () => {
-  const c1 = defineComponent<number>(undefined, 1)
-  const c2 = defineComponent<number>(undefined, 2)
-  const c3 = defineComponent<number>(undefined, 3)
-  const registry = makeComponentRegistry({}, [c1, c2, c3])
+  const c1 = defineComponent<number>("c1", undefined, 1)
+  const c2 = defineComponent<number>("c2", undefined, 2)
+  const c3 = defineComponent<number>("c3", undefined, 3)
+  const registry = makeComponentRegistry([c1, c2, c3])
   const emptyVec = makeVecSorted([], registry)
 
   test("makeVec sorts components by id", () => {

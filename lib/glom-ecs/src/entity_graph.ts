@@ -37,6 +37,18 @@ export type EntityGraphNodeListener = {
   nodeDestroyed?: (node: EntityGraphNode) => void
   entitiesIn?: (entities: Entity[], node: EntityGraphNode) => void
   entitiesOut?: (entities: Entity[], node: EntityGraphNode) => void
+  relationAdded?: (
+    subject: Entity,
+    relationId: number,
+    object: Entity,
+    node: EntityGraphNode,
+  ) => void
+  relationRemoved?: (
+    subject: Entity,
+    relationId: number,
+    object: Entity,
+    node: EntityGraphNode,
+  ) => void
 }
 
 export enum PruneStrategy {
@@ -85,12 +97,12 @@ export function entityGraphNodeAddRelation(
   object: Entity,
 ): void {
   let relMap = node.relMaps[relationId]
-  if (!relMap) {
+  if (relMap === undefined) {
     relMap = {subjectToObjects: new Map()}
     node.relMaps[relationId] = relMap
   }
   let objects = relMap.subjectToObjects.get(subject as number)
-  if (!objects) {
+  if (objects === undefined) {
     objects = makeSparseSet<Entity>()
     relMap.subjectToObjects.set(subject as number, objects)
   }
@@ -110,10 +122,10 @@ export function entityGraphNodeRemoveRelation(
   object: Entity,
 ): void {
   const relMap = node.relMaps[relationId]
-  if (!relMap) return
+  if (relMap === undefined) return
 
   const objects = relMap.subjectToObjects.get(subject as number)
-  if (!objects) return
+  if (objects === undefined) return
 
   sparseSetDelete(objects, object)
   if (sparseSetSize(objects) === 0) {
@@ -496,7 +508,7 @@ export function entityGraphSetEntityNode(
     return prevNode
   }
 
-  if (prevNode) {
+  if (prevNode !== undefined) {
     entityGraphNodeRemoveEntity(prevNode, entity)
   }
   entityGraphNodeAddEntity(nextNode, entity, index)
@@ -528,7 +540,7 @@ export function poolGetBatch(
   nextNode?: EntityGraphNode,
 ): EntityGraphBatch {
   const batch = BATCH_POOL.pop()
-  if (batch) {
+  if (batch !== undefined) {
     batch.prevNode = prevNode
     batch.nextNode = nextNode
     return batch

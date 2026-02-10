@@ -4,19 +4,13 @@ import {
   getComponentValue,
   sparseSetValues,
 } from "@glom/ecs"
-import type {ComponentChildren, VNode} from "preact"
-import {h, render} from "preact"
 import htm from "htm"
+import type {VNode} from "preact"
+import {h, render} from "preact"
 
 const html = htm.bind(h)
 
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
-
 export type DevtoolsOptions = {
-  /** Map from ComponentLike reference to a human-readable name. */
-  componentNames?: Map<ComponentLike, string>
   /** Maximum number of command log entries to keep (default 200). */
   maxCommandLogEntries?: number
   /** DOM element to mount the panel into (default: document.body). */
@@ -43,41 +37,21 @@ export type Devtools = {
   toggle(): void
 }
 
-// ---------------------------------------------------------------------------
-// Internal state
-// ---------------------------------------------------------------------------
-
 type PanelState = {
   isOpen: boolean
   activeTab: "entities" | "commands"
   selectedEntity: Entity | null
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function componentIdToName(
-  world: World,
-  componentId: number,
-  nameMap: Map<ComponentLike, string>,
-): string {
+function componentIdToName(world: World, componentId: number): string {
   const comp = world.componentRegistry.getComponent(componentId)
-  if (comp) {
-    const name = nameMap.get(comp)
-    if (name) return name
-  }
+  if (comp?.name) return comp.name
   if (componentId >= 1000000) return `Virtual(${componentId})`
   return `Component(${componentId})`
 }
 
-function componentRefToName(
-  world: World,
-  comp: ComponentLike,
-  nameMap: Map<ComponentLike, string>,
-): string {
-  const name = nameMap.get(comp)
-  if (name) return name
+function componentRefToName(world: World, comp: ComponentLike): string {
+  if (comp.name) return comp.name
   const id = world.componentRegistry.getId(comp)
   if (id >= 1000000) return `Virtual(${id})`
   return `Component(${id})`
@@ -88,10 +62,7 @@ type EntityInfo = {
   components: {comp: ComponentLike; id: number; name: string}[]
 }
 
-function collectEntities(
-  world: World,
-  nameMap: Map<ComponentLike, string>,
-): EntityInfo[] {
+function collectEntities(world: World): EntityInfo[] {
   const entities: EntityInfo[] = []
   world.entityGraph.byHash.forEach((node: EntityGraphNode) => {
     const ents = sparseSetValues(node.entities)
@@ -103,7 +74,7 @@ function collectEntities(
         components.push({
           comp,
           id: world.componentRegistry.getId(comp),
-          name: componentRefToName(world, comp, nameMap),
+          name: componentRefToName(world, comp),
         })
       }
       entities.push({entity, components})
@@ -115,7 +86,6 @@ function collectEntities(
 
 function sniffCommands(
   world: World,
-  nameMap: Map<ComponentLike, string>,
   log: CommandLogEntry[],
   seenTicks: Set<number>,
   maxEntries: number,
@@ -152,7 +122,7 @@ function sniffCommands(
           tick,
           targetEntity: c.target,
           componentId: c.componentId,
-          componentName: componentIdToName(world, c.componentId, nameMap),
+          componentName: componentIdToName(world, c.componentId),
           data: c.data,
           timestamp: Date.now(),
         })
@@ -163,10 +133,6 @@ function sniffCommands(
   while (log.length > maxEntries) log.shift()
   return added
 }
-
-// ---------------------------------------------------------------------------
-// Value formatting
-// ---------------------------------------------------------------------------
 
 function formatValue(value: unknown, depth = 0): VNode | string {
   if (depth > 4) return "…"
@@ -238,10 +204,6 @@ function formatValuePlain(value: unknown, depth = 0): string {
   }
   return String(value)
 }
-
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
 
 const CSS = `
 .gd{
@@ -323,10 +285,6 @@ const CSS = `
 }
 `
 
-// ---------------------------------------------------------------------------
-// Components
-// ---------------------------------------------------------------------------
-
 function EntityRow({
   entity,
   components,
@@ -351,14 +309,12 @@ function EntityRow({
 
 function EntityListView({
   world,
-  nameMap,
   onSelect,
 }: {
   world: World
-  nameMap: Map<ComponentLike, string>
   onSelect: (e: Entity) => void
 }) {
-  const entities = collectEntities(world, nameMap)
+  const entities = collectEntities(world)
   return html`
     <div>
       <div class="gd-cnt">${entities.length} entities</div>
@@ -395,12 +351,10 @@ function ComponentValueView({
 function InspectorView({
   world,
   entity,
-  nameMap,
   onBack,
 }: {
   world: World
   entity: Entity
-  nameMap: Map<ComponentLike, string>
   onBack: () => void
 }) {
   const node = entityGraphGetEntityNode(world.entityGraph, entity)
@@ -414,7 +368,7 @@ function InspectorView({
       </div>
       ${node.vec.elements.map((el) => {
         const comp = el as ComponentLike
-        const name = componentRefToName(world, comp, nameMap)
+        const name = componentRefToName(world, comp)
         const id = world.componentRegistry.getId(comp)
         return html`
           <div class="gd-cs" key=${id}>
@@ -454,13 +408,11 @@ function CommandLogView({commandLog}: {commandLog: CommandLogEntry[]}) {
 
 function App({
   world,
-  nameMap,
   commandLog,
   state,
   setState,
 }: {
   world: World
-  nameMap: Map<ComponentLike, string>
   commandLog: CommandLogEntry[]
   state: PanelState
   setState: (partial: Partial<PanelState>) => void
@@ -469,7 +421,9 @@ function App({
 
   return html`
     <div class=${isOpen ? "gd" : "gd off"}>
-      ${isOpen && html`
+      ${
+        isOpen &&
+        html`
         <div class="gd-b">
           <div class="gd-tabs">
             <button
@@ -492,19 +446,18 @@ function App({
                   ? html`<${InspectorView}
                       world=${world}
                       entity=${selectedEntity}
-                      nameMap=${nameMap}
                       onBack=${() => setState({selectedEntity: null})}
                     />`
                   : html`<${EntityListView}
                       world=${world}
-                      nameMap=${nameMap}
                       onSelect=${(e: Entity) => setState({selectedEntity: e})}
                     />`
                 : html`<${CommandLogView} commandLog=${commandLog} />`
             }
           </div>
         </div>
-      `}
+      `
+      }
       <div class="gd-sb" onClick=${() => setState({isOpen: !isOpen})}>
         <span>tick ${world.tick}</span>
       </div>
@@ -512,16 +465,11 @@ function App({
   `
 }
 
-// ---------------------------------------------------------------------------
-// createDevtools
-// ---------------------------------------------------------------------------
-
 export function createDevtools(
   world: World,
   options: DevtoolsOptions = {},
 ): Devtools {
   const {
-    componentNames = new Map<ComponentLike, string>(),
     maxCommandLogEntries = 200,
     container = document.body,
     open: startOpen = true,
@@ -558,7 +506,6 @@ export function createDevtools(
     render(
       html`<${App}
         world=${world}
-        nameMap=${componentNames}
         commandLog=${commandLog}
         state=${state}
         setState=${(partial: Partial<PanelState>) => {
@@ -572,16 +519,9 @@ export function createDevtools(
 
   doRender()
 
-  // --- Public API ----------------------------------------------------------
   return {
     update() {
-      sniffCommands(
-        world,
-        componentNames,
-        commandLog,
-        seenCommandTicks,
-        maxCommandLogEntries,
-      )
+      sniffCommands(world, commandLog, seenCommandTicks, maxCommandLogEntries)
       doRender()
     },
     destroy() {
@@ -595,4 +535,3 @@ export function createDevtools(
     },
   }
 }
-

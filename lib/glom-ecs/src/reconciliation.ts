@@ -1,11 +1,9 @@
 import {pruneCommands} from "./command"
 import {getDomainId} from "./entity"
 import {
-  type Checkpoint,
   HistoryBuffer,
-  rollbackToCheckpoint,
   rollbackToTick,
-  type Snapshot,
+  type Checkpoint,
 } from "./history"
 import type {SnapshotMessage} from "./net_types"
 import {Read, World as WorldTerm} from "./query/term"
@@ -37,9 +35,9 @@ import {
 
 export function receiveTransaction(world: World, transaction: Transaction) {
   const incoming = getResource(world, IncomingTransactions)
-  if (!incoming) return
+  if (incoming === undefined) return
   let list = incoming.get(transaction.tick)
-  if (!list) {
+  if (list === undefined) {
     list = []
     incoming.set(transaction.tick, list)
   }
@@ -48,9 +46,9 @@ export function receiveTransaction(world: World, transaction: Transaction) {
 
 export function receiveSnapshot(world: World, snapshot: SnapshotMessage) {
   const incoming = getResource(world, IncomingSnapshots)
-  if (!incoming) return
+  if (incoming === undefined) return
   let list = incoming.get(snapshot.tick)
-  if (!list) {
+  if (list === undefined) {
     list = []
     incoming.set(snapshot.tick, list)
   }
@@ -68,7 +66,7 @@ export function resimulateWithTransactions(
 
   for (let t = fromTick; t < toTick; t++) {
     const transactions = incomingTransactions?.get(t)
-    if (transactions) {
+    if (transactions !== undefined) {
       for (const transaction of transactions) {
         applyTransaction(world, transaction)
       }
@@ -95,7 +93,7 @@ export function reconcileTransaction(
   }
 
   const history = getResource(world, HistoryBuffer)
-  if (!history) return
+  if (history === undefined) return
 
   const originalTick = world.tick
   if (rollbackToTick(world, history, transaction.tick)) {
@@ -110,7 +108,7 @@ export function reconcileTransaction(
 
 export function pruneBuffers(world: World, minTick: number) {
   const incomingTransactions = getResource(world, IncomingTransactions)
-  if (incomingTransactions) {
+  if (incomingTransactions !== undefined) {
     for (const tick of incomingTransactions.keys()) {
       if (tick < minTick) {
         incomingTransactions.delete(tick)
@@ -119,7 +117,7 @@ export function pruneBuffers(world: World, minTick: number) {
   }
 
   const incomingSnapshots = getResource(world, IncomingSnapshots)
-  if (incomingSnapshots) {
+  if (incomingSnapshots !== undefined) {
     for (const tick of incomingSnapshots.keys()) {
       if (tick < minTick) {
         incomingSnapshots.delete(tick)
@@ -128,7 +126,7 @@ export function pruneBuffers(world: World, minTick: number) {
   }
 
   const inputs = getResource(world, InputBuffer)
-  if (inputs) {
+  if (inputs !== undefined) {
     for (const tick of inputs.keys()) {
       if (tick < minTick) {
         inputs.delete(tick)
@@ -137,17 +135,7 @@ export function pruneBuffers(world: World, minTick: number) {
   }
 
   const history = getResource(world, HistoryBuffer)
-  if (history) {
-    // Prune old snapshots (legacy path)
-    while (history.snapshots.length > 0) {
-      const first = history.snapshots[0]
-      if (first && first.tick < minTick) {
-        history.snapshots.shift()
-      } else {
-        break
-      }
-    }
-
+  if (history !== undefined) {
     // Prune old checkpoints
     while (history.checkpoints.length > 0) {
       const first = history.checkpoints[0]
@@ -181,7 +169,7 @@ export function performBatchReconciliation(
 
 export function performReconciliation(world: World, schedule: SystemSchedule) {
   const history = getResource(world, HistoryBuffer)
-  if (!history) return
+  if (history === undefined) return
 
   const config = getResource(world, ReplicationConfig)
   const applySnapshot =
@@ -194,14 +182,14 @@ export function performReconciliation(world: World, schedule: SystemSchedule) {
 
   // Determine the minimum tick across both transactions and snapshots
   let minTick = Infinity
-  if (incomingTransactions) {
+  if (incomingTransactions !== undefined) {
     for (const tick of incomingTransactions.keys()) {
       if (tick < world.tick) {
         minTick = Math.min(minTick, tick)
       }
     }
   }
-  if (incomingSnapshots) {
+  if (incomingSnapshots !== undefined) {
     for (const tick of incomingSnapshots.keys()) {
       if (tick < world.tick) {
         minTick = Math.min(minTick, tick)
@@ -213,18 +201,14 @@ export function performReconciliation(world: World, schedule: SystemSchedule) {
 
   const originalTick = world.tick
 
-  // Try checkpoints first, then fall back to legacy snapshots
-  const rolledBack =
-    history.checkpoints.length > 0
-      ? rollbackToCheckpoint(world, history, minTick)
-      : rollbackToTick(world, history, minTick)
+  const rolledBack = rollbackToTick(world, history, minTick)
 
   if (rolledBack) {
     while (world.tick < originalTick) {
       // 1. Apply pending transactions at this tick (structural changes)
-      if (incomingTransactions) {
+      if (incomingTransactions !== undefined) {
         const transactions = incomingTransactions.get(world.tick)
-        if (transactions) {
+        if (transactions !== undefined) {
           for (const transaction of transactions) {
             applyTransaction(world, transaction)
           }
@@ -238,9 +222,9 @@ export function performReconciliation(world: World, schedule: SystemSchedule) {
       commitTransaction(world)
 
       // 3. Apply pending snapshots at this tick
-      if (incomingSnapshots) {
+      if (incomingSnapshots !== undefined) {
         const snapshots = incomingSnapshots.get(world.tick)
-        if (snapshots) {
+        if (snapshots !== undefined) {
           for (const snap of snapshots) {
             applySnapshot(world, snap)
           }
@@ -258,12 +242,10 @@ export function performReconciliation(world: World, schedule: SystemSchedule) {
     const oldestCheckpointTick =
       history.checkpoints.length > 0
         ? (history.checkpoints[0] as Checkpoint).tick
-        : history.snapshots.length > 0
-          ? (history.snapshots[0] as Snapshot).tick
-          : world.tick
+        : world.tick
 
     // Apply transactions that arrived before the history window
-    if (incomingTransactions) {
+    if (incomingTransactions !== undefined) {
       const sortedTicks = Array.from(incomingTransactions.keys()).sort(
         (a, b) => a - b,
       )
@@ -271,7 +253,7 @@ export function performReconciliation(world: World, schedule: SystemSchedule) {
       for (const tick of sortedTicks) {
         if (tick < oldestCheckpointTick) {
           const transactions = incomingTransactions.get(tick)
-          if (transactions) {
+          if (transactions !== undefined) {
             for (const transaction of transactions) {
               applyTransaction(world, transaction)
             }
@@ -284,20 +266,19 @@ export function performReconciliation(world: World, schedule: SystemSchedule) {
         }
       }
       if (appliedAnyTransactions) {
-        history.snapshots.length = 0
         history.checkpoints.length = 0
       }
     }
 
     // Apply snapshots that arrived before the history window (best effort)
-    if (incomingSnapshots) {
+    if (incomingSnapshots !== undefined) {
       const sortedTicks = Array.from(incomingSnapshots.keys()).sort(
         (a, b) => a - b,
       )
       for (const tick of sortedTicks) {
         if (tick < oldestCheckpointTick) {
           const snapshots = incomingSnapshots.get(tick)
-          if (snapshots) {
+          if (snapshots !== undefined) {
             for (const snap of snapshots) {
               applySnapshot(world, snap)
             }
@@ -330,7 +311,7 @@ export function cleanupTransientEntities(
 export const applyRemoteTransactions = defineSystem(
   (world: World) => {
     const incoming = getResource(world, IncomingTransactions)
-    if (!incoming) return
+    if (incoming === undefined) return
     for (const [tick, transactions] of incoming.entries()) {
       if (tick <= world.tick) {
         for (const transaction of transactions) {
@@ -346,7 +327,7 @@ export const applyRemoteTransactions = defineSystem(
 export const applyRemoteSnapshots = defineSystem(
   (world: World) => {
     const incoming = getResource(world, IncomingSnapshots)
-    if (!incoming) return
+    if (incoming === undefined) return
     for (const [tick, snapshots] of incoming.entries()) {
       if (tick <= world.tick) {
         for (const snap of snapshots) {
@@ -367,7 +348,7 @@ export const applyRemoteSnapshots = defineSystem(
 export const applyRemoteSnapshotsVersioned = defineSystem(
   (world: World) => {
     const incoming = getResource(world, IncomingSnapshots)
-    if (!incoming) return
+    if (incoming === undefined) return
     for (const [tick, snapshots] of incoming.entries()) {
       if (tick <= world.tick) {
         for (const snap of snapshots) {
@@ -382,7 +363,7 @@ export const applyRemoteSnapshotsVersioned = defineSystem(
 
 export const performRollback = defineSystem(
   (config: Read<typeof ReplicationConfig>, world: World) => {
-    if (!config.reconcileSchedule) return
+    if (config.reconcileSchedule === undefined) return
     performReconciliation(world, config.reconcileSchedule)
   },
   {

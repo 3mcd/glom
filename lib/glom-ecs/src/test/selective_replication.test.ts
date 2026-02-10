@@ -6,12 +6,12 @@ import {addResource, getComponentValue, getResource, makeWorld} from "../world"
 import {addComponent, commitTransaction, despawn, spawn} from "../world_api"
 
 describe("selective replication", () => {
-  const Position = defineComponent<{x: number; y: number}>()
+  const Position = defineComponent<{x: number; y: number}>("Position")
   const schema = [Position]
 
   test("only record mutations for entities with Replicated tag", () => {
-    const worldA = makeWorld({domainId: 1, schema})
-    const worldB = makeWorld({domainId: 2, schema})
+    const worldA = makeWorld({domainId: 1})
+    const worldB = makeWorld({domainId: 2})
     addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
 
     let totalTransactionCount = 0

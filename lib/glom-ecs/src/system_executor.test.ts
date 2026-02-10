@@ -12,12 +12,12 @@ import {spawn} from "./world_api"
 import {entityGraphGetEntityNode} from "./entity_graph"
 
 describe("system_executor", () => {
-  const Position = defineComponent<{x: number; y: number}>()
-  const IsStatic = defineTag()
+  const Position = defineComponent<{x: number; y: number}>("Position")
+  const IsStatic = defineTag("IsStatic")
   const schema = [Position, IsStatic]
 
   test("setup and teardown with All, In, and Out", () => {
-    const world = makeWorld({domainId: 0, schema})
+    const world = makeWorld({domainId: 0})
     const system = () => {}
     const desc = {
       params: [
@@ -38,7 +38,7 @@ describe("system_executor", () => {
   })
 
   test("clearSystemExecutorMonitors", () => {
-    const world = makeWorld({domainId: 0, schema})
+    const world = makeWorld({domainId: 0})
     const system = () => {}
     const desc = {
       params: [{in: {all: [{read: Position}]}}],
@@ -59,7 +59,7 @@ describe("system_executor", () => {
   })
 
   test("setup with Has, Not, Spawn, Despawn, Add, and Remove", () => {
-    const world = makeWorld({domainId: 0, schema})
+    const world = makeWorld({domainId: 0})
     addResource(world, {component: Position, value: {x: 1, y: 1}}) // Resource Position exists
 
     const desc = {
@@ -109,7 +109,7 @@ describe("system_executor", () => {
   })
 
   test("Add descriptor with Tag", () => {
-    const world = makeWorld({domainId: 0, schema})
+    const world = makeWorld({domainId: 0})
     const entity = spawn(world)
 
     const desc = {
@@ -130,7 +130,7 @@ describe("system_executor", () => {
   })
 
   test("Has/Not throws if resource condition not met", () => {
-    const world = makeWorld({domainId: 0, schema})
+    const world = makeWorld({domainId: 0})
     // Position does NOT exist as a resource
 
     const descHas = {params: [{has: Position}]}

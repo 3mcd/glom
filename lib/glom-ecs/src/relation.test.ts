@@ -16,12 +16,12 @@ import {defineSystem} from "./system"
 import {addSystem, makeSystemSchedule, runSchedule} from "./system_schedule"
 
 describe("relation", () => {
-  const ChildOf = defineRelation()
-  const Name = defineComponent<string>()
+  const ChildOf = defineRelation("ChildOf")
+  const Name = defineComponent<string>("Name")
 
   test("all relation features", () => {
     const schema = [Name, ChildOf]
-    const world = makeWorld({domainId: 0, schema})
+    const world = makeWorld({domainId: 0})
     const parent = spawn(world, Name("Parent"))
 
     let childName = ""

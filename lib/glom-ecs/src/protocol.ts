@@ -126,7 +126,7 @@ export function writeCommands(
     writer.writeVarint(cmd.componentId)
     if (cmd.data !== undefined) {
       const serde = resolver.getSerde(cmd.componentId)
-      if (serde) {
+      if (serde !== undefined) {
         serde.encode(cmd.data, writer)
       }
     }
@@ -147,7 +147,7 @@ export function readCommands(
     let data: unknown
     if (!resolver.isTag(id)) {
       const serde = resolver.getSerde(id)
-      if (serde) {
+      if (serde !== undefined) {
         data = serde.decode(reader, undefined as unknown)
       }
     }
@@ -208,12 +208,12 @@ export function writeTransaction(
         for (const c of op.components) {
           writer.writeVarint(c.id)
           if (!resolver.isTag(c.id)) {
-            const serde = resolver.getSerde(c.id)
-            if (serde) {
-              serde.encode(c.data, writer)
-            }
+          const serde = resolver.getSerde(c.id)
+          if (serde !== undefined) {
+            serde.encode(c.data, writer)
           }
-          if (c.rel) {
+          }
+          if (c.rel !== undefined) {
             writer.writeUint8(1)
             writer.writeVarint(c.rel.relationId)
             writer.writeVarint(c.rel.object)
@@ -240,7 +240,7 @@ export function writeTransaction(
         writer.writeVarint(op.componentId)
         if (!resolver.isTag(op.componentId)) {
           const serde = resolver.getSerde(op.componentId)
-          if (serde) {
+          if (serde !== undefined) {
             serde.encode(op.data, writer)
           }
         }
@@ -250,7 +250,7 @@ export function writeTransaction(
         } else {
           writer.writeUint8(0)
         }
-        if (op.rel) {
+        if (op.rel !== undefined) {
           writer.writeUint8(1)
           writer.writeVarint(op.rel.relationId)
           writer.writeVarint(op.rel.object)
@@ -272,13 +272,13 @@ export function writeTransaction(
         if (!resolver.isTag(op.componentId) && op.data !== undefined) {
           writer.writeUint8(1)
           const serde = resolver.getSerde(op.componentId)
-          if (serde) {
+          if (serde !== undefined) {
             serde.encode(op.data, writer)
           }
         } else {
           writer.writeUint8(0)
         }
-        if (op.rel) {
+        if (op.rel !== undefined) {
           writer.writeUint8(1)
           writer.writeVarint(op.rel.relationId)
           writer.writeVarint(op.rel.object)
@@ -313,7 +313,7 @@ export function readTransaction(
           let data: unknown
           if (!resolver.isTag(id)) {
             const serde = resolver.getSerde(id)
-            if (serde) {
+            if (serde !== undefined) {
               data = serde.decode(reader, undefined as unknown)
             }
           }
@@ -344,7 +344,7 @@ export function readTransaction(
         let data: unknown
         if (!resolver.isTag(componentId)) {
           const serde = resolver.getSerde(componentId)
-          if (serde) {
+          if (serde !== undefined) {
             data = serde.decode(reader, undefined as unknown)
           }
         }
@@ -374,7 +374,7 @@ export function readTransaction(
         let data: unknown
         if (reader.readUint8() === 1) {
           const serde = resolver.getSerde(componentId)
-          if (serde) {
+          if (serde !== undefined) {
             data = serde.decode(reader, undefined as unknown)
           }
         }
