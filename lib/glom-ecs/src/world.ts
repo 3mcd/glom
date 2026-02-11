@@ -1,7 +1,8 @@
 import {type ClocksyncManager, makeClocksyncManager} from "./clocksync"
 import {CommandBuffer, CommandEntity, CommandOf, IntentTick} from "./command"
 import type {Component, ComponentInstance, ComponentLike} from "./component"
-import {type Entity, RESOURCE_ENTITY} from "./entity"
+import * as Entity from "./entity"
+import {RESOURCE_ENTITY} from "./entity"
 import {
   type EntityGraph,
   type EntityGraphNode,
@@ -20,12 +21,7 @@ import {
   ReplicationStream,
 } from "./replication_config"
 
-import {
-  makeSparseMap,
-  type SparseMap,
-  sparseMapGet,
-  sparseMapSet,
-} from "./sparse_map"
+import * as SparseMap from "./sparse_map"
 
 export type ComponentStore = {
   readonly storage: Map<number, unknown[]>
@@ -42,7 +38,7 @@ export function makeComponentStore(): ComponentStore {
 }
 
 export type EntityIndex = {
-  readonly entityToIndex: SparseMap<number>
+  readonly entityToIndex: SparseMap.SparseMap<number>
   readonly indexToEntity: number[]
   readonly free: number[]
   next: number
@@ -50,7 +46,7 @@ export type EntityIndex = {
 
 export function makeEntityIndex(): EntityIndex {
   return {
-    entityToIndex: makeSparseMap<number>(),
+    entityToIndex: SparseMap.create<number>(),
     indexToEntity: [],
     free: [],
     next: 1,
@@ -58,7 +54,7 @@ export function makeEntityIndex(): EntityIndex {
 }
 
 export type GraphMove = {
-  entity: Entity
+  entity: Entity.Entity
   from?: EntityGraphNode
   to?: EntityGraphNode
 }
@@ -69,15 +65,15 @@ export type World<R extends ComponentLike = any> = {
   readonly componentRegistry: ComponentRegistry
   readonly components: ComponentStore
   readonly graph: EntityGraph
-  readonly graphChanges: SparseMap<GraphMove>
+  readonly graphChanges: SparseMap.SparseMap<GraphMove>
   readonly index: EntityIndex
-  readonly pendingDeletions: Set<Entity>
+  readonly pendingDeletions: Set<Entity.Entity>
   readonly pendingPrunes: Set<EntityGraphNode>
   readonly pendingOps: ReplicationOp[]
-  readonly pendingRemovals: Map<Entity, ComponentLike[]>
+  readonly pendingRemovals: Map<Entity.Entity, ComponentLike[]>
   readonly registry: EntityRegistry
   readonly relations: RelationRegistry
-  readonly transients: Map<number, {entity: Entity; tick: number}>
+  readonly transients: Map<number, {entity: Entity.Entity; tick: number}>
   readonly undoOps: UndoOp[]
   tick: number
   tickSpawnCount: number
@@ -87,7 +83,7 @@ export type WorldOptions = {
   domainId?: number
 }
 
-export function makeWorld(options: WorldOptions = {}): World {
+export function create(options: WorldOptions = {}): World {
   const {domainId = 0} = options
 
   const componentRegistry = makeComponentRegistry([
@@ -108,12 +104,12 @@ export function makeWorld(options: WorldOptions = {}): World {
     componentRegistry,
     components: makeComponentStore(),
     graph: makeEntityGraph(componentRegistry),
-    graphChanges: makeSparseMap<GraphMove>(),
+    graphChanges: SparseMap.create<GraphMove>(),
     index: makeEntityIndex(),
-    pendingDeletions: new Set<Entity>(),
+    pendingDeletions: new Set<Entity.Entity>(),
     pendingOps: [],
     pendingPrunes: new Set<EntityGraphNode>(),
-    pendingRemovals: new Map<Entity, ComponentLike[]>(),
+    pendingRemovals: new Map<Entity.Entity, ComponentLike[]>(),
     registry: makeEntityRegistry(domainId),
     relations: makeRelationRegistry(),
     tick: 0,
@@ -129,10 +125,10 @@ export function getOrCreateIndex(world: World<any>, entity: number): number {
   if (entity === RESOURCE_ENTITY) {
     return 0
   }
-  let index = sparseMapGet(world.index.entityToIndex, entity)
+  let index = SparseMap.get(world.index.entityToIndex, entity)
   if (index === undefined) {
     index = world.index.free.pop() ?? world.index.next++
-    sparseMapSet(world.index.entityToIndex, entity, index)
+    SparseMap.set(world.index.entityToIndex, entity, index)
     world.index.indexToEntity[index] = entity
   }
   return index
@@ -242,10 +238,10 @@ export function getComponentValue<T>(
   entity: number,
   component: Component<T> | ComponentLike,
 ): T | undefined {
-  if (world.pendingDeletions.has(entity as Entity)) {
+  if (world.pendingDeletions.has(entity as Entity.Entity)) {
     return undefined
   }
-  const pendingRemovals = world.pendingRemovals.get(entity as Entity)
+  const pendingRemovals = world.pendingRemovals.get(entity as Entity.Entity)
   const componentId = world.componentRegistry.getId(component)
   if (
     pendingRemovals?.some(
@@ -266,7 +262,7 @@ export function getComponentValue<T>(
   const index =
     entity === RESOURCE_ENTITY
       ? 0
-      : sparseMapGet(world.index.entityToIndex, entity)
+      : SparseMap.get(world.index.entityToIndex, entity)
   if (index === undefined) {
     return undefined
   }
@@ -290,7 +286,7 @@ export function deleteComponentValue<T>(
   const index =
     entity === RESOURCE_ENTITY
       ? 0
-      : sparseMapGet(world.index.entityToIndex, entity)
+      : SparseMap.get(world.index.entityToIndex, entity)
   if (index !== undefined) {
     const store = getComponentStore<T>(world, component)
     if (store !== undefined) {
@@ -436,13 +432,13 @@ export function getComponentValueById(
   entity: number,
   componentId: number,
 ): unknown {
-  if (world.pendingDeletions.has(entity as Entity)) {
+  if (world.pendingDeletions.has(entity as Entity.Entity)) {
     return undefined
   }
   const index =
     entity === RESOURCE_ENTITY
       ? 0
-      : sparseMapGet(world.index.entityToIndex, entity)
+      : SparseMap.get(world.index.entityToIndex, entity)
   if (index === undefined) {
     return undefined
   }
@@ -484,7 +480,7 @@ export function allocVirtualComponentId(world: World): number {
 /** Get the entity graph node for a given entity. */
 export function getEntityNode(
   world: World,
-  entity: Entity,
+  entity: Entity.Entity,
 ): EntityGraphNode | undefined {
-  return sparseMapGet(world.graph.byEntity, entity as number)
+  return SparseMap.get(world.graph.byEntity, entity as number)
 }

@@ -1,6 +1,7 @@
 import {pruneCommands} from "./command"
-import {getDomainId} from "./entity"
-import {type Checkpoint, HistoryBuffer, rollbackToTick} from "./history"
+import * as Entity from "./entity"
+import * as History from "./history"
+import {type Checkpoint, HistoryBuffer} from "./history"
 import type {SnapshotMessage} from "./net_types"
 import {Read, World as WorldTerm} from "./query/term"
 import {
@@ -17,8 +18,8 @@ import {
   applySnapshotStream,
   applySnapshotStreamVersioned,
 } from "./snapshot_stream"
-import {defineSystem} from "./system"
-import {runSchedule, type SystemSchedule} from "./system_schedule"
+import * as System from "./system"
+import * as SystemSchedule from "./system_schedule"
 import type {World} from "./world"
 import {getResource} from "./world"
 import {
@@ -89,7 +90,7 @@ export function reconcileTransaction(
   if (history === undefined) return
 
   const originalTick = world.tick
-  if (rollbackToTick(world, history, transaction.tick)) {
+  if (History.rollback(world, history, transaction.tick)) {
     resimulateWithTransactions(world, originalTick, tickFn)
   } else {
     applyTransaction(world, transaction)
@@ -146,12 +147,12 @@ export function pruneBuffers(world: World, minTick: number) {
 
 export function performBatchReconciliation(
   world: World,
-  schedule: SystemSchedule,
+  schedule: SystemSchedule.SystemSchedule,
 ) {
   return performReconciliation(world, schedule)
 }
 
-export function performReconciliation(world: World, schedule: SystemSchedule) {
+export function performReconciliation(world: World, schedule: SystemSchedule.SystemSchedule) {
   const history = getResource(world, HistoryBuffer)
   if (history === undefined) return
 
@@ -185,7 +186,7 @@ export function performReconciliation(world: World, schedule: SystemSchedule) {
 
   const originalTick = world.tick
 
-  const rolledBack = rollbackToTick(world, history, minTick)
+  const rolledBack = History.rollback(world, history, minTick)
 
   if (rolledBack) {
     while (world.tick < originalTick) {
@@ -202,7 +203,7 @@ export function performReconciliation(world: World, schedule: SystemSchedule) {
       flushGraphChanges(world)
 
       // 2. Run local prediction systems
-      runSchedule(schedule, world as World)
+      SystemSchedule.run(schedule, world as World)
       commitTransaction(world)
 
       // 3. Apply pending snapshots at this tick
@@ -282,7 +283,7 @@ export function cleanupTransientEntities(
 ) {
   for (const [key, info] of world.transients.entries()) {
     if (info.tick < authoritativeTick) {
-      if (getDomainId(info.entity) === TRANSIENT_DOMAIN) {
+      if (Entity.domainId(info.entity) === TRANSIENT_DOMAIN) {
         despawn(world, info.entity)
         console.log("despawned transient entity", info.entity)
       }
@@ -292,7 +293,7 @@ export function cleanupTransientEntities(
   }
 }
 
-export const applyRemoteTransactions = defineSystem(
+export const applyRemoteTransactions = System.define(
   (world: World) => {
     const incoming = getResource(world, IncomingTransactions)
     if (incoming === undefined) return
@@ -308,7 +309,7 @@ export const applyRemoteTransactions = defineSystem(
   {params: [WorldTerm()], name: "applyRemoteTransactions"},
 )
 
-export const applyRemoteSnapshots = defineSystem(
+export const applyRemoteSnapshots = System.define(
   (world: World) => {
     const incoming = getResource(world, IncomingSnapshots)
     if (incoming === undefined) return
@@ -329,7 +330,7 @@ export const applyRemoteSnapshots = defineSystem(
  * Stale snapshots from slower peers will not overwrite newer local state.
  * Intended for P2P topologies.
  */
-export const applyRemoteSnapshotsVersioned = defineSystem(
+export const applyRemoteSnapshotsVersioned = System.define(
   (world: World) => {
     const incoming = getResource(world, IncomingSnapshots)
     if (incoming === undefined) return
@@ -345,7 +346,7 @@ export const applyRemoteSnapshotsVersioned = defineSystem(
   {params: [WorldTerm()], name: "applyRemoteSnapshotsVersioned"},
 )
 
-export const performRollback = defineSystem(
+export const performRollback = System.define(
   (config: Read<typeof ReplicationConfig>, world: World) => {
     if (config.reconcileSchedule === undefined) return
     performReconciliation(world, config.reconcileSchedule)
@@ -356,7 +357,7 @@ export const performRollback = defineSystem(
   },
 )
 
-export const cleanupGhosts = defineSystem(
+export const cleanupGhosts = System.define(
   (config: Read<typeof ReplicationConfig>, world: World) => {
     const window = config.ghostCleanupWindow ?? 60
     cleanupTransientEntities(world, world.tick - window)

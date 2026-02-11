@@ -1,20 +1,20 @@
 import {bench, group, run} from "mitata"
 import type {Entity} from "./entity"
-import {defineRelation} from "./relation"
+import * as Relation from "./relation"
 import {
   getOrCreateVirtualId,
   registerIncomingRelation,
   unregisterIncomingRelation,
 } from "./relation_registry"
-import {makeWorld} from "./world"
+import * as World from "./world"
 
 const relationCount = 100
 const relations = Array.from({length: relationCount}, (_, i) =>
-  defineRelation(`bench_rel_${i}`),
+  Relation.define(`bench_rel_${i}`),
 )
 const entityCount = 1000
 const entities = Array.from({length: entityCount}, (_, i) => i as Entity)
-const world = makeWorld({domainId: 0})
+const world = World.create({domainId: 0})
 
 group("relation registry operations", () => {
   bench("getOrCreateVirtualId (new pairs)", () => {

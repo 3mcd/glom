@@ -1,29 +1,29 @@
 import {describe, expect, test} from "bun:test"
 import * as commands from "../command"
-import {defineComponent, defineTag} from "../component"
+import * as Component from "../component"
 import {All, type Join} from "../query/all"
 import * as replication from "../replication"
 import {Replicated} from "../replication_config"
-import {sparseMapGet} from "../sparse_map"
-import {defineSystem} from "../system"
-import {addSystem, makeSystemSchedule, runSchedule} from "../system_schedule"
-import {getComponentValue, makeWorld} from "../world"
+import * as SparseMap from "../sparse_map"
+import * as System from "../system"
+import * as SystemSchedule from "../system_schedule"
+import * as World from "../world"
 import {spawn} from "../world_api"
 
 describe("netcode orchestration", () => {
-  const Position = defineComponent<{x: number; y: number}>("Position")
-  const Jump = defineTag("Jump")
+  const Position = Component.define<{x: number; y: number}>("Position")
+  const Jump = Component.defineTag("Jump")
   const schema = [Position, Jump]
 
   test("networked schedule lifecycle", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     const player = spawn(world, Position({x: 0, y: 0}), Replicated)
 
-    const schedule = makeSystemSchedule()
+    const schedule = SystemSchedule.create()
 
-    addSystem(schedule, commands.spawnEphemeralCommands)
+    SystemSchedule.add(schedule, commands.spawnEphemeralCommands)
 
-    const jumpSystem = defineSystem(
+    const jumpSystem = System.define(
       (
         playerQuery: Join<
           All<typeof Position>,
@@ -45,20 +45,20 @@ describe("netcode orchestration", () => {
       },
     )
 
-    addSystem(schedule, jumpSystem)
+    SystemSchedule.add(schedule, jumpSystem)
 
-    addSystem(schedule, commands.cleanupEphemeralCommands)
-    addSystem(schedule, replication.commitPendingMutations)
-    addSystem(schedule, replication.advanceWorldTick)
+    SystemSchedule.add(schedule, commands.cleanupEphemeralCommands)
+    SystemSchedule.add(schedule, replication.commitPendingMutations)
+    SystemSchedule.add(schedule, replication.advanceWorldTick)
 
-    commands.recordCommand(world, player, Jump, 0)
+    commands.record(world, player, Jump, 0)
 
-    runSchedule(schedule, world)
+    SystemSchedule.run(schedule, world)
 
     expect(world.tick).toBe(1)
-    expect(getComponentValue(world, player, Position)?.y).toBe(10)
+    expect(World.getComponentValue(world, player, Position)?.y).toBe(10)
 
-    const node = sparseMapGet(world.graph.byEntity, player as number)
+    const node = SparseMap.get(world.graph.byEntity, player as number)
     const commandOfId = world.componentRegistry.getId(commands.CommandOf)
     expect(
       node?.vec.elements.some(

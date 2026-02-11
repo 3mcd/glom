@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {defineComponent} from "./component"
+import * as Component from "./component"
 import type {Entity} from "./entity"
 import {
   type EntityGraphNode,
@@ -21,9 +21,9 @@ import {makeComponentRegistry} from "./registry"
 import {makeVec, makeVecSorted} from "./vec"
 
 describe("entityGraph", () => {
-  const c1 = defineComponent("c1")
-  const c2 = defineComponent("c2")
-  const c3 = defineComponent("c3")
+  const c1 = Component.define("c1")
+  const c2 = Component.define("c2")
+  const c3 = Component.define("c3")
   const registry = makeComponentRegistry([c1, c2, c3])
   const emptyVec = makeVecSorted([], registry)
 

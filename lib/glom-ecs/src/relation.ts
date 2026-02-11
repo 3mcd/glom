@@ -10,7 +10,7 @@ export type Relationship = ComponentLike & {
   object: Entity
 }
 
-export function defineRelation(name: string): Relation {
+export function define(name: string): Relation {
   const rel = ((object: Entity): Relationship => {
     return {
       relation: rel as unknown as Relation,

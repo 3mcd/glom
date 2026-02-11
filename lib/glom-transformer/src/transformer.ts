@@ -105,7 +105,7 @@ export function createTransformer(
           }
         }
 
-        // Auto-generate serde for defineComponent<T>(...) calls.
+        // Auto-generate serde for Component.define<T>(...) / defineComponent<T>(...) calls.
         // Return directly (no visitEachChild) because the injected serde
         // is fully synthetic and needs no further transformation.
         if (ts.isCallExpression(node)) {

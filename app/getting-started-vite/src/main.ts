@@ -1,38 +1,32 @@
 import {
   type Add,
   type All,
+  Component,
   type Despawn,
   type Entity,
   type In,
   type Join,
   type Out,
+  Relation,
   type Spawn,
+  SystemSchedule,
+  Timestep,
   type Unique,
+  World,
   type Write,
-  addSystem,
-  advanceTimestep,
-  defineComponent,
-  defineRelation,
-  defineTag,
-  flushGraphChanges,
-  makeSystemSchedule,
-  makeTimestep,
-  makeWorld,
-  runSchedule,
-  spawn,
 } from "@glom/ecs"
 
 // 2. Defining Components
-const Pos = defineComponent<{x: number; y: number}>("Pos")
-const Vel = defineComponent<{dx: number; dy: number}>("Vel")
-const Sfx = defineComponent<{clip: string}>("Sfx")
+const Pos = Component.define<{x: number; y: number}>("Pos")
+const Vel = Component.define<{dx: number; dy: number}>("Vel")
+const Sfx = Component.define<{clip: string}>("Sfx")
 
-const Player = defineTag("Player")
-const Item = defineTag("Item")
-const Collected = defineTag("Collected")
-const SfxManager = defineTag("SfxManager")
+const Player = Component.defineTag("Player")
+const Item = Component.defineTag("Item")
+const Collected = Component.defineTag("Collected")
+const SfxManager = Component.defineTag("SfxManager")
 
-const PlaysOn = defineRelation("PlaysOn")
+const PlaysOn = Relation.define("PlaysOn")
 
 // 3. Writing Systems
 
@@ -71,10 +65,18 @@ const movePlayers = (
     vel.dx = 0
     vel.dy = 0
 
-    if (input.up) vel.dy = -speed
-    if (input.down) vel.dy = speed
-    if (input.left) vel.dx = -speed
-    if (input.right) vel.dx = speed
+    if (input.up) {
+      vel.dy = -speed
+    }
+    if (input.down) {
+      vel.dy = speed
+    }
+    if (input.left) {
+      vel.dx = -speed
+    }
+    if (input.right) {
+      vel.dx = speed
+    }
 
     pos.x += vel.dx
     pos.y += vel.dy
@@ -88,11 +90,11 @@ const movePlayers = (
 // Collecting Items
 type CollectQuery = Join<
   All<typeof Pos, typeof Player>,
-  All<Entity, typeof Pos, typeof Item>
+  All<Entity.Entity, typeof Pos, typeof Item>
 >
 
 const collectItems = (query: CollectQuery, collect: Add<typeof Collected>) => {
-  for (const [pPos, , item, iPos] of query) {
+  for (const [pPos, item, iPos] of query) {
     const dist = Math.hypot(pPos.x - iPos.x, pPos.y - iPos.y)
     if (dist < 20) {
       collect(item)
@@ -102,7 +104,7 @@ const collectItems = (query: CollectQuery, collect: Add<typeof Collected>) => {
 
 // Reactive Systems
 const despawnCollected = (
-  items: In<Entity, typeof Collected>,
+  items: In<Entity.Entity, typeof Collected>,
   despawn: Despawn,
 ) => {
   for (const [entity] of items) {
@@ -111,10 +113,10 @@ const despawnCollected = (
 }
 
 const playPickupSfx = (
-  removedItems: Out<Entity, typeof Item>,
+  removedItems: Out<Entity.Entity, typeof Item>,
   spawnSfx: Spawn<typeof Sfx>,
   play: Add<typeof PlaysOn>,
-  [manager]: Unique<Entity, typeof SfxManager>,
+  [manager]: Unique<Entity.Entity, typeof SfxManager>,
 ) => {
   for (const [entity] of removedItems) {
     const sfx = spawnSfx(Sfx({clip: "pickup.wav"}))
@@ -132,7 +134,11 @@ const playPickupSfx = (
 }
 
 const processSfx = (
-  query: Join<All<Entity, typeof Sfx>, All<typeof SfxManager>, typeof PlaysOn>,
+  query: Join<
+    All<Entity.Entity, typeof Sfx>,
+    All<typeof SfxManager>,
+    typeof PlaysOn
+  >,
   despawn: Despawn,
 ) => {
   for (const [entity, sfx] of query) {
@@ -178,25 +184,25 @@ const render = (
 }
 
 // 4. Scheduling and Running
-const world = makeWorld()
-const schedule = makeSystemSchedule()
+const world = World.create()
+const schedule = SystemSchedule.create()
 
-addSystem(schedule, movePlayers)
-addSystem(schedule, collectItems)
-addSystem(schedule, despawnCollected)
-addSystem(schedule, playPickupSfx)
-addSystem(schedule, processSfx)
-addSystem(schedule, render)
+SystemSchedule.add(schedule, movePlayers)
+SystemSchedule.add(schedule, collectItems)
+SystemSchedule.add(schedule, despawnCollected)
+SystemSchedule.add(schedule, playPickupSfx)
+SystemSchedule.add(schedule, processSfx)
+SystemSchedule.add(schedule, render)
 
 // Initialize our world
-spawn(world, SfxManager)
+World.spawn(world, SfxManager)
 
 // spawn a player
-spawn(world, Player, Pos({x: 50, y: 50}), Vel({dx: 2, dy: 1.5}))
+World.spawn(world, Player, Pos({x: 50, y: 50}), Vel({dx: 2, dy: 1.5}))
 
 // spawn some items
 for (let i = 0; i < 15; i++) {
-  spawn(
+  World.spawn(
     world,
     Item,
     Pos({
@@ -206,16 +212,16 @@ for (let i = 0; i < 15; i++) {
   )
 }
 
-flushGraphChanges(world)
+World.flushGraphChanges(world)
 
 // 5. The Main Loop (Fixed Timestep)
-const timestep = makeTimestep(60)
+const timestep = Timestep.create(60)
 
 function loop() {
   const now = performance.now()
 
-  advanceTimestep(timestep, now, () => {
-    runSchedule(schedule, world)
+  Timestep.advance(timestep, now, () => {
+    SystemSchedule.run(schedule, world)
   })
 
   requestAnimationFrame(loop)

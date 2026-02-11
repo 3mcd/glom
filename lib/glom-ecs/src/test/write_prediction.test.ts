@@ -3,11 +3,11 @@ import * as commands from "../command"
 import * as g from "../index"
 import * as reconciliation from "../reconciliation"
 import * as replication from "../replication"
-import {applySnapshotStream} from "../snapshot_stream"
+import * as SnapshotStream from "../snapshot_stream"
 
 // --- SCHEMA ---
 
-const Position = g.defineComponent<{x: number; y: number}>("Position", {
+const Position = g.Component.define<{x: number; y: number}>("Position", {
   bytesPerElement: 16,
   encode: (val, writer) => {
     writer.writeFloat64(val.x)
@@ -18,7 +18,7 @@ const Position = g.defineComponent<{x: number; y: number}>("Position", {
   },
 })
 
-const MoveCommand = g.defineComponent<{dx: number; dy: number}>("MoveCommand", {
+const MoveCommand = g.Component.define<{dx: number; dy: number}>("MoveCommand", {
   bytesPerElement: 16,
   encode: (val, writer) => {
     writer.writeFloat64(val.dx)
@@ -34,12 +34,12 @@ const SPEED = 2
 
 // --- WRITE-BASED MOVEMENT SYSTEM ---
 
-const writeMovementSystem = g.defineSystem(
+const writeMovementSystem = g.System.define(
   (
     query: g.Join<
-      g.All<g.Entity, g.Write<typeof Position>>,
+      g.All<g.Entity.Entity, g.Write<typeof Position>>,
       g.All<typeof MoveCommand>,
-      typeof g.CommandOf
+      typeof g.Command.CommandOf
     >,
   ) => {
     for (const [_entity, pos, move] of query) {
@@ -55,7 +55,7 @@ const writeMovementSystem = g.defineSystem(
         join: [
           {all: [{entity: true}, {write: Position}]},
           {all: [MoveCommand]},
-          g.CommandOf,
+          g.Command.CommandOf,
         ],
       },
     ],
@@ -65,19 +65,19 @@ const writeMovementSystem = g.defineSystem(
 
 // --- ADD-BASED MOVEMENT SYSTEM (for comparison) ---
 
-const addMovementSystem = g.defineSystem(
+const addMovementSystem = g.System.define(
   (
     query: g.Join<
-      g.All<g.Entity, typeof Position>,
+      g.All<g.Entity.Entity, typeof Position>,
       g.All<typeof MoveCommand>,
-      typeof g.CommandOf
+      typeof g.Command.CommandOf
     >,
     update: g.Add<typeof Position>,
   ) => {
     for (const [entity, pos, move] of query) {
       const p = pos as {x: number; y: number}
       const m = move as {dx: number; dy: number}
-      update(entity as g.Entity, {
+      update(entity as g.Entity.Entity, {
         x: p.x + m.dx * SPEED,
         y: p.y + m.dy * SPEED,
       })
@@ -89,7 +89,7 @@ const addMovementSystem = g.defineSystem(
         join: [
           {all: [{entity: true}, Position]},
           {all: [MoveCommand]},
-          g.CommandOf,
+          g.Command.CommandOf,
         ],
       },
       g.Add(Position),
@@ -104,14 +104,14 @@ const addMovementSystem = g.defineSystem(
 
 describe("snapshot deep-cloning", () => {
   test("captureCheckpoint deep-clones object-typed component values", () => {
-    const world = g.makeWorld({domainId: 0})
-    const entity = g.spawn(world, Position({x: 10, y: 20}), g.Replicated)
-    g.commitTransaction(world)
+    const world = g.World.create({domainId: 0})
+    const entity = g.World.spawn(world, Position({x: 10, y: 20}), g.Replicated)
+    g.World.commitTransaction(world)
 
-    const snapshot = g.captureCheckpoint(world)
+    const snapshot = g.History.capture(world)
 
     // Mutate the live store
-    const livePos = g.getComponentValue(world, entity, Position)!
+    const livePos = g.World.getComponentValue(world, entity, Position)!
     livePos.x = 999
     livePos.y = 888
 
@@ -126,27 +126,27 @@ describe("snapshot deep-cloning", () => {
   })
 
   test("restoreCheckpoint restores independent copies (Write-safe)", () => {
-    const world = g.makeWorld({domainId: 1})
-    const history: g.HistoryBuffer = {
+    const world = g.World.create({domainId: 1})
+    const history: g.History.HistoryBuffer = {
       checkpoints: [],
       undoLog: [],
       maxSize: 10,
       checkpointInterval: 1,
     }
-    g.addResource(world, g.HistoryBuffer(history))
+    g.World.addResource(world, g.History.HistoryBuffer(history))
 
-    const entity = g.spawn(world, Position({x: 5, y: 5}))
-    g.commitTransaction(world)
-    g.pushCheckpoint(world, history) // snapshot at tick 0
+    const entity = g.World.spawn(world, Position({x: 5, y: 5}))
+    g.World.commitTransaction(world)
+    g.History.push(world, history) // snapshot at tick 0
 
     // Mutate in-place (simulate Write)
-    const livePos = g.getComponentValue(world, entity, Position)!
+    const livePos = g.World.getComponentValue(world, entity, Position)!
     livePos.x = 100
-    g.advanceTick(world) // tick becomes 1
+    g.World.advanceTick(world) // tick becomes 1
 
     // Rollback to tick 0
-    g.rollbackToTick(world, g.HistoryBuffer, 0)
-    const restoredPos = g.getComponentValue(world, entity, Position)!
+    g.History.rollback(world, g.History.HistoryBuffer, 0)
+    const restoredPos = g.World.getComponentValue(world, entity, Position)!
     expect(restoredPos.x).toBe(5)
 
     // Mutate the restored position (simulating Write after rollback)
@@ -157,7 +157,7 @@ describe("snapshot deep-cloning", () => {
       world.componentRegistry.getId(Position),
     )!
     const snapPos = snapPosStore[
-      g.sparseMapGet(world.index.entityToIndex, entity)!
+      g.SparseMap.get(world.index.entityToIndex, entity)!
     ] as {x: number; y: number}
     expect(snapPos.x).toBe(5) // Must not be corrupted
   })
@@ -165,9 +165,9 @@ describe("snapshot deep-cloning", () => {
 
 describe("snapshot force-overwrite", () => {
   test("snapshot always overwrites position (forceSet)", () => {
-    const world = g.makeWorld({domainId: 0})
-    const entity = g.spawn(world, Position({x: 0, y: 0}), g.Replicated)
-    g.commitTransaction(world)
+    const world = g.World.create({domainId: 0})
+    const entity = g.World.spawn(world, Position({x: 0, y: 0}), g.Replicated)
+    g.World.commitTransaction(world)
 
     world.tick = 50
 
@@ -177,30 +177,30 @@ describe("snapshot force-overwrite", () => {
     g.writeSnapshot(writer, world, [posId], world.componentRegistry, 30)
 
     // Change position so we can verify the snapshot overwrites it
-    const pos = g.getComponentValue(world, entity, Position)!
+    const pos = g.World.getComponentValue(world, entity, Position)!
     pos.x = 0
     pos.y = 0
 
     // Now overwrite with a snapshot that carries the old values
     // To test force-overwrite with different data, set position first
-    g.forceSetComponentValue(
+    g.World.forceSetComponentValue(
       world,
       entity,
       Position,
       {x: 500, y: 500},
       world.tick,
     )
-    expect(g.getComponentValue(world, entity, Position)!.x).toBe(500)
+    expect(g.World.getComponentValue(world, entity, Position)!.x).toBe(500)
 
     // Apply the snapshot from tick 30 (which has x=0,y=0)
     const reader = new g.ByteReader(writer.getBytes())
     g.readMessageType(reader) // MessageType.Snapshot
     const tick = reader.readUint32()
     const message = g.readSnapshot(reader, tick)
-    applySnapshotStream(world, message)
+    SnapshotStream.applySnapshotStream(world, message)
 
     // Authoritative: overwrites even though tick 30 < 50
-    const posAfter = g.getComponentValue(world, entity, Position)!
+    const posAfter = g.World.getComponentValue(world, entity, Position)!
     expect(posAfter.x).toBe(0)
     expect(posAfter.y).toBe(0)
   })
@@ -214,49 +214,49 @@ describe("end-to-end client prediction with Write + snapshots", () => {
    */
   function createSimulation(moveSys: any) {
     // ---- server ----
-    const serverWorld = g.makeWorld({domainId: 0})
-    g.addResource(
+    const serverWorld = g.World.create({domainId: 0})
+    g.World.addResource(
       serverWorld,
       g.ReplicationConfig({
         historyWindow: 64,
         snapshotComponents: [serverWorld.componentRegistry.getId(Position)],
       }),
     )
-    g.addResource(
+    g.World.addResource(
       serverWorld,
-      g.HistoryBuffer({
+      g.History.HistoryBuffer({
         checkpoints: [],
         undoLog: [],
         maxSize: 120,
         checkpointInterval: 1,
       }),
     )
-    g.addResource(
+    g.World.addResource(
       serverWorld,
       g.ReplicationStream({transactions: [], snapshots: []}),
     )
-    g.addResource(serverWorld, g.CommandBuffer(new Map()))
-    g.addResource(serverWorld, g.IncomingTransactions(new Map()))
-    g.addResource(serverWorld, g.IncomingSnapshots(new Map()))
+    g.World.addResource(serverWorld, g.Command.CommandBuffer(new Map()))
+    g.World.addResource(serverWorld, g.IncomingTransactions(new Map()))
+    g.World.addResource(serverWorld, g.IncomingSnapshots(new Map()))
 
-    const serverSchedule = g.makeSystemSchedule()
-    g.addSystem(serverSchedule, replication.clearReplicationStream)
-    g.addSystem(serverSchedule, reconciliation.applyRemoteTransactions)
-    g.addSystem(serverSchedule, commands.spawnEphemeralCommands)
-    g.addSystem(serverSchedule, moveSys)
-    g.addSystem(serverSchedule, commands.cleanupEphemeralCommands)
-    g.addSystem(serverSchedule, replication.commitPendingMutations)
-    g.addSystem(serverSchedule, replication.emitSnapshots)
-    g.addSystem(serverSchedule, replication.advanceWorldTick)
-    g.addSystem(serverSchedule, replication.pruneTemporalBuffers)
+    const serverSchedule = g.SystemSchedule.create()
+    g.SystemSchedule.add(serverSchedule, replication.clearReplicationStream)
+    g.SystemSchedule.add(serverSchedule, reconciliation.applyRemoteTransactions)
+    g.SystemSchedule.add(serverSchedule, commands.spawnEphemeralCommands)
+    g.SystemSchedule.add(serverSchedule, moveSys)
+    g.SystemSchedule.add(serverSchedule, commands.cleanupEphemeralCommands)
+    g.SystemSchedule.add(serverSchedule, replication.commitPendingMutations)
+    g.SystemSchedule.add(serverSchedule, replication.emitSnapshots)
+    g.SystemSchedule.add(serverSchedule, replication.advanceWorldTick)
+    g.SystemSchedule.add(serverSchedule, replication.pruneTemporalBuffers)
 
     // ---- spawn player ----
-    const player = g.spawn(serverWorld, Position({x: 0, y: 0}), g.Replicated)
+    const player = g.World.spawn(serverWorld, Position({x: 0, y: 0}), g.Replicated)
 
     // ---- server first tick → produces spawn transaction + snapshot ----
-    g.runSchedule(serverSchedule, serverWorld as g.World)
+    g.SystemSchedule.run(serverSchedule, serverWorld as g.World.World)
 
-    const stream = g.getResource(serverWorld, g.ReplicationStream)!
+    const stream = g.World.getResource(serverWorld, g.ReplicationStream)!
     const spawnTxPackets = stream.transactions.map((tx) => {
       const w = new g.ByteWriter()
       g.writeTransaction(w, tx, serverWorld.componentRegistry)
@@ -265,25 +265,25 @@ describe("end-to-end client prediction with Write + snapshots", () => {
     const snapshotPackets = stream.snapshots
 
     // ---- client ----
-    const clientWorld = g.makeWorld({domainId: 1})
-    const reconcileSchedule = g.makeSystemSchedule()
-    g.addSystem(reconcileSchedule, commands.spawnEphemeralCommands)
-    g.addSystem(reconcileSchedule, moveSys)
-    g.addSystem(reconcileSchedule, commands.cleanupEphemeralCommands)
+    const clientWorld = g.World.create({domainId: 1})
+    const reconcileSchedule = g.SystemSchedule.create()
+    g.SystemSchedule.add(reconcileSchedule, commands.spawnEphemeralCommands)
+    g.SystemSchedule.add(reconcileSchedule, moveSys)
+    g.SystemSchedule.add(reconcileSchedule, commands.cleanupEphemeralCommands)
 
-    g.addResource(
+    g.World.addResource(
       clientWorld,
-      g.HistoryBuffer({
+      g.History.HistoryBuffer({
         checkpoints: [],
         undoLog: [],
         maxSize: 120,
         checkpointInterval: 1,
       }),
     )
-    g.addResource(clientWorld, g.CommandBuffer(new Map()))
-    g.addResource(clientWorld, g.IncomingTransactions(new Map()))
-    g.addResource(clientWorld, g.IncomingSnapshots(new Map()))
-    g.addResource(
+    g.World.addResource(clientWorld, g.Command.CommandBuffer(new Map()))
+    g.World.addResource(clientWorld, g.IncomingTransactions(new Map()))
+    g.World.addResource(clientWorld, g.IncomingSnapshots(new Map()))
+    g.World.addResource(
       clientWorld,
       g.ReplicationConfig({
         historyWindow: 64,
@@ -292,21 +292,21 @@ describe("end-to-end client prediction with Write + snapshots", () => {
       }),
     )
 
-    const clientSchedule = g.makeSystemSchedule()
-    g.addSystem(clientSchedule, reconciliation.performRollback)
-    g.addSystem(clientSchedule, reconciliation.cleanupGhosts)
-    g.addSystem(clientSchedule, commands.spawnEphemeralCommands)
-    g.addSystem(clientSchedule, moveSys)
-    g.addSystem(clientSchedule, reconciliation.applyRemoteTransactions)
-    g.addSystem(clientSchedule, commands.cleanupEphemeralCommands)
-    g.addSystem(clientSchedule, replication.commitPendingMutations)
-    g.addSystem(clientSchedule, replication.advanceWorldTick)
-    g.addSystem(clientSchedule, replication.pruneTemporalBuffers)
+    const clientSchedule = g.SystemSchedule.create()
+    g.SystemSchedule.add(clientSchedule, reconciliation.performRollback)
+    g.SystemSchedule.add(clientSchedule, reconciliation.cleanupGhosts)
+    g.SystemSchedule.add(clientSchedule, commands.spawnEphemeralCommands)
+    g.SystemSchedule.add(clientSchedule, moveSys)
+    g.SystemSchedule.add(clientSchedule, reconciliation.applyRemoteTransactions)
+    g.SystemSchedule.add(clientSchedule, commands.cleanupEphemeralCommands)
+    g.SystemSchedule.add(clientSchedule, replication.commitPendingMutations)
+    g.SystemSchedule.add(clientSchedule, replication.advanceWorldTick)
+    g.SystemSchedule.add(clientSchedule, replication.pruneTemporalBuffers)
 
     // ---- handshake: sync client clock to server tick (no latency offset) ----
-    g.setTick(clientWorld, serverWorld.tick)
-    const history = g.getResource(clientWorld, g.HistoryBuffer)!
-    g.pushCheckpoint(clientWorld, history) // empty-world snapshot
+    g.World.setTick(clientWorld, serverWorld.tick)
+    const history = g.World.getResource(clientWorld, g.History.HistoryBuffer)!
+    g.History.push(clientWorld, history) // empty-world snapshot
 
     // ---- deliver spawn transaction & snapshot ----
     for (const packet of spawnTxPackets) {
@@ -330,11 +330,11 @@ describe("end-to-end client prediction with Write + snapshots", () => {
 
     // ---- let client process the spawn ----
     for (let i = 0; i < 3; i++) {
-      g.runSchedule(clientSchedule, clientWorld as g.World)
+      g.SystemSchedule.run(clientSchedule, clientWorld as g.World.World)
     }
 
     // Verify entity exists on client
-    const pos = g.getComponentValue(clientWorld, player, Position)
+    const pos = g.World.getComponentValue(clientWorld, player, Position)
     if (!pos) {
       throw new Error(
         "Player entity not found on client after initial sync. " +
@@ -355,13 +355,13 @@ describe("end-to-end client prediction with Write + snapshots", () => {
    * Simulates one server tick + delivers output to client (0 latency).
    */
   function serverTick(
-    serverWorld: g.World,
-    serverSchedule: g.SystemSchedule,
-    clientWorld: g.World,
+    serverWorld: g.World.World,
+    serverSchedule: g.SystemSchedule.SystemSchedule,
+    clientWorld: g.World.World,
   ) {
-    g.runSchedule(serverSchedule, serverWorld as g.World)
+    g.SystemSchedule.run(serverSchedule, serverWorld as g.World.World)
 
-    const stream = g.getResource(serverWorld, g.ReplicationStream)
+    const stream = g.World.getResource(serverWorld, g.ReplicationStream)
     if (!stream) return
     for (const tx of stream.transactions) {
       const w = new g.ByteWriter()
@@ -388,8 +388,8 @@ describe("end-to-end client prediction with Write + snapshots", () => {
   /**
    * Sends client commands to the server (0 latency).
    */
-  function sendCommands(clientWorld: g.World, serverWorld: g.World) {
-    const commandBuffer = g.getResource(clientWorld, g.CommandBuffer)
+  function sendCommands(clientWorld: g.World.World, serverWorld: g.World.World) {
+    const commandBuffer = g.World.getResource(clientWorld, g.Command.CommandBuffer)
     const cmds = commandBuffer?.get(clientWorld.tick)
     if (!cmds || cmds.length === 0) return
     const writer = new g.ByteWriter()
@@ -406,9 +406,9 @@ describe("end-to-end client prediction with Write + snapshots", () => {
       const commands = g.readCommands(reader, serverWorld.componentRegistry)
       const targetTick = Math.max(serverWorld.tick, tick)
       for (const cmd of commands) {
-        g.recordCommand(
+        g.Command.record(
           serverWorld,
-          cmd.target as g.Entity,
+          cmd.target as g.Entity.Entity,
           cmd,
           targetTick,
           tick,
@@ -421,7 +421,7 @@ describe("end-to-end client prediction with Write + snapshots", () => {
     const {serverWorld, serverSchedule, clientWorld, clientSchedule, player} =
       createSimulation(writeMovementSystem)
 
-    const initialPos = g.getComponentValue(clientWorld, player, Position)!
+    const initialPos = g.World.getComponentValue(clientWorld, player, Position)!
     expect(initialPos.x).toBe(0)
 
     for (let i = 0; i < 50; i++) {
@@ -429,14 +429,14 @@ describe("end-to-end client prediction with Write + snapshots", () => {
       serverTick(serverWorld, serverSchedule, clientWorld)
 
       // Client records movement and ticks
-      g.recordCommand(clientWorld, player, MoveCommand({dx: 1, dy: 0}))
+      g.Command.record(clientWorld, player, MoveCommand({dx: 1, dy: 0}))
       sendCommands(clientWorld, serverWorld)
 
-      g.runSchedule(clientSchedule, clientWorld as g.World)
+      g.SystemSchedule.run(clientSchedule, clientWorld as g.World.World)
     }
 
     // With 0 latency and rollback+replay, prediction should track closely
-    const finalPos = g.getComponentValue(clientWorld, player, Position)!
+    const finalPos = g.World.getComponentValue(clientWorld, player, Position)!
     expect(finalPos.x).toBeGreaterThan(50)
   })
 
@@ -444,19 +444,19 @@ describe("end-to-end client prediction with Write + snapshots", () => {
     const {serverWorld, serverSchedule, clientWorld, clientSchedule, player} =
       createSimulation(addMovementSystem)
 
-    const initialPos = g.getComponentValue(clientWorld, player, Position)!
+    const initialPos = g.World.getComponentValue(clientWorld, player, Position)!
     expect(initialPos.x).toBe(0)
 
     for (let i = 0; i < 50; i++) {
       serverTick(serverWorld, serverSchedule, clientWorld)
 
-      g.recordCommand(clientWorld, player, MoveCommand({dx: 1, dy: 0}))
+      g.Command.record(clientWorld, player, MoveCommand({dx: 1, dy: 0}))
       sendCommands(clientWorld, serverWorld)
 
-      g.runSchedule(clientSchedule, clientWorld as g.World)
+      g.SystemSchedule.run(clientSchedule, clientWorld as g.World.World)
     }
 
-    const finalPos = g.getComponentValue(clientWorld, player, Position)!
+    const finalPos = g.World.getComponentValue(clientWorld, player, Position)!
     expect(finalPos.x).toBeGreaterThan(50)
   })
 
@@ -470,12 +470,12 @@ describe("end-to-end client prediction with Write + snapshots", () => {
     for (let i = 0; i < 80; i++) {
       serverTick(serverWorld, serverSchedule, clientWorld)
 
-      g.recordCommand(clientWorld, player, MoveCommand({dx: 1, dy: 0}))
+      g.Command.record(clientWorld, player, MoveCommand({dx: 1, dy: 0}))
       sendCommands(clientWorld, serverWorld)
 
-      g.runSchedule(clientSchedule, clientWorld as g.World)
+      g.SystemSchedule.run(clientSchedule, clientWorld as g.World.World)
 
-      const cPos = g.getComponentValue(clientWorld, player, Position)
+      const cPos = g.World.getComponentValue(clientWorld, player, Position)
       if (cPos) {
         if (cPos.x < prevX) {
           monotonicViolations++
@@ -502,12 +502,12 @@ describe("end-to-end client prediction with Write + snapshots", () => {
     for (let i = 0; i < 80; i++) {
       serverTick(serverWorld, serverSchedule, clientWorld)
 
-      g.recordCommand(clientWorld, player, MoveCommand({dx: 1, dy: 0}))
+      g.Command.record(clientWorld, player, MoveCommand({dx: 1, dy: 0}))
       sendCommands(clientWorld, serverWorld)
 
-      g.runSchedule(clientSchedule, clientWorld as g.World)
+      g.SystemSchedule.run(clientSchedule, clientWorld as g.World.World)
 
-      const cPos = g.getComponentValue(clientWorld, player, Position)
+      const cPos = g.World.getComponentValue(clientWorld, player, Position)
       if (cPos) {
         if (cPos.x < prevX) {
           monotonicViolations++
@@ -533,25 +533,25 @@ describe("end-to-end client prediction with Write + snapshots", () => {
     for (let i = 0; i < 30; i++) {
       serverTick(serverWorld, serverSchedule, clientWorld)
 
-      g.recordCommand(clientWorld, player, MoveCommand({dx: 1, dy: 0}))
+      g.Command.record(clientWorld, player, MoveCommand({dx: 1, dy: 0}))
       sendCommands(clientWorld, serverWorld)
 
-      const idx = g.sparseMapGet(clientWorld.index.entityToIndex, player)
+      const idx = g.SparseMap.get(clientWorld.index.entityToIndex, player)
       const vBefore =
         idx !== undefined
           ? clientWorld.components.versions.get(posId)?.[idx]
           : "N/A"
-      const posBefore = g.getComponentValue(clientWorld, player, Position)
+      const posBefore = g.World.getComponentValue(clientWorld, player, Position)
 
-      g.runSchedule(clientSchedule, clientWorld as g.World)
+      g.SystemSchedule.run(clientSchedule, clientWorld as g.World.World)
 
       const vAfter =
         idx !== undefined
           ? clientWorld.components.versions.get(posId)?.[idx]
           : "N/A"
-      const posAfter = g.getComponentValue(clientWorld, player, Position)
+      const posAfter = g.World.getComponentValue(clientWorld, player, Position)
 
-      const incomingSnaps = g.getResource(clientWorld, g.IncomingSnapshots)
+      const incomingSnaps = g.World.getResource(clientWorld, g.IncomingSnapshots)
       const snapTicks = incomingSnaps ? Array.from(incomingSnaps.keys()) : []
 
       if (i < 20) {
@@ -564,7 +564,7 @@ describe("end-to-end client prediction with Write + snapshots", () => {
       }
     }
 
-    const finalPos = g.getComponentValue(clientWorld, player, Position)!
+    const finalPos = g.World.getComponentValue(clientWorld, player, Position)!
     expect(finalPos.x).toBeGreaterThan(20)
   })
 })
@@ -600,68 +600,68 @@ describe("idle-to-movement transition with latency", () => {
     const clientToServer = new FramePipe()
 
     // ---- server ----
-    const serverWorld = g.makeWorld({domainId: 0})
-    g.addResource(
+    const serverWorld = g.World.create({domainId: 0})
+    g.World.addResource(
       serverWorld,
       g.ReplicationConfig({
         historyWindow: 64,
         snapshotComponents: [serverWorld.componentRegistry.getId(Position)],
       }),
     )
-    g.addResource(
+    g.World.addResource(
       serverWorld,
-      g.HistoryBuffer({
+      g.History.HistoryBuffer({
         checkpoints: [],
         undoLog: [],
         maxSize: 120,
         checkpointInterval: 1,
       }),
     )
-    g.addResource(
+    g.World.addResource(
       serverWorld,
       g.ReplicationStream({transactions: [], snapshots: []}),
     )
-    g.addResource(serverWorld, g.CommandBuffer(new Map()))
-    g.addResource(serverWorld, g.IncomingTransactions(new Map()))
-    g.addResource(serverWorld, g.IncomingSnapshots(new Map()))
+    g.World.addResource(serverWorld, g.Command.CommandBuffer(new Map()))
+    g.World.addResource(serverWorld, g.IncomingTransactions(new Map()))
+    g.World.addResource(serverWorld, g.IncomingSnapshots(new Map()))
 
-    const serverSchedule = g.makeSystemSchedule()
-    g.addSystem(serverSchedule, replication.clearReplicationStream)
-    g.addSystem(serverSchedule, reconciliation.applyRemoteTransactions)
-    g.addSystem(serverSchedule, commands.spawnEphemeralCommands)
-    g.addSystem(serverSchedule, moveSys)
-    g.addSystem(serverSchedule, commands.cleanupEphemeralCommands)
-    g.addSystem(serverSchedule, replication.commitPendingMutations)
-    g.addSystem(serverSchedule, replication.emitSnapshots)
-    g.addSystem(serverSchedule, replication.advanceWorldTick)
-    g.addSystem(serverSchedule, replication.pruneTemporalBuffers)
+    const serverSchedule = g.SystemSchedule.create()
+    g.SystemSchedule.add(serverSchedule, replication.clearReplicationStream)
+    g.SystemSchedule.add(serverSchedule, reconciliation.applyRemoteTransactions)
+    g.SystemSchedule.add(serverSchedule, commands.spawnEphemeralCommands)
+    g.SystemSchedule.add(serverSchedule, moveSys)
+    g.SystemSchedule.add(serverSchedule, commands.cleanupEphemeralCommands)
+    g.SystemSchedule.add(serverSchedule, replication.commitPendingMutations)
+    g.SystemSchedule.add(serverSchedule, replication.emitSnapshots)
+    g.SystemSchedule.add(serverSchedule, replication.advanceWorldTick)
+    g.SystemSchedule.add(serverSchedule, replication.pruneTemporalBuffers)
 
     // ---- spawn player ----
-    const player = g.spawn(serverWorld, Position({x: 0, y: 0}), g.Replicated)
+    const player = g.World.spawn(serverWorld, Position({x: 0, y: 0}), g.Replicated)
 
     // ---- server first tick → produces spawn transaction + snapshot ----
-    g.runSchedule(serverSchedule, serverWorld as g.World)
+    g.SystemSchedule.run(serverSchedule, serverWorld as g.World.World)
 
     // ---- client ----
-    const clientWorld = g.makeWorld({domainId: 1})
-    const reconcileSchedule = g.makeSystemSchedule()
-    g.addSystem(reconcileSchedule, commands.spawnEphemeralCommands)
-    g.addSystem(reconcileSchedule, moveSys)
-    g.addSystem(reconcileSchedule, commands.cleanupEphemeralCommands)
+    const clientWorld = g.World.create({domainId: 1})
+    const reconcileSchedule = g.SystemSchedule.create()
+    g.SystemSchedule.add(reconcileSchedule, commands.spawnEphemeralCommands)
+    g.SystemSchedule.add(reconcileSchedule, moveSys)
+    g.SystemSchedule.add(reconcileSchedule, commands.cleanupEphemeralCommands)
 
-    g.addResource(
+    g.World.addResource(
       clientWorld,
-      g.HistoryBuffer({
+      g.History.HistoryBuffer({
         checkpoints: [],
         undoLog: [],
         maxSize: 120,
         checkpointInterval,
       }),
     )
-    g.addResource(clientWorld, g.CommandBuffer(new Map()))
-    g.addResource(clientWorld, g.IncomingTransactions(new Map()))
-    g.addResource(clientWorld, g.IncomingSnapshots(new Map()))
-    g.addResource(
+    g.World.addResource(clientWorld, g.Command.CommandBuffer(new Map()))
+    g.World.addResource(clientWorld, g.IncomingTransactions(new Map()))
+    g.World.addResource(clientWorld, g.IncomingSnapshots(new Map()))
+    g.World.addResource(
       clientWorld,
       g.ReplicationConfig({
         historyWindow: 64,
@@ -670,24 +670,24 @@ describe("idle-to-movement transition with latency", () => {
       }),
     )
 
-    const clientSchedule = g.makeSystemSchedule()
-    g.addSystem(clientSchedule, reconciliation.performRollback)
-    g.addSystem(clientSchedule, reconciliation.cleanupGhosts)
-    g.addSystem(clientSchedule, commands.spawnEphemeralCommands)
-    g.addSystem(clientSchedule, moveSys)
-    g.addSystem(clientSchedule, reconciliation.applyRemoteTransactions)
-    g.addSystem(clientSchedule, commands.cleanupEphemeralCommands)
-    g.addSystem(clientSchedule, replication.commitPendingMutations)
-    g.addSystem(clientSchedule, replication.advanceWorldTick)
-    g.addSystem(clientSchedule, replication.pruneTemporalBuffers)
+    const clientSchedule = g.SystemSchedule.create()
+    g.SystemSchedule.add(clientSchedule, reconciliation.performRollback)
+    g.SystemSchedule.add(clientSchedule, reconciliation.cleanupGhosts)
+    g.SystemSchedule.add(clientSchedule, commands.spawnEphemeralCommands)
+    g.SystemSchedule.add(clientSchedule, moveSys)
+    g.SystemSchedule.add(clientSchedule, reconciliation.applyRemoteTransactions)
+    g.SystemSchedule.add(clientSchedule, commands.cleanupEphemeralCommands)
+    g.SystemSchedule.add(clientSchedule, replication.commitPendingMutations)
+    g.SystemSchedule.add(clientSchedule, replication.advanceWorldTick)
+    g.SystemSchedule.add(clientSchedule, replication.pruneTemporalBuffers)
 
     // ---- handshake: deliver spawn immediately (simulating init) ----
     const targetTick = serverWorld.tick + 15 + LATENCY_FRAMES
-    g.setTick(clientWorld, targetTick)
-    const history = g.getResource(clientWorld, g.HistoryBuffer)!
-    g.pushCheckpoint(clientWorld, history)
+    g.World.setTick(clientWorld, targetTick)
+    const history = g.World.getResource(clientWorld, g.History.HistoryBuffer)!
+    g.History.push(clientWorld, history)
 
-    const stream = g.getResource(serverWorld, g.ReplicationStream)!
+    const stream = g.World.getResource(serverWorld, g.ReplicationStream)!
     for (const tx of stream.transactions) {
       const w = new g.ByteWriter()
       g.writeTransaction(w, tx, serverWorld.componentRegistry)
@@ -711,10 +711,10 @@ describe("idle-to-movement transition with latency", () => {
 
     // ---- let client process the spawn ----
     for (let i = 0; i < 3; i++) {
-      g.runSchedule(clientSchedule, clientWorld as g.World)
+      g.SystemSchedule.run(clientSchedule, clientWorld as g.World.World)
     }
 
-    const pos = g.getComponentValue(clientWorld, player, Position)
+    const pos = g.World.getComponentValue(clientWorld, player, Position)
     if (!pos) {
       throw new Error(
         "Player entity not found on client after initial sync. " +
@@ -735,11 +735,11 @@ describe("idle-to-movement transition with latency", () => {
 
   function runFrame(
     frame: number,
-    serverWorld: g.World,
-    serverSchedule: g.SystemSchedule,
-    clientWorld: g.World,
-    clientSchedule: g.SystemSchedule,
-    player: g.Entity,
+    serverWorld: g.World.World,
+    serverSchedule: g.SystemSchedule.SystemSchedule,
+    clientWorld: g.World.World,
+    clientSchedule: g.SystemSchedule.SystemSchedule,
+    player: g.Entity.Entity,
     serverToClient: FramePipe,
     clientToServer: FramePipe,
     sendCommand: boolean,
@@ -753,9 +753,9 @@ describe("idle-to-movement transition with latency", () => {
         const commands = g.readCommands(reader, serverWorld.componentRegistry)
         const targetTick = Math.max(serverWorld.tick, tick)
         for (const cmd of commands) {
-          g.recordCommand(
+          g.Command.record(
             serverWorld,
-            cmd.target as g.Entity,
+            cmd.target as g.Entity.Entity,
             cmd,
             targetTick,
             tick,
@@ -765,10 +765,10 @@ describe("idle-to-movement transition with latency", () => {
     }
 
     // 2. Server tick
-    g.runSchedule(serverSchedule, serverWorld as g.World)
+    g.SystemSchedule.run(serverSchedule, serverWorld as g.World.World)
 
     // 3. Server broadcasts replication into the pipe
-    const stream = g.getResource(serverWorld, g.ReplicationStream)
+    const stream = g.World.getResource(serverWorld, g.ReplicationStream)
     if (stream) {
       for (const tx of stream.transactions) {
         const w = new g.ByteWriter()
@@ -800,9 +800,9 @@ describe("idle-to-movement transition with latency", () => {
 
     // 5. Client records command (if moving) & sends it via pipe
     if (sendCommand) {
-      g.recordCommand(clientWorld, player, MoveCommand({dx: 1, dy: 0}))
+      g.Command.record(clientWorld, player, MoveCommand({dx: 1, dy: 0}))
 
-      const commandBuffer = g.getResource(clientWorld, g.CommandBuffer)
+      const commandBuffer = g.World.getResource(clientWorld, g.Command.CommandBuffer)
       const cmds = commandBuffer?.get(clientWorld.tick)
       if (cmds && cmds.length > 0) {
         const writer = new g.ByteWriter()
@@ -817,7 +817,7 @@ describe("idle-to-movement transition with latency", () => {
     }
 
     // 6. Client tick
-    g.runSchedule(clientSchedule, clientWorld as g.World)
+    g.SystemSchedule.run(clientSchedule, clientWorld as g.World.World)
   }
 
   test("Write: no jitter during idle→movement transition (checkpointInterval=5)", () => {
@@ -854,9 +854,9 @@ describe("idle-to-movement transition with latency", () => {
         isMoving,
       )
 
-      const pos = g.getComponentValue(clientWorld, player, Position)
+      const pos = g.World.getComponentValue(clientWorld, player, Position)
       const x = pos?.x ?? 0
-      const idx = g.sparseMapGet(clientWorld.index.entityToIndex, player)
+      const idx = g.SparseMap.get(clientWorld.index.entityToIndex, player)
       const ver =
         idx !== undefined
           ? clientWorld.components.versions.get(posId)?.[idx]
@@ -934,9 +934,9 @@ describe("idle-to-movement transition with latency", () => {
         isMoving,
       )
 
-      const pos = g.getComponentValue(clientWorld, player, Position)
+      const pos = g.World.getComponentValue(clientWorld, player, Position)
       const x = pos?.x ?? 0
-      const idx = g.sparseMapGet(clientWorld.index.entityToIndex, player)
+      const idx = g.SparseMap.get(clientWorld.index.entityToIndex, player)
       const ver =
         idx !== undefined
           ? clientWorld.components.versions.get(posId)?.[idx]
@@ -999,7 +999,7 @@ describe("idle-to-movement transition with latency", () => {
         isMoving,
       )
 
-      const pos = g.getComponentValue(clientWorld, player, Position)
+      const pos = g.World.getComponentValue(clientWorld, player, Position)
       const x = pos?.x ?? 0
 
       if (isMoving) {

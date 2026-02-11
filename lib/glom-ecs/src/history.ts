@@ -1,6 +1,6 @@
-import type {Component, ComponentLike} from "./component"
-import {defineComponent} from "./component"
-import {type Entity, getDomainId} from "./entity"
+import * as Component from "./component"
+import type {ComponentLike} from "./component"
+import * as Entity from "./entity"
 import {
   type EntityGraphNode,
   entityGraphFindOrCreateNode,
@@ -19,14 +19,8 @@ import {
   registerIncomingRelation,
   setRelationPair,
 } from "./relation_registry"
-import {
-  sparseMapClear,
-  sparseMapDelete,
-  sparseMapForEach,
-  sparseMapGet,
-  sparseMapSet,
-} from "./sparse_map"
-import {sparseSetAdd, sparseSetClear, sparseSetSize} from "./sparse_set"
+import * as SparseMap from "./sparse_map"
+import * as SparseSet from "./sparse_set"
 import {makeVec, type Vec, vecDifference, vecSum} from "./vec"
 import {
   deleteComponentValue,
@@ -71,17 +65,17 @@ export type Checkpoint = {
 }
 
 export type UndoOp =
-  | {type: "undo-spawn"; entity: Entity}
-  | {type: "undo-despawn"; entity: Entity; components: SpawnComponent[]}
+  | {type: "undo-spawn"; entity: Entity.Entity}
+  | {type: "undo-despawn"; entity: Entity.Entity; components: SpawnComponent[]}
   | {
       type: "undo-add"
-      entity: Entity
+      entity: Entity.Entity
       componentId: number
       rel?: RelationPair
     }
   | {
       type: "undo-remove"
-      entity: Entity
+      entity: Entity.Entity
       componentId: number
       data: unknown
       rel?: RelationPair
@@ -92,7 +86,7 @@ export type UndoEntry = {
   readonly ops: UndoOp[]
 }
 
-export const HistoryBuffer = defineComponent<{
+export const HistoryBuffer = Component.define<{
   checkpoints: Checkpoint[]
   undoLog: UndoEntry[]
   maxSize: number
@@ -115,7 +109,7 @@ export type HistoryBuffer = {
   checkpointInterval: number
 }
 
-export function makeHistoryBuffer(
+export function create(
   maxSize = 64,
   checkpointInterval = 1,
 ): HistoryBuffer {
@@ -131,7 +125,7 @@ export function makeHistoryBuffer(
 const _serdeWriter = new ByteWriter(4096)
 const _serdeReader = new ByteReader(new Uint8Array(0))
 
-export function captureCheckpoint(world: World): Checkpoint {
+export function capture(world: World): Checkpoint {
   const componentData = new Map<number, unknown[]>()
   const nextIndex = world.index.next
 
@@ -174,8 +168,8 @@ export function captureCheckpoint(world: World): Checkpoint {
   const entityArchetypes = new Int32Array(nextIndex)
   const nodeVecs = new Map<number, Vec>()
 
-  sparseMapForEach(world.graph.byEntity, (entity, node) => {
-    const index = sparseMapGet(world.index.entityToIndex, entity)
+  SparseMap.forEach(world.graph.byEntity, (entity, node) => {
+    const index = SparseMap.get(world.index.entityToIndex, entity)
     if (index !== undefined) {
       entityArchetypes[index] = node.id
       if (!nodeVecs.has(node.id)) {
@@ -201,7 +195,7 @@ export function captureCheckpoint(world: World): Checkpoint {
   }
 
   const entityToIndex = new Map<number, number>()
-  sparseMapForEach(world.index.entityToIndex, (entity, index) => {
+  SparseMap.forEach(world.index.entityToIndex, (entity, index) => {
     entityToIndex.set(entity, index)
   })
 
@@ -245,7 +239,7 @@ export function captureCheckpoint(world: World): Checkpoint {
   }
 }
 
-export function restoreCheckpoint(world: World, checkpoint: Checkpoint) {
+export function restore(world: World, checkpoint: Checkpoint) {
   world.tick = checkpoint.tick
   world.tickSpawnCount = checkpoint.tickSpawnCount
 
@@ -283,9 +277,9 @@ export function restoreCheckpoint(world: World, checkpoint: Checkpoint) {
     }
   }
 
-  sparseMapClear(world.index.entityToIndex)
+  SparseMap.clear(world.index.entityToIndex)
   for (const [entity, index] of checkpoint.entityToIndex) {
-    sparseMapSet(world.index.entityToIndex, entity, index)
+    SparseMap.set(world.index.entityToIndex, entity, index)
   }
   world.index.indexToEntity.length = 0
   world.index.indexToEntity.push(...checkpoint.indexToEntity)
@@ -386,14 +380,14 @@ export function restoreCheckpoint(world: World, checkpoint: Checkpoint) {
   world.componentRegistry.setNextVirtualId(checkpoint.relations.nextVirtualId)
 
   for (const node of world.graph.byHash.values()) {
-    if (sparseSetSize(node.entities) > 0) {
-      sparseSetClear(node.entities)
+    if (SparseSet.size(node.entities) > 0) {
+      SparseSet.clear(node.entities)
     }
     node.indices.length = 0
     node.relMaps.length = 0
   }
 
-  sparseMapClear(world.graphChanges)
+  SparseMap.clear(world.graphChanges)
   world.pendingDeletions.clear()
   world.pendingRemovals.clear()
 
@@ -402,12 +396,12 @@ export function restoreCheckpoint(world: World, checkpoint: Checkpoint) {
     nodesById.set(node.id, node)
   }
 
-  sparseMapClear(world.graph.byEntity)
+  SparseMap.clear(world.graph.byEntity)
   for (let i = 0; i < checkpoint.entityArchetypes.length; i++) {
     const nodeId = checkpoint.entityArchetypes[i] as number
     if (nodeId === 0) continue
 
-    const entity = checkpoint.indexToEntity[i] as Entity | undefined
+    const entity = checkpoint.indexToEntity[i] as Entity.Entity | undefined
     if (entity === undefined || (entity as unknown as number) === 0) continue
 
     let node = nodesById.get(nodeId)
@@ -421,29 +415,29 @@ export function restoreCheckpoint(world: World, checkpoint: Checkpoint) {
       }
     }
     if (node !== undefined) {
-      sparseMapSet(world.graph.byEntity, entity as unknown as number, node)
-      sparseSetAdd(node.entities, entity)
+      SparseMap.set(world.graph.byEntity, entity as unknown as number, node)
+      SparseSet.add(node.entities, entity)
       node.indices.push(i)
     }
   }
 
   for (const [obj, subjects] of world.relations.objectToSubjects) {
-    const node = getEntityNode(world, obj as Entity)
+    const node = getEntityNode(world, obj as Entity.Entity)
     if (node !== undefined) {
       for (const {subject, relationId} of subjects) {
         entityGraphNodeAddRelation(
           node,
           relationId,
-          subject as Entity,
-          obj as Entity,
+          subject as Entity.Entity,
+          obj as Entity.Entity,
         )
       }
     }
   }
 }
 
-export function pushCheckpoint(world: World, history: HistoryBuffer) {
-  const checkpoint = captureCheckpoint(world)
+export function push(world: World, history: HistoryBuffer) {
+  const checkpoint = capture(world)
   history.checkpoints.push(checkpoint)
   if (history.checkpoints.length > history.maxSize) {
     history.checkpoints.shift()
@@ -452,7 +446,7 @@ export function pushCheckpoint(world: World, history: HistoryBuffer) {
 
 // --- Undo log application ---
 
-function undoSpawn(world: World, entity: Entity) {
+function undoSpawn(world: World, entity: Entity.Entity) {
   const node = getEntityNode(world, entity)
   if (node !== undefined) {
     const elements = node.vec.elements
@@ -460,13 +454,13 @@ function undoSpawn(world: World, entity: Entity) {
       deleteComponentValue(world, entity, elements[i] as ComponentLike)
     }
     entityGraphNodeRemoveEntity(node, entity)
-    sparseMapDelete(world.graph.byEntity, entity as number)
+    SparseMap.del(world.graph.byEntity, entity as number)
   }
 
-  const idx = sparseMapGet(world.index.entityToIndex, entity)
+  const idx = SparseMap.get(world.index.entityToIndex, entity)
   if (idx !== undefined) {
     world.index.free.push(idx)
-    sparseMapDelete(world.index.entityToIndex, entity)
+    SparseMap.del(world.index.entityToIndex, entity)
   }
 
   removeEntity(world.registry, entity)
@@ -474,10 +468,10 @@ function undoSpawn(world: World, entity: Entity) {
 
 function undoDespawn(
   world: World,
-  entity: Entity,
+  entity: Entity.Entity,
   components: SpawnComponent[],
 ) {
-  const domainId = getDomainId(entity)
+  const domainId = Entity.domainId(entity)
   const domain = getDomain(world.registry, domainId)
   addDomainEntity(domain, entity)
 
@@ -489,7 +483,7 @@ function undoDespawn(
       continue
     }
     if (data !== undefined) {
-      setComponentValue(world, entity, component as Component<unknown>, data)
+      setComponentValue(world, entity, component as Component.Component<unknown>, data)
     }
     resolved.push(component)
     if (rel !== undefined) {
@@ -499,7 +493,7 @@ function undoDespawn(
         world,
         entity,
         rel.relationId,
-        rel.object as Entity,
+        rel.object as Entity.Entity,
       )
     }
   }
@@ -508,10 +502,10 @@ function undoDespawn(
   const node = entityGraphFindOrCreateNode(world.graph, vec)
   const index = getOrCreateIndex(world, entity as number)
   entityGraphNodeAddEntity(node, entity, index)
-  sparseMapSet(world.graph.byEntity, entity as number, node)
+  SparseMap.set(world.graph.byEntity, entity as number, node)
 }
 
-function undoAddComponent(world: World, entity: Entity, componentId: number) {
+function undoAddComponent(world: World, entity: Entity.Entity, componentId: number) {
   const comp = resolveComponent(world, componentId)
   if (comp === undefined) return
 
@@ -526,17 +520,17 @@ function undoAddComponent(world: World, entity: Entity, componentId: number) {
     world.componentRegistry,
   )
   const nextNode = entityGraphFindOrCreateNode(world.graph, nextVec)
-  const index = sparseMapGet(world.index.entityToIndex, entity)
+  const index = SparseMap.get(world.index.entityToIndex, entity)
   if (index !== undefined) {
     entityGraphNodeRemoveEntity(node, entity)
     entityGraphNodeAddEntity(nextNode, entity, index)
-    sparseMapSet(world.graph.byEntity, entity as number, nextNode)
+    SparseMap.set(world.graph.byEntity, entity as number, nextNode)
   }
 }
 
 function undoRemoveComponent(
   world: World,
-  entity: Entity,
+  entity: Entity.Entity,
   componentId: number,
   data: unknown,
   rel?: RelationPair,
@@ -562,7 +556,7 @@ function undoRemoveComponent(
       world,
       entity,
       rel.relationId,
-      rel.object as Entity,
+      rel.object as Entity.Entity,
     )
   }
 
@@ -572,11 +566,11 @@ function undoRemoveComponent(
     world.componentRegistry,
   )
   const nextNode = entityGraphFindOrCreateNode(world.graph, nextVec)
-  const index = sparseMapGet(world.index.entityToIndex, entity)
+  const index = SparseMap.get(world.index.entityToIndex, entity)
   if (index !== undefined) {
     entityGraphNodeRemoveEntity(node, entity)
     entityGraphNodeAddEntity(nextNode, entity, index)
-    sparseMapSet(world.graph.byEntity, entity as number, nextNode)
+    SparseMap.set(world.graph.byEntity, entity as number, nextNode)
   }
 }
 
@@ -609,14 +603,14 @@ export function applyUndoLog(
     }
   }
 
-  sparseMapClear(world.graphChanges)
+  SparseMap.clear(world.graphChanges)
   world.pendingDeletions.clear()
   world.pendingRemovals.clear()
 }
 
-export function rollbackToTick(
+export function rollback(
   world: World,
-  history: HistoryBuffer | Component<HistoryBuffer>,
+  history: HistoryBuffer | Component.Component<HistoryBuffer>,
   tick: number,
 ): boolean {
   const buffer =
@@ -640,7 +634,7 @@ export function rollbackToTick(
     return false
   }
 
-  restoreCheckpoint(world, bestCheckpoint)
+  restore(world, bestCheckpoint)
 
   // Truncate checkpoints after this one
   buffer.checkpoints.length = bestIdx + 1

@@ -21,13 +21,7 @@ import {
 } from "../entity_graph"
 import {isRelationship, type Relation} from "../relation"
 import {getOrCreateVirtualId} from "../relation_registry"
-import {
-  makeSparseMap,
-  sparseMapClear,
-  sparseMapDelete,
-  sparseMapGet,
-  sparseMapSet,
-} from "../sparse_map"
+import * as SparseMap from "../sparse_map"
 import {makeVec, type Vec, vecIsSupersetOf} from "../vec"
 import {
   getComponentId,
@@ -63,7 +57,7 @@ export type TermInfo =
 
 export class JoinLevel implements EntityGraphNodeListener {
   readonly nodes: EntityGraphNode[] = []
-  readonly nodesMap = makeSparseMap<EntityGraphNode>()
+  readonly nodesMap = SparseMap.create<EntityGraphNode>()
   readonly requiredVec: Vec
   readonly excludedVecs: Vec[]
   readonly joinOn?: {readonly id: number}
@@ -109,15 +103,15 @@ export class JoinLevel implements EntityGraphNodeListener {
       }
     }
 
-    if (!sparseMapGet(this.nodesMap, node.id)) {
-      sparseMapSet(this.nodesMap, node.id, node)
+    if (!SparseMap.get(this.nodesMap, node.id)) {
+      SparseMap.set(this.nodesMap, node.id, node)
       this.nodes.push(node)
     }
   }
 
   nodeDestroyed(node: EntityGraphNode): void {
-    if (sparseMapGet(this.nodesMap, node.id)) {
-      sparseMapDelete(this.nodesMap, node.id)
+    if (SparseMap.get(this.nodesMap, node.id)) {
+      SparseMap.del(this.nodesMap, node.id)
       const idx = this.nodes.indexOf(node)
       if (idx !== -1) {
         this.nodes.splice(idx, 1)
@@ -127,7 +121,7 @@ export class JoinLevel implements EntityGraphNodeListener {
 
   teardown(): void {
     entityGraphNodeRemoveListener(this.anchorNode, this)
-    sparseMapClear(this.nodesMap)
+    SparseMap.clear(this.nodesMap)
     this.nodes.length = 0
   }
 }
@@ -142,9 +136,11 @@ export class AllRuntime implements AnyAll {
   } = {sparse: new Map(), dense: []}
   protected _world?: World
   protected _term_infos: TermInfo[] = []
+  protected _termResultIndex: number[] = []
+  protected _resultTermCount = 0
 
   get nodes() {
-    return this.joins[0]?.nodesMap || makeSparseMap<EntityGraphNode>()
+    return this.joins[0]?.nodesMap || SparseMap.create<EntityGraphNode>()
   }
 
   get _anchor_node() {
@@ -170,7 +166,7 @@ export class AllRuntime implements AnyAll {
           entity,
           node,
           0,
-          new Array(this._term_infos.length),
+          new Array(this._resultTermCount),
         )
       }
     }
@@ -227,9 +223,12 @@ export class AllRuntime implements AnyAll {
     const info = terms[termIdx] as TermInfo
     const values = this._get_term_values(entity, info, node)
 
-    const termPos = this._term_infos.indexOf(info)
+    const globalIdx = this._term_infos.indexOf(info)
+    const resultPos = this._termResultIndex[globalIdx]
     for (const val of values) {
-      currentResult[termPos] = val
+      if (resultPos !== undefined && resultPos >= 0) {
+        currentResult[resultPos] = val
+      }
       yield* this._yield_terms_at_level(
         entity,
         node,
@@ -297,7 +296,7 @@ export class AllRuntime implements AnyAll {
       if (!actualNode.vec.sparse.has(info.componentId)) return []
 
       if (info.store === undefined) return [undefined]
-      const index = sparseMapGet(this._world.index.entityToIndex, entity)
+      const index = SparseMap.get(this._world.index.entityToIndex, entity)
       if (index === undefined) return []
       const val = info.store[index]
       if (val === undefined) return []
@@ -407,6 +406,19 @@ export class AllRuntime implements AnyAll {
 
     processDescriptor(this.desc, 0)
 
+    // Compute result-index mapping: only "entity" and "component" terms
+    // contribute slots in the result tuple; "has" and "not" are filter-only.
+    this._termResultIndex = []
+    this._resultTermCount = 0
+    for (let i = 0; i < this._term_infos.length; i++) {
+      const t = this._term_infos[i]!
+      if (t.type === "entity" || t.type === "component") {
+        this._termResultIndex.push(this._resultTermCount++)
+      } else {
+        this._termResultIndex.push(-1)
+      }
+    }
+
     for (let i = 0; i <= collectContext.joinIndex; i++) {
       const join = new JoinLevel(
         world,
@@ -478,6 +490,13 @@ export class AllRuntime implements AnyAll {
     }
 
     const componentId = getComponentId(world, component)
+
+    // Downgrade tag components (isTag) from "component" to "has" — they are
+    // filter-only and should not occupy a slot in the result tuple.
+    if (type === "component" && component.isTag) {
+      type = "has"
+    }
+
     const info: TermInfo = {
       type,
       component,
@@ -628,14 +647,14 @@ export class AllRuntime implements AnyAll {
     // Check if the entity's node matches the first join level
     const join0 = this.joins[0]
     if (join0 === undefined) return false
-    if (sparseMapGet(join0.nodesMap, node.id) === undefined) return false
+    if (SparseMap.get(join0.nodesMap, node.id) === undefined) return false
 
     // Try to yield at least one result for this entity
     const it = this._yield_at_level(
       entity,
       node,
       0,
-      new Array(this._term_infos.length),
+      new Array(this._resultTermCount),
     )
     const {done} = it.next()
     return !done
@@ -648,6 +667,8 @@ export class AllRuntime implements AnyAll {
     this.joins.length = 0
     this._world = undefined
     this._term_infos = []
+    this._termResultIndex = []
+    this._resultTermCount = 0
     this.stores.length = 0
   }
 }

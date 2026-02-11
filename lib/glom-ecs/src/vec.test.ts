@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {defineComponent} from "./component"
+import * as Component from "./component"
 import {makeComponentRegistry} from "./registry"
 import {
   makeVec,
@@ -13,9 +13,9 @@ import {
 } from "./vec"
 
 describe("vec", () => {
-  const c1 = defineComponent<number>("c1")
-  const c2 = defineComponent<number>("c2")
-  const c3 = defineComponent<number>("c3")
+  const c1 = Component.define<number>("c1")
+  const c2 = Component.define<number>("c2")
+  const c3 = Component.define<number>("c3")
   const registry = makeComponentRegistry([c1, c2, c3])
   // IDs are hash-derived — sort them so we know the expected order
   const ids = [c1.id, c2.id, c3.id]

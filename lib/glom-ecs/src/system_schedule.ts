@@ -46,7 +46,7 @@ type SystemResources<T extends any[]> = {
   [K in keyof T]: ExtractComponent<T[K]>
 }[number]
 
-export function addSystem<R extends ComponentLike, T extends any[]>(
+export function add<R extends ComponentLike, T extends any[]>(
   schedule: SystemSchedule<R>,
   system: (...args: T) => void,
 ): asserts schedule is SystemSchedule<
@@ -60,7 +60,7 @@ export function addSystem<R extends ComponentLike, T extends any[]>(
   schedule.execs.push(executor as any)
 }
 
-export function makeSystemSchedule(): SystemSchedule<never> {
+export function create(): SystemSchedule<never> {
   return {
     execs: [] as SystemExecutor<any>[],
     phase: SystemSchedulePhase.Setup,
@@ -254,12 +254,12 @@ function sortSystems(execs: SystemExecutor[]): SystemExecutor[] {
 /**
  * Eagerly initialise a schedule's system executors and register all of their
  * components with the given world.  This is idempotent — calling it more than
- * once (or calling it before {@link runSchedule}) is safe.
+ * once (or calling it before {@link run}) is safe.
  *
  * Call this **before** deserialising any network packets so that the world's
  * component registry contains the serdes needed to decode incoming data.
  */
-export function setupSchedule<T extends ComponentLike, U extends ComponentLike>(
+export function setup<T extends ComponentLike, U extends ComponentLike>(
   schedule: SystemSchedule<T>,
   world: World<U> & ([T] extends [NoInfer<U>] ? unknown : never),
 ): void {
@@ -272,11 +272,11 @@ export function setupSchedule<T extends ComponentLike, U extends ComponentLike>(
   }
 }
 
-export function runSchedule<T extends ComponentLike, U extends ComponentLike>(
+export function run<T extends ComponentLike, U extends ComponentLike>(
   schedule: SystemSchedule<T>,
   world: World<U> & ([T] extends [NoInfer<U>] ? unknown : never),
 ): void {
-  setupSchedule(schedule, world)
+  setup(schedule, world)
   for (const exec of schedule.execs) {
     runSystemExecutor(exec)
   }

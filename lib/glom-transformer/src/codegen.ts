@@ -205,9 +205,27 @@ export function generateLoops(
     let innerBody: ts.Statement[] = []
 
     if (currentJoinLevel === joinCount - 1) {
+      // Build valueTerms: only terms that yield values (skip "has" and "not").
+      // loopVariables[i] maps to valueTerms[i], not terms[i].
+      const valueTerms: QueryTerm[] = []
+      for (const t of terms) {
+        let resolved = t
+        while (
+          resolved.type === "rel" &&
+          resolved.subTerms &&
+          resolved.subTerms[0]
+        ) {
+          resolved = resolved.subTerms[0]
+        }
+        if (resolved.type !== "has" && resolved.type !== "not") {
+          valueTerms.push(t)
+        }
+      }
+
       const varMappings: ts.Statement[] = []
       loopVariables.forEach((v, i) => {
-        let term = terms[i]
+        if (ts.isOmittedExpression(v)) return
+        let term = valueTerms[i]
         if (!term) return
 
         while (term.type === "rel" && term.subTerms && term.subTerms[0]) {
@@ -273,7 +291,8 @@ export function generateLoops(
       // Generate version bump statements for write terms
       const versionBumps: ts.Statement[] = []
       loopVariables.forEach((_v, i) => {
-        let term = terms[i]
+        if (ts.isOmittedExpression(_v)) return
+        let term = valueTerms[i]
         if (!term) return
 
         while (term.type === "rel" && term.subTerms && term.subTerms[0]) {

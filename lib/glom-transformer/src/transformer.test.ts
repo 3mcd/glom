@@ -500,6 +500,99 @@ describe("transformer", () => {
     expect(output).toContain("_world_query.tick")
   })
 
+  test("handles omitted binding elements in destructuring", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
+      const Velocity = g.defineComponent<{dx: number; dy: number}>("Velocity")
+      const system = (q: g.All<typeof Position, typeof Velocity>) => {
+        for (const [pos, ] of q) {
+          pos.x += 1
+        }
+      }
+    `
+    const output = transform(input)
+    expect(output).toContain("_store0_q")
+    expect(output).toContain("pos")
+    expect(output).not.toContain("undefined.name")
+  })
+
+  test("handles omitted binding elements in Join destructuring", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
+      const Name = g.defineComponent<string>("Name")
+      const ChildOf = g.defineRelation("ChildOf")
+      const system = (q: g.Join<g.All<typeof Position>, g.All<g.Entity, typeof Name>, typeof ChildOf>) => {
+        for (const [pos, , name] of q) {
+          console.log(pos, name)
+        }
+      }
+    `
+    const output = transform(input)
+    expect(output).toContain("_q0_q = q.joins[0]")
+    expect(output).toContain("_q1_q = q.joins[1]")
+    expect(output).toContain("pos")
+    expect(output).toContain("name")
+  })
+
+  test("skips tag terms in query results (bare typeof Tag)", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
+      const Player = g.defineTag("Player")
+      const system = (q: g.All<typeof Player, typeof Position>) => {
+        for (const [pos] of q) {
+          pos.x += 1
+        }
+      }
+    `
+    const output = transform(input)
+    // Tag should produce {has: Player} in descriptor, not {read: Player}
+    expect(output).toContain("{ has: Player }")
+    expect(output).not.toContain("{ read: Player }")
+    // pos should map to the Position store (index 0), not the Player tag
+    expect(output).toContain("_store0_q")
+    expect(output).toContain("const pos = _store0_q[")
+  })
+
+  test("skips tag terms in query results (Read<typeof Tag>)", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const Position = g.defineComponent<{x: number; y: number}>("Position")
+      const Player = g.defineTag("Player")
+      const system = (q: g.All<g.Read<typeof Player>, g.Write<typeof Position>>) => {
+        for (const [pos] of q) {
+          pos.x += 1
+        }
+      }
+    `
+    const output = transform(input)
+    // Read<Tag> should produce {has: Player} in descriptor
+    expect(output).toContain("{ has: Player }")
+    expect(output).not.toContain("{ read: Player }")
+    // pos should be the only value binding
+    expect(output).toContain("const pos = _store0_q[")
+  })
+
+  test("skips Has and Not terms in query results", () => {
+    const input = `
+      import * as g from "@glom/ecs"
+      const A = g.defineComponent<{val: number}>("A")
+      const B = g.defineComponent<{val: number}>("B")
+      const system = (q: g.All<g.Entity, g.Has<typeof A>, g.Not<typeof B>>) => {
+        for (const [entity] of q) {
+          console.log(entity)
+        }
+      }
+    `
+    const output = transform(input)
+    expect(output).toContain("{ has: A }")
+    expect(output).toContain("{ not: B }")
+    // entity is the only value term — should be first binding
+    expect(output).toContain("const entity = _e0_q")
+  })
+
   test("transforms doubly aliased Join query", () => {
     const input = `
       namespace g {

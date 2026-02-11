@@ -333,7 +333,8 @@ export function processDefineComponent(
     calleeName = node.expression.name.text
   }
 
-  if (calleeName !== "defineComponent") return undefined
+  // Match both old `defineComponent(...)` and new `Component.define(...)`
+  if (calleeName !== "defineComponent" && calleeName !== "define") return undefined
 
   // --- Already has serde (2nd arg)? Skip. ---
   if (node.arguments.length !== 1) return undefined

@@ -2,6 +2,61 @@ import ts from "typescript"
 import type {QueryTerm} from "./types"
 import {getSymbolName, resolveTypeNode} from "./type-utils"
 
+/**
+ * Detect whether a component type is a tag (Component<void>).
+ *
+ * Method 1: Inspect call-signature first parameter type — tags define
+ * `(value: void)`.  Works when the actual @glom/ecs types are resolved.
+ *
+ * Method 2: Check if the variable was declared via a `defineTag()` call.
+ * Works even when the module can't be resolved (e.g. unit tests).
+ */
+function isTagComponent(
+  type: ts.Type,
+  typeChecker: ts.TypeChecker,
+  typeNode?: ts.TypeNode,
+): boolean {
+  // Method 1: call signature
+  const callSignatures = type.getCallSignatures()
+  if (callSignatures.length > 0) {
+    const sig = callSignatures[0]!
+    const params = sig.getParameters()
+    if (params.length > 0) {
+      const paramType = typeChecker.getTypeOfSymbol(params[0]!)
+      if ((paramType.flags & ts.TypeFlags.Void) !== 0) return true
+    }
+  }
+
+  // Method 2: declaration initializer
+  let sym: ts.Symbol | undefined
+  if (typeNode && ts.isTypeQueryNode(typeNode)) {
+    sym = typeChecker.getSymbolAtLocation(typeNode.exprName)
+  }
+  if (!sym) {
+    sym = type.getSymbol()
+  }
+  if (sym) {
+    const decl = sym.valueDeclaration
+    if (
+      decl &&
+      ts.isVariableDeclaration(decl) &&
+      decl.initializer &&
+      ts.isCallExpression(decl.initializer)
+    ) {
+      const callExpr = decl.initializer.expression
+      if (
+        ts.isPropertyAccessExpression(callExpr) &&
+        callExpr.name.text === "defineTag"
+      )
+        return true
+      if (ts.isIdentifier(callExpr) && callExpr.text === "defineTag")
+        return true
+    }
+  }
+
+  return false
+}
+
 export function entityNameToExpression(
   factory: ts.NodeFactory,
   name: ts.EntityName,
@@ -110,6 +165,20 @@ export function extractAllTermsFromNode(
           factory,
           resolvedNode.typeArguments?.[0],
         )
+
+        // Check if the inner component is a tag (Component<void>)
+        const innerArg = resolvedNode.typeArguments?.[0]
+        if (innerArg) {
+          const innerType = typeChecker.getTypeAtLocation(innerArg)
+          if (isTagComponent(innerType, typeChecker, innerArg)) {
+            return {
+              type: "has",
+              joinIndex: currentJoinIndex,
+              runtimeExpr: componentExpr,
+            }
+          }
+        }
+
         return {
           type: isWrite ? "write" : "read",
           storeIndex: storeIndex++,
@@ -159,6 +228,14 @@ export function extractAllTermsFromNode(
             name || "",
           ))
       ) {
+        // Check if this is a tag component (Component<void>)
+        if (isTagComponent(type, typeChecker, resolvedNode)) {
+          return {
+            type: "has",
+            joinIndex: currentJoinIndex,
+            runtimeExpr: componentExpr,
+          }
+        }
         return {
           type: "read",
           storeIndex: storeIndex++,

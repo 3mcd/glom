@@ -12,7 +12,7 @@ export type ComponentSerde<T> = {
 }
 
 /**
- * Global serde registry, populated at defineComponent/defineTag/defineRelation
+ * Global serde registry, populated at define/defineTag/defineRelation
  * time (module scope).  The protocol layer falls back to this when a
  * per-world registry hasn't registered a component yet, avoiding the need
  * for eager setup before deserialising network packets.
@@ -34,7 +34,7 @@ export function isGlobalComponentTag(id: number): boolean {
   return globalComponentInfo.get(id)?.isTag ?? false
 }
 
-/** @internal — called by defineRelation */
+/** @internal — called by Relation.define */
 export function registerGlobalComponent(
   id: number,
   serde: ComponentSerde<unknown> | undefined,
@@ -71,7 +71,7 @@ export interface ComponentResolver {
   isTag(componentId: number): boolean
 }
 
-export function defineComponent<T>(
+export function define<T>(
   name: string,
   serde?: ComponentSerde<T>,
 ): Component<T> {

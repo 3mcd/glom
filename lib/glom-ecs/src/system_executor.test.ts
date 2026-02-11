@@ -1,5 +1,5 @@
 import {describe, expect, mock, test} from "bun:test"
-import {defineComponent, defineTag} from "./component"
+import * as Component from "./component"
 import {entityGraphGetEntityNode} from "./entity_graph"
 import {
   clearSystemExecutorMonitors,
@@ -8,16 +8,16 @@ import {
   setupSystemExecutor,
   teardownSystemExecutor,
 } from "./system_executor"
-import {addResource, getComponentValue, makeWorld} from "./world"
+import * as World from "./world"
 import {spawn} from "./world_api"
 
 describe("system_executor", () => {
-  const Position = defineComponent<{x: number; y: number}>("Position")
-  const IsStatic = defineTag("IsStatic")
+  const Position = Component.define<{x: number; y: number}>("Position")
+  const IsStatic = Component.defineTag("IsStatic")
   const schema = [Position, IsStatic]
 
   test("setup and teardown with All, In, and Out", () => {
-    const world = makeWorld({domainId: 0})
+    const world = World.create({domainId: 0})
     const system = () => {}
     const desc = {
       params: [
@@ -38,7 +38,7 @@ describe("system_executor", () => {
   })
 
   test("clearSystemExecutorMonitors", () => {
-    const world = makeWorld({domainId: 0})
+    const world = World.create({domainId: 0})
     const system = () => {}
     const desc = {
       params: [{in: {all: [{read: Position}]}}],
@@ -59,8 +59,8 @@ describe("system_executor", () => {
   })
 
   test("setup with Has, Not, Spawn, Despawn, Add, and Remove", () => {
-    const world = makeWorld({domainId: 0})
-    addResource(world, {component: Position, value: {x: 1, y: 1}}) // Resource Position exists
+    const world = World.create({domainId: 0})
+    World.addResource(world, {component: Position, value: {x: 1, y: 1}}) // Resource Position exists
 
     const desc = {
       params: [
@@ -92,13 +92,13 @@ describe("system_executor", () => {
       expect(
         nodeE?.vec.sparse.has(world.componentRegistry.getId(Position)),
       ).toBe(true)
-      expect(getComponentValue(world, e, Position)?.x).toBe(5)
+      expect(World.getComponentValue(world, e, Position)?.x).toBe(5)
 
       addFn(entity, {x: 10, y: 10})
-      expect(getComponentValue(world, entity, Position)?.x).toBe(10)
+      expect(World.getComponentValue(world, entity, Position)?.x).toBe(10)
 
       removeFn(entity)
-      expect(getComponentValue(world, entity, Position)).toBeUndefined()
+      expect(World.getComponentValue(world, entity, Position)).toBeUndefined()
 
       despawnFn(e)
     }
@@ -109,7 +109,7 @@ describe("system_executor", () => {
   })
 
   test("Add descriptor with Tag", () => {
-    const world = makeWorld({domainId: 0})
+    const world = World.create({domainId: 0})
     const entity = spawn(world)
 
     const desc = {
@@ -130,14 +130,14 @@ describe("system_executor", () => {
   })
 
   test("Has/Not throws if resource condition not met", () => {
-    const world = makeWorld({domainId: 0})
+    const world = World.create({domainId: 0})
     // Position does NOT exist as a resource
 
     const descHas = {params: [{has: Position}]}
     const execHas = makeSystemExecutor((() => {}) as any, descHas as any)
     expect(() => setupSystemExecutor(execHas, world)).toThrow(/not found/)
 
-    addResource(world, {component: IsStatic, value: undefined})
+    World.addResource(world, {component: IsStatic, value: undefined})
     const descNot = {params: [{not: IsStatic}]}
     const execNot = makeSystemExecutor((() => {}) as any, descNot as any)
     expect(() => setupSystemExecutor(execNot, world)).toThrow(

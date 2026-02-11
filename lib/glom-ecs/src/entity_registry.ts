@@ -1,4 +1,4 @@
-import {type Entity, getDomainId} from "./entity"
+import * as Entity from "./entity"
 import {
   allocDomainEntity,
   type EntityRegistryDomain,
@@ -28,12 +28,12 @@ export function getDomain(
 export function allocEntity(
   registry: EntityRegistry,
   domainId: number,
-): Entity {
+): Entity.Entity {
   return allocDomainEntity(getDomain(registry, domainId))
 }
 
-export function removeEntity(registry: EntityRegistry, entity: Entity) {
-  removeDomainEntity(getDomain(registry, getDomainId(entity)), entity)
+export function removeEntity(registry: EntityRegistry, entity: Entity.Entity) {
+  removeDomainEntity(getDomain(registry, Entity.domainId(entity)), entity)
 }
 
 export function nextOpSeq(registry: EntityRegistry, domainId: number): number {

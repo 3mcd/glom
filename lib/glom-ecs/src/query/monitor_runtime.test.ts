@@ -1,8 +1,8 @@
 import {describe, expect, test} from "bun:test"
-import {defineComponent, defineTag} from "../component"
-import {Entity} from "../entity"
-import {defineRelation} from "../relation"
-import {makeWorld} from "../world"
+import * as Component from "../component"
+import * as Entity from "../entity"
+import * as Relation from "../relation"
+import * as World from "../world"
 import {
   addComponent,
   despawn,
@@ -15,13 +15,13 @@ import {setupAll} from "./all_runtime"
 import {makeIn, makeOut} from "./monitor_runtime"
 
 describe("monitorRuntime", () => {
-  const Position = defineComponent<{x: number; y: number}>("Position")
-  const Tag = defineTag("Tag")
+  const Position = Component.define<{x: number; y: number}>("Position")
+  const Tag = Component.defineTag("Tag")
   const schema = [Position, Tag]
 
   test("In<Q> catches new matching entities after flush", () => {
-    const world = makeWorld({domainId: 0})
-    const query = {all: [Entity, {read: Position}]}
+    const world = World.create({domainId: 0})
+    const query = {all: [Entity.Entity, {read: Position}]}
     const monitor = makeIn({in: query})
     setupAll(monitor, world)
 
@@ -41,8 +41,8 @@ describe("monitorRuntime", () => {
   })
 
   test("Out<Q> catches entities that no longer match", () => {
-    const world = makeWorld({domainId: 0})
-    const query = {all: [Entity, {read: Position}]}
+    const world = World.create({domainId: 0})
+    const query = {all: [Entity.Entity, {read: Position}]}
     const monitor = makeOut({out: query})
     setupAll(monitor, world)
 
@@ -66,8 +66,8 @@ describe("monitorRuntime", () => {
   })
 
   test("Out<Q> catches despawned entities", () => {
-    const world = makeWorld({domainId: 0})
-    const query = {all: [Entity, {read: Position}]}
+    const world = World.create({domainId: 0})
+    const query = {all: [Entity.Entity, {read: Position}]}
     const monitor = makeOut({out: query})
     setupAll(monitor, world)
 
@@ -85,9 +85,9 @@ describe("monitorRuntime", () => {
   })
 
   test("Transaction Reduction: Spawn then Despawn in same tick is a no-op", () => {
-    const world = makeWorld({domainId: 0})
-    const inMonitor = makeIn({in: {all: [Entity]}})
-    const outMonitor = makeOut({out: {all: [Entity]}})
+    const world = World.create({domainId: 0})
+    const inMonitor = makeIn({in: {all: [Entity.Entity]}})
+    const outMonitor = makeOut({out: {all: [Entity.Entity]}})
     setupAll(inMonitor, world)
     setupAll(outMonitor, world)
 
@@ -101,8 +101,8 @@ describe("monitorRuntime", () => {
   })
 
   test("Transaction Reduction: Add then Remove in same tick is a no-op", () => {
-    const world = makeWorld({domainId: 0})
-    const query = {all: [Entity, {has: Tag}]}
+    const world = World.create({domainId: 0})
+    const query = {all: [Entity.Entity, {has: Tag}]}
     const inMonitor = makeIn({in: query})
     const outMonitor = makeOut({out: query})
     setupAll(inMonitor, world)
@@ -124,12 +124,12 @@ describe("monitorRuntime", () => {
   })
 
   test("Multi-step transition: A -> B -> C only triggers In if net move is In", () => {
-    const A = defineTag("A")
-    const B = defineTag("B")
-    const C = defineTag("C")
-    const world = makeWorld({domainId: 0})
+    const A = Component.defineTag("A")
+    const B = Component.defineTag("B")
+    const C = Component.defineTag("C")
+    const world = World.create({domainId: 0})
 
-    const monitor_B = makeIn({in: {all: [Entity, {has: B}]}})
+    const monitor_B = makeIn({in: {all: [Entity.Entity, {has: B}]}})
     setupAll(monitor_B, world)
 
     const e = spawn(world, A)
@@ -148,7 +148,7 @@ describe("monitorRuntime", () => {
   })
 
   test("Out<Q> yields data before deferred deletion clears it", () => {
-    const world = makeWorld({domainId: 0})
+    const world = World.create({domainId: 0})
     const monitor = makeOut({out: {all: [{read: Position}]}})
     setupAll(monitor, world)
 
@@ -169,9 +169,9 @@ describe("monitorRuntime", () => {
   })
 
   test("Out fires when the related entity has a tag removed", () => {
-    const Attacking = defineTag("Attacking")
-    const EmitsFrom = defineRelation("EmitsFrom")
-    const world = makeWorld({domainId: 0})
+    const Attacking = Component.defineTag("Attacking")
+    const EmitsFrom = Relation.define("EmitsFrom")
+    const world = World.create({domainId: 0})
 
     // 1. Create a player that is Attacking
     const player = spawn(world, Attacking, Position({x: 10, y: 10}))
@@ -181,7 +181,7 @@ describe("monitorRuntime", () => {
 
     // 3. Define the query: Entity that EmitsFrom an entity that Has Attacking
     const query = {
-      join: [{all: [Entity]}, {all: [{has: Attacking}]}, EmitsFrom],
+      join: [{all: [Entity.Entity]}, {all: [{has: Attacking}]}, EmitsFrom],
     }
 
     const monitor = makeOut({out: query as any})
@@ -200,7 +200,7 @@ describe("monitorRuntime", () => {
     // 6. Verify that the beam is now in the Out monitor
     const results = Array.from(monitor)
     expect(results).toHaveLength(1)
-    expect(results[0]).toEqual([beam, undefined])
+    expect(results[0]).toEqual([beam])
 
     monitor.clear()
     flushDeletions(world)
@@ -208,8 +208,8 @@ describe("monitorRuntime", () => {
   })
 
   test("Out<Has<Tag>> should fire when Tag is removed", () => {
-    const world = makeWorld({domainId: 0})
-    const query = {all: [Entity, {has: Tag}]}
+    const world = World.create({domainId: 0})
+    const query = {all: [Entity.Entity, {has: Tag}]}
     const monitor = makeOut({out: query})
     setupAll(monitor, world)
 
@@ -222,6 +222,6 @@ describe("monitorRuntime", () => {
 
     const results = Array.from(monitor)
     expect(results).toHaveLength(1)
-    expect(results[0]).toEqual([e, undefined])
+    expect(results[0]).toEqual([e])
   })
 })

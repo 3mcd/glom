@@ -1,13 +1,5 @@
-import {
-  type Component,
-  type ComponentLike,
-  type ComponentResolver,
-  type ComponentSerde,
-  defineComponent,
-  defineTag,
-  getGlobalComponentSerde,
-  isGlobalComponentTag,
-} from "./component"
+import * as Component from "./component"
+import type {ComponentLike, ComponentResolver, ComponentSerde} from "./component"
 import {hashNameToComponentId} from "./lib/hash"
 
 /**
@@ -19,7 +11,7 @@ const PLACEHOLDER = Symbol("placeholder")
 export class ComponentRegistry implements ComponentResolver {
   private compToId = new Map<ComponentLike, number>()
   private idToComp = new Map<number, ComponentLike>()
-  private virtualCache = new Map<number, Component<void>>()
+  private virtualCache = new Map<number, Component.Component<void>>()
   private nextVirtualId = 1000000
 
   constructor(components: ComponentLike[] = []) {
@@ -54,18 +46,18 @@ export class ComponentRegistry implements ComponentResolver {
   }
 
   getSerde(id: number): ComponentSerde<unknown> | undefined {
-    const comp = this.idToComp.get(id) as Component<unknown> | undefined
+    const comp = this.idToComp.get(id) as Component.Component<unknown> | undefined
     if (comp?.serde !== undefined) return comp.serde
-    // Fall back to global map populated at defineComponent time
-    return getGlobalComponentSerde(id)
+    // Fall back to global map populated at Component.define time
+    return Component.getGlobalComponentSerde(id)
   }
 
   isTag(id: number): boolean {
     if (id >= 1000000) return true
     const comp = this.idToComp.get(id)
     if (comp !== undefined) return !!comp.isTag
-    // Fall back to global map populated at defineComponent/defineTag time
-    return isGlobalComponentTag(id)
+    // Fall back to global map populated at Component.define/defineTag time
+    return Component.isGlobalComponentTag(id)
   }
 
   getComponent(id: number): ComponentLike | undefined {
@@ -85,10 +77,10 @@ export class ComponentRegistry implements ComponentResolver {
   private getOrCreatePlaceholder(id: number): ComponentLike {
     // Check the global map (populated at module load time) to decide
     // whether this component is a tag or carries data.
-    const isTag = isGlobalComponentTag(id)
+    const isTag = Component.isGlobalComponentTag(id)
     const placeholder = isTag
-      ? defineTag(`__placeholder_${id}`)
-      : defineComponent<unknown>(`__placeholder_${id}`)
+      ? Component.defineTag(`__placeholder_${id}`)
+      : Component.define<unknown>(`__placeholder_${id}`)
     // Override the hash-derived id with the wire id so the registry
     // maps this placeholder to the correct slot.
     ;(placeholder as unknown as Record<string, unknown>).id = id
@@ -97,10 +89,10 @@ export class ComponentRegistry implements ComponentResolver {
     return placeholder
   }
 
-  getVirtualComponent(id: number): Component<void> {
+  getVirtualComponent(id: number): Component.Component<void> {
     let comp = this.virtualCache.get(id)
     if (comp === undefined) {
-      comp = defineTag(`__virtual_${id}`)
+      comp = Component.defineTag(`__virtual_${id}`)
       // Override the hash-derived id with the virtual id.
       ;(comp as unknown as Record<string, unknown>).id = id
       this.virtualCache.set(id, comp)

@@ -4,7 +4,7 @@ import {
   getConsensusOffset,
 } from "./clocksync"
 import type {Component, ComponentInstance, ComponentLike} from "./component"
-import {type Entity, getDomainId} from "./entity"
+import * as Entity from "./entity"
 import {
   createEntityBatchKey,
   type EntityGraphBatch,
@@ -30,7 +30,7 @@ import {
   removeEntity,
 } from "./entity_registry"
 import {addDomainEntity} from "./entity_registry_domain"
-import {HistoryBuffer, pushCheckpoint} from "./history"
+import * as History from "./history"
 import type {ReplicationOp, SpawnComponent} from "./net_types"
 import {isRelationship} from "./relation"
 import {
@@ -54,14 +54,8 @@ import {
   ReplicationConfig,
   ReplicationStream,
 } from "./replication_config"
-import {
-  sparseMapClear,
-  sparseMapDelete,
-  sparseMapForEach,
-  sparseMapGet,
-  sparseMapSet,
-} from "./sparse_map"
-import {sparseSetSize} from "./sparse_set"
+import * as SparseMap from "./sparse_map"
+import * as SparseSet from "./sparse_set"
 import {makeVec, vecDifference, vecSum} from "./vec"
 import {
   addResource,
@@ -81,33 +75,54 @@ import {
 
 export {
   addResource,
+  allocVirtualComponentId,
+  create,
   deleteComponentValue,
+  forceSetComponentValue,
+  forceSetComponentValueById,
+  getComponentId,
+  getComponentSerde,
   getComponentValue,
+  getComponentValueById,
+  getEntityNode,
   getOrCreateIndex,
   getResource,
+  getVersionDomainId,
+  getVersionTick,
+  hasResource,
+  makeVersion,
+  resolveComponent,
+  resolveVirtualComponent,
   setComponentValue,
+  setComponentValueById,
+  type ComponentStore,
+  type EntityIndex,
+  type GraphMove,
   type World,
-}
+  type WorldOptions,
+} from "./world"
+
+export type {Entity} from "./entity"
 
 // Module-level scratch containers, cleared before each use to avoid per-call allocations.
-const _reduction_entity_to_ops: Map<Entity, ReplicationOp[]> = new Map()
+const _reduction_entity_to_ops: Map<Entity.Entity, ReplicationOp[]> = new Map()
 const _reduction_component_changes: Map<number, ReplicationOp> = new Map()
 const _reduction_component_removals: Set<number> = new Set()
 const _batch_map: Map<number, unknown> = new Map()
 
 function recordGraphMove(
   world: World,
-  entity: Entity,
+  entity: Entity.Entity,
   prevNode: EntityGraphNode | undefined,
   nextNode: EntityGraphNode | undefined,
 ) {
   if (prevNode !== undefined) {
     world.pendingPrunes.add(prevNode)
   }
-  let move = sparseMapGet(world.graphChanges, entity as number)
+  let move = SparseMap.get(world.graphChanges, entity as number)
   if (move === undefined) {
     move = {entity, from: prevNode, to: nextNode}
-    sparseMapSet(world.graphChanges, entity as number, move)
+    SparseMap.set(world.graphChanges, entity as number, move)
   } else {
     move.to = nextNode
   }
@@ -115,7 +130,7 @@ function recordGraphMove(
 
 export function setEntityNode(
   world: World,
-  entity: Entity,
+  entity: Entity.Entity,
   nextNode: EntityGraphNode,
 ): EntityGraphNode | undefined {
   const index = getOrCreateIndex(world, entity as number)
@@ -134,14 +149,14 @@ export function setEntityNode(
         entityGraphNodeRemoveRelation(
           prevNode,
           relationId,
-          subject as Entity,
+          subject as Entity.Entity,
           entity,
         )
       }
       entityGraphNodeAddRelation(
         nextNode,
         relationId,
-        subject as Entity,
+        subject as Entity.Entity,
         entity,
       )
     }
@@ -153,7 +168,7 @@ export function setEntityNode(
 export function spawn(
   world: World,
   ...components: (ComponentInstance<unknown> | ComponentLike)[]
-): Entity {
+): Entity.Entity {
   return spawnInDomain(world, components)
 }
 
@@ -187,18 +202,18 @@ export function spawnInDomain(
   components: (ComponentInstance<unknown> | ComponentLike)[],
   domainId = world.registry.domainId,
   causalTick = world.tick,
-): Entity {
+): Entity.Entity {
   const isReplicated = hasReplicatedComponent(world, components)
   const causalIndex = isReplicated ? world.tickSpawnCount++ : 0x7fff
   const causalKey = makeCausalKey(causalTick, causalIndex)
 
-  let entity: Entity
+  let entity: Entity.Entity
   const existing = world.transients.get(causalKey)
   if (existing !== undefined) {
     entity = existing.entity
-    addDomainEntity(getDomain(world.registry, getDomainId(entity)), entity)
+    addDomainEntity(getDomain(world.registry, Entity.domainId(entity)), entity)
   } else {
-    const isPrediction = !!getResource(world, HistoryBuffer)
+    const isPrediction = !!getResource(world, History.HistoryBuffer)
     const actualDomainId = isPrediction ? TRANSIENT_DOMAIN : domainId
     entity = allocEntity(world.registry, actualDomainId)
   }
@@ -236,7 +251,7 @@ export function spawnInDomain(
     }
   }
 
-  if (getDomainId(entity) === TRANSIENT_DOMAIN && domainId !== COMMAND_DOMAIN) {
+  if (Entity.domainId(entity) === TRANSIENT_DOMAIN && domainId !== COMMAND_DOMAIN) {
     world.transients.set(causalKey, {
       entity,
       tick: world.tick,
@@ -278,21 +293,21 @@ export function spawnInDomain(
 
   recordGraphMove(world, entity, prevNode, nextNode)
 
-  if (getDomainId(entity) !== COMMAND_DOMAIN) {
+  if (Entity.domainId(entity) !== COMMAND_DOMAIN) {
     world.undoOps.push({type: "undo-spawn", entity})
   }
 
   return entity
 }
 
-export function despawn(world: World, entity: Entity): void {
+export function despawn(world: World, entity: Entity.Entity): void {
   const node = getEntityNode(world, entity)
   if (node === undefined) {
     return
   }
 
   // Record undo-despawn before any cleanup
-  if (getDomainId(entity) !== COMMAND_DOMAIN) {
+  if (Entity.domainId(entity) !== COMMAND_DOMAIN) {
     const undoComponents: SpawnComponent[] = []
     for (let k = 0; k < node.vec.elements.length; k++) {
       const component = node.vec.elements[k] as ComponentLike
@@ -311,7 +326,7 @@ export function despawn(world: World, entity: Entity): void {
   }
 
   const domainId = world.registry.domainId
-  if (getDomainId(entity) === domainId) {
+  if (Entity.domainId(entity) === domainId) {
     let isReplicated = false
     const elements = node.vec.elements
     for (let i = 0; i < elements.length; i++) {
@@ -334,10 +349,10 @@ export function despawn(world: World, entity: Entity): void {
     const toRemove = Array.from(incoming)
     for (let i = 0; i < toRemove.length; i++) {
       const {subject, relationId} = toRemove[i] as {
-        subject: Entity
+        subject: Entity.Entity
         relationId: number
       }
-      removeRelation(world, subject as Entity, relationId, entity)
+      removeRelation(world, subject as Entity.Entity, relationId, entity)
     }
   }
 
@@ -351,7 +366,7 @@ export function despawn(world: World, entity: Entity): void {
         world,
         entity,
         rel.relationId,
-        rel.object as Entity,
+        rel.object as Entity.Entity,
       )
     }
   }
@@ -366,22 +381,22 @@ export function despawn(world: World, entity: Entity): void {
         entityGraphNodeRemoveRelation(
           prevNode,
           relationId,
-          subject as Entity,
+          subject as Entity.Entity,
           entity,
         )
       }
     }
     entityGraphNodeRemoveEntity(prevNode, entity)
-    sparseMapDelete(world.graph.byEntity, entity as number)
+    SparseMap.del(world.graph.byEntity, entity as number)
     recordGraphMove(world, entity, prevNode, undefined)
   }
 }
 
 function removeRelation(
   world: World,
-  entity: Entity,
+  entity: Entity.Entity,
   relationId: number,
-  object: Entity,
+  object: Entity.Entity,
 ): void {
   const node = getEntityNode(world, entity)
   if (node === undefined) return
@@ -425,7 +440,7 @@ function removeRelation(
 
 export function addComponent(
   world: World,
-  entity: Entity,
+  entity: Entity.Entity,
   item: ComponentInstance<unknown> | ComponentLike,
 ): void {
   const node = getEntityNode(world, entity)
@@ -459,7 +474,7 @@ export function addComponent(
 
   if (toAdd.length > 0) {
     // Record undo-add entries for each added component
-    if (getDomainId(entity) !== COMMAND_DOMAIN) {
+    if (Entity.domainId(entity) !== COMMAND_DOMAIN) {
       for (let i = 0; i < toAdd.length; i++) {
         const component = toAdd[i] as ComponentLike
         const componentId = getComponentId(world, component)
@@ -472,7 +487,7 @@ export function addComponent(
       }
     }
 
-    if (getDomainId(entity) === world.registry.domainId) {
+    if (Entity.domainId(entity) === world.registry.domainId) {
       let alreadyReplicated = false
       const elements = node.vec.elements
       for (let i = 0; i < elements.length; i++) {
@@ -564,7 +579,7 @@ export function addComponent(
 
 export function removeComponent(
   world: World,
-  entity: Entity,
+  entity: Entity.Entity,
   item: ComponentLike,
 ): void {
   const node = getEntityNode(world, entity)
@@ -610,7 +625,7 @@ export function removeComponent(
 
   if (toRemove.length > 0) {
     // Record undo-remove entries for each removed component
-    if (getDomainId(entity) !== COMMAND_DOMAIN) {
+    if (Entity.domainId(entity) !== COMMAND_DOMAIN) {
       for (let i = 0; i < toRemove.length; i++) {
         const component = toRemove[i] as ComponentLike
         const componentId = getComponentId(world, component)
@@ -624,7 +639,7 @@ export function removeComponent(
       }
     }
 
-    if (getDomainId(entity) === world.registry.domainId) {
+    if (Entity.domainId(entity) === world.registry.domainId) {
       let isReplicated = false
       const elements = node.vec.elements
       for (let i = 0; i < elements.length; i++) {
@@ -823,7 +838,7 @@ export function commitTransaction(world: World): void {
 }
 
 export function advanceTick(world: World, skipSnapshot = false): void {
-  const history = getResource(world, HistoryBuffer)
+  const history = getResource(world, History.HistoryBuffer)
 
   // Batch undo entries for the current tick (before increment)
   if (history && !skipSnapshot && world.undoOps.length > 0) {
@@ -841,7 +856,7 @@ export function advanceTick(world: World, skipSnapshot = false): void {
       history.checkpointInterval <= 1 ||
       world.tick % history.checkpointInterval === 0
     ) {
-      pushCheckpoint(world, history)
+      History.push(world, history)
     }
   }
 
@@ -852,7 +867,7 @@ export function flushGraphChanges(world: World) {
   const batches = _batch_map as Map<number, EntityGraphBatch>
   batches.clear()
 
-  sparseMapForEach(world.graphChanges, (entity, move) => {
+  SparseMap.forEach(world.graphChanges, (entity, move) => {
     if (move.from === move.to) {
       return
     }
@@ -862,7 +877,7 @@ export function flushGraphChanges(world: World) {
       batch = poolGetBatch(move.from, move.to)
       batches.set(key, batch)
     }
-    entityGraphBatchAdd(batch, entity as Entity)
+    entityGraphBatchAdd(batch, entity as Entity.Entity)
   })
 
   batches.forEach((batch) => {
@@ -876,12 +891,12 @@ export function flushGraphChanges(world: World) {
     poolReturnBatch(batch)
   })
 
-  sparseMapClear(world.graphChanges)
+  SparseMap.clear(world.graphChanges)
 
   world.pendingPrunes.forEach((node) => {
     if (
       node.strategy === PruneStrategy.WhenEmpty &&
-      sparseSetSize(node.entities) === 0
+      SparseSet.size(node.entities) === 0
     ) {
       entityGraphNodePrune(world.graph, node)
     }
@@ -893,16 +908,16 @@ export function flushDeletions(world: World) {
   world.pendingDeletions.forEach((entity) => {
     deleteObjectSubjects(world, entity)
 
-    const entityIndex = sparseMapGet(world.index.entityToIndex, entity)
+    const entityIndex = SparseMap.get(world.index.entityToIndex, entity)
     if (entityIndex !== undefined) {
       world.index.free.push(entityIndex)
-      sparseMapDelete(world.index.entityToIndex, entity)
+      SparseMap.del(world.index.entityToIndex, entity)
     }
 
     // Remove stale transient registry entries for this entity so that
     // ghost cleanup can never despawn a *different* entity that later
     // reuses the same recycled ID.
-    if (getDomainId(entity) === TRANSIENT_DOMAIN) {
+    if (Entity.domainId(entity) === TRANSIENT_DOMAIN) {
       for (const [key, info] of world.transients.entries()) {
         if (info.entity === entity) {
           world.transients.delete(key)

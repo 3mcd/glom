@@ -31,17 +31,17 @@ export function assertValidDomainId(domainId: number) {
   assert(domainId <= HI)
 }
 
-export function getLocalId(entity: number) {
+export function localId(entity: number) {
   assertValid(entity)
   return entity & LO
 }
 
-export function getDomainId(entity: number) {
+export function domainId(entity: number) {
   assertValid(entity)
   return entity >> LO_EXTENT
 }
 
-export function makeEntity(entityId: number, domainId: number) {
+export function make(entityId: number, domainId: number) {
   assertValidId(entityId)
   assertValidDomainId(domainId)
   return (((domainId & HI) << LO_EXTENT) | entityId) as Entity

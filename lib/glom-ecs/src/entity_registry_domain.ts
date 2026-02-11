@@ -1,5 +1,5 @@
 import {assertDefined} from "./assert"
-import {type Entity, getLocalId, makeEntity} from "./entity"
+import * as Entity from "./entity"
 
 export type EntityRegistryDomain = {
   domainId: number
@@ -25,8 +25,8 @@ export function makeEntityRegistryDomain(
   }
 }
 
-export function addDomainEntity(domain: EntityRegistryDomain, entity: Entity) {
-  const localId = getLocalId(entity)
+export function addDomainEntity(domain: EntityRegistryDomain, entity: Entity.Entity) {
+  const localId = Entity.localId(entity)
   if (domain.sparse.has(localId)) {
     return
   }
@@ -37,9 +37,9 @@ export function addDomainEntity(domain: EntityRegistryDomain, entity: Entity) {
 
 export function removeDomainEntity(
   domain: EntityRegistryDomain,
-  entity: Entity,
+  entity: Entity.Entity,
 ) {
-  const localId = getLocalId(entity)
+  const localId = Entity.localId(entity)
   const index = domain.sparse.get(localId)
   if (index === undefined) {
     return
@@ -47,18 +47,18 @@ export function removeDomainEntity(
   const lastEntity = domain.dense[domain.entityCount - 1]
   assertDefined(lastEntity)
   domain.dense[index] = lastEntity
-  domain.sparse.set(getLocalId(lastEntity), index)
+  domain.sparse.set(Entity.localId(lastEntity), index)
   domain.sparse.delete(localId)
   domain.entityCount--
   domain.freeIds.push(localId)
 }
 
-export function allocDomainEntity(domain: EntityRegistryDomain): Entity {
+export function allocDomainEntity(domain: EntityRegistryDomain): Entity.Entity {
   const localId =
     domain.freeIds.length > 0
       ? (domain.freeIds.pop() as number)
       : domain.entityId++
-  const entity = makeEntity(localId, domain.domainId)
+  const entity = Entity.make(localId, domain.domainId)
   addDomainEntity(domain, entity)
   return entity
 }

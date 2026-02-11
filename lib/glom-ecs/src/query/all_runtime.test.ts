@@ -1,16 +1,18 @@
 import {describe, expect, test} from "bun:test"
-import {defineComponent, defineTag} from "../component"
+import * as Component from "../component"
 import type {AllDescriptor, JoinDescriptor} from "../descriptors"
-import {Entity, makeEntity} from "../entity"
+import * as Entity from "../entity"
 import {type EntityGraphNode, entityGraphSetEntityNode} from "../entity_graph"
-import {defineRelation} from "../relation"
-import {getOrCreateIndex, makeWorld, setComponentValue} from "../world"
+import * as Relation from "../relation"
+import {getOrCreateIndex} from "../world"
+import * as World from "../world"
+import {setComponentValue} from "../world"
 import {addComponent, spawn} from "../world_api"
 import {AllRuntime, makeAll, setupAll, teardownAll} from "./all_runtime"
 
 describe("allRuntime", () => {
-  const c1 = defineComponent<{val: number}>("c1")
-  const c2 = defineComponent<{name: string}>("c2")
+  const c1 = Component.define<{val: number}>("c1")
+  const c2 = Component.define<{name: string}>("c2")
   const schema = [c1, c2]
   const desc: AllDescriptor = {
     all: [{read: c1}, {write: c2}],
@@ -22,7 +24,7 @@ describe("allRuntime", () => {
   })
 
   test("setupAll adds listener and populates nodes", () => {
-    const world = makeWorld({domainId: 0})
+    const world = World.create({domainId: 0})
     const all = makeAll(desc) as AllRuntime
 
     setupAll(all, world)
@@ -31,12 +33,12 @@ describe("allRuntime", () => {
   })
 
   test("iterator yields component values", () => {
-    const world = makeWorld({domainId: 0})
+    const world = World.create({domainId: 0})
     const all = makeAll(desc) as AllRuntime
     setupAll(all, world)
 
-    const e1 = makeEntity(1, 0)
-    const e2 = makeEntity(2, 0)
+    const e1 = Entity.make(1, 0)
+    const e2 = Entity.make(2, 0)
 
     setComponentValue(world, e1, c1, {val: 10})
     setComponentValue(world, e1, c2, {name: "e1"})
@@ -75,11 +77,11 @@ describe("allRuntime", () => {
     const descWithEntity: AllDescriptor = {
       all: [{entity: true}, {read: c1}],
     }
-    const world = makeWorld({domainId: 0})
+    const world = World.create({domainId: 0})
     const all = makeAll(descWithEntity) as AllRuntime
     setupAll(all, world)
 
-    const e1 = makeEntity(1, 0)
+    const e1 = Entity.make(1, 0)
     setComponentValue(world, e1, c1, {val: 10})
 
     const node = all._anchor_node as EntityGraphNode
@@ -100,13 +102,13 @@ describe("allRuntime", () => {
 
   test("iterator with Entity constant", () => {
     const descWithEntity: AllDescriptor = {
-      all: [Entity, {read: c1}],
+      all: [Entity.Entity, {read: c1}],
     }
-    const world = makeWorld({domainId: 0})
+    const world = World.create({domainId: 0})
     const all = makeAll(descWithEntity) as AllRuntime
     setupAll(all, world)
 
-    const e1 = makeEntity(5, 0)
+    const e1 = Entity.make(5, 0)
     setComponentValue(world, e1, c1, {val: 50})
 
     const node = all._anchor_node as EntityGraphNode
@@ -125,15 +127,15 @@ describe("allRuntime", () => {
   })
 
   test("iterator with tags (ZSTs)", () => {
-    const t1 = defineTag("t1")
+    const t1 = Component.defineTag("t1")
     const descWithTag: AllDescriptor = {
-      all: [Entity, {has: t1}, {read: c1}],
+      all: [Entity.Entity, {has: t1}, {read: c1}],
     }
-    const world = makeWorld({domainId: 0})
+    const world = World.create({domainId: 0})
     const all = makeAll(descWithTag) as AllRuntime
     setupAll(all, world)
 
-    const e1 = makeEntity(7, 0)
+    const e1 = Entity.make(7, 0)
     setComponentValue(world, e1, c1, {val: 70})
 
     const node = all._anchor_node as EntityGraphNode
@@ -149,16 +151,16 @@ describe("allRuntime", () => {
       results.push([...r])
     }
     expect(results).toHaveLength(1)
-    expect(results[0]).toEqual([e1, undefined, {val: 70}])
+    expect(results[0]).toEqual([e1, {val: 70}])
   })
 
   test("iterator with Not filter", () => {
-    const c3 = defineComponent<{val: number}>("c3")
+    const c3 = Component.define<{val: number}>("c3")
     const descWithNot: AllDescriptor = {
       all: [{read: c1}, {not: c3}],
     }
 
-    const world = makeWorld({domainId: 0})
+    const world = World.create({domainId: 0})
     const all = makeAll(descWithNot) as AllRuntime
     setupAll(all, world)
 
@@ -174,13 +176,13 @@ describe("allRuntime", () => {
       results.push([...r])
     }
     expect(results).toHaveLength(1)
-    expect(results[0]).toEqual([{val: 10}, undefined])
+    expect(results[0]).toEqual([{val: 10}])
   })
 
   test("iterator with Join and Not filter", () => {
-    const rel = defineRelation("rel")
-    const c3 = defineComponent<{val: number}>("c3")
-    const world = makeWorld({domainId: 0})
+    const rel = Relation.define("rel")
+    const c3 = Component.define<{val: number}>("c3")
+    const world = World.create({domainId: 0})
 
     const descWithJoinNot: JoinDescriptor<any, any, any> = {
       join: [{all: []}, {all: [{not: c3}]}, rel],
@@ -204,11 +206,11 @@ describe("allRuntime", () => {
     }
 
     expect(results).toHaveLength(1)
-    expect(results[0]).toEqual([undefined])
+    expect(results[0]).toEqual([])
   })
 
   test("teardownAll removes listener and clears nodes", () => {
-    const world = makeWorld({domainId: 0})
+    const world = World.create({domainId: 0})
     const all = makeAll(desc) as AllRuntime
 
     setupAll(all, world)

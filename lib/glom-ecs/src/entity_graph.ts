@@ -3,26 +3,8 @@ import type {Component} from "./component"
 import type {Entity} from "./entity"
 import {hashToUint, hashWord} from "./lib/hash"
 import type {ComponentRegistry} from "./registry"
-import {
-  makeSparseMap,
-  type SparseMap,
-  sparseMapDelete,
-  sparseMapForEachValue,
-  sparseMapGet,
-  sparseMapSet,
-} from "./sparse_map"
-import {
-  makeSparseSet,
-  type SparseSet,
-  sparseSetAdd,
-  sparseSetClear,
-  sparseSetDelete,
-  sparseSetForEach,
-  sparseSetHas,
-  sparseSetIndexOf,
-  sparseSetSize,
-  sparseSetValues,
-} from "./sparse_set"
+import * as SparseMap from "./sparse_map"
+import * as SparseSet from "./sparse_set"
 import {
   makeVec,
   makeVecSorted,
@@ -57,16 +39,16 @@ export enum PruneStrategy {
 }
 
 export type RelationMap = {
-  subjectToObjects: Map<number, SparseSet<Entity>>
+  subjectToObjects: Map<number, SparseSet.SparseSet<Entity>>
 }
 
 export type EntityGraphNode = {
   readonly id: number
   readonly vec: Vec
-  readonly entities: SparseSet<Entity>
+  readonly entities: SparseSet.SparseSet<Entity>
   readonly indices: number[]
-  readonly nextNodes: SparseMap<EntityGraphNode>
-  readonly prevNodes: SparseMap<EntityGraphNode>
+  readonly nextNodes: SparseMap.SparseMap<EntityGraphNode>
+  readonly prevNodes: SparseMap.SparseMap<EntityGraphNode>
   readonly relMaps: (RelationMap | undefined)[]
   readonly listeners: EntityGraphNodeListener[]
   readonly strategy: PruneStrategy
@@ -80,10 +62,10 @@ export function makeEntityGraphNode(
   return {
     id,
     vec,
-    entities: makeSparseSet<Entity>(),
+    entities: SparseSet.create<Entity>(),
     indices: [],
-    nextNodes: makeSparseMap<EntityGraphNode>(),
-    prevNodes: makeSparseMap<EntityGraphNode>(),
+    nextNodes: SparseMap.create<EntityGraphNode>(),
+    prevNodes: SparseMap.create<EntityGraphNode>(),
     relMaps: [],
     listeners: [],
     strategy,
@@ -103,10 +85,10 @@ export function entityGraphNodeAddRelation(
   }
   let objects = relMap.subjectToObjects.get(subject as number)
   if (objects === undefined) {
-    objects = makeSparseSet<Entity>()
+    objects = SparseSet.create<Entity>()
     relMap.subjectToObjects.set(subject as number, objects)
   }
-  sparseSetAdd(objects, object)
+  SparseSet.add(objects, object)
 
   entityGraphNodeTraverseLeft(node, (visit) => {
     for (let i = 0; i < visit.listeners.length; i++) {
@@ -127,8 +109,8 @@ export function entityGraphNodeRemoveRelation(
   const objects = relMap.subjectToObjects.get(subject as number)
   if (objects === undefined) return
 
-  sparseSetDelete(objects, object)
-  if (sparseSetSize(objects) === 0) {
+  SparseSet.del(objects, object)
+  if (SparseSet.size(objects) === 0) {
     relMap.subjectToObjects.delete(subject as number)
   }
 
@@ -143,16 +125,16 @@ export function entityGraphNodeLink(
   node: EntityGraphNode,
   prev: EntityGraphNode,
 ): void {
-  sparseMapSet(node.prevNodes, prev.id, prev)
-  sparseMapSet(prev.nextNodes, node.id, node)
+  SparseMap.set(node.prevNodes, prev.id, prev)
+  SparseMap.set(prev.nextNodes, node.id, node)
 }
 
 export function entityGraphNodeUnlink(
   node: EntityGraphNode,
   prev: EntityGraphNode,
 ): void {
-  sparseMapDelete(node.prevNodes, prev.id)
-  sparseMapDelete(prev.nextNodes, node.id)
+  SparseMap.del(node.prevNodes, prev.id)
+  SparseMap.del(prev.nextNodes, node.id)
 }
 
 export function entityGraphNodeTraverseRight(
@@ -172,7 +154,7 @@ export function entityGraphNodeTraverseRight(
       continue
     }
     visited.add(node.id)
-    sparseMapForEachValue(node.nextNodes, (nextNode) => {
+    SparseMap.forEachValue(node.nextNodes, (nextNode) => {
       stack.push(nextNode)
     })
   }
@@ -195,7 +177,7 @@ export function entityGraphNodeTraverseLeft(
       continue
     }
     visited.add(node.id)
-    sparseMapForEachValue(node.prevNodes, (prevNode) => {
+    SparseMap.forEachValue(node.prevNodes, (prevNode) => {
       stack.push(prevNode)
     })
   }
@@ -217,7 +199,7 @@ export function entityGraphNodeAddListener(
   const onEntitiesIn = listener.entitiesIn?.bind(listener)
   if (emitExistingEntities && onEntitiesIn) {
     entityGraphNodeTraverseRight(node, (rightNode) => {
-      const entities = sparseSetValues(rightNode.entities)
+      const entities = SparseSet.values(rightNode.entities)
       if (entities.length > 0) {
         onEntitiesIn(entities, rightNode)
       }
@@ -277,7 +259,7 @@ export function entityGraphNodeHasEntity(
   node: EntityGraphNode,
   entity: Entity,
 ): boolean {
-  return sparseSetHas(node.entities, entity)
+  return SparseSet.has(node.entities, entity)
 }
 
 export function entityGraphNodeAddEntity(
@@ -285,7 +267,7 @@ export function entityGraphNodeAddEntity(
   entity: Entity,
   index: number,
 ): void {
-  sparseSetAdd(node.entities, entity)
+  SparseSet.add(node.entities, entity)
   node.indices.push(index)
 }
 
@@ -293,9 +275,9 @@ export function entityGraphNodeRemoveEntity(
   node: EntityGraphNode,
   entity: Entity,
 ): void {
-  const idx = sparseSetIndexOf(node.entities, entity)
+  const idx = SparseSet.indexOf(node.entities, entity)
   if (idx !== -1) {
-    sparseSetDelete(node.entities, entity)
+    SparseSet.del(node.entities, entity)
     const lastIdx = node.indices.length - 1
     node.indices[idx] = node.indices[lastIdx]!
     node.indices.pop()
@@ -311,12 +293,12 @@ export function entityGraphNodePrune(
   }
 
   const parents: EntityGraphNode[] = []
-  sparseMapForEachValue(node.prevNodes, (parent) => {
+  SparseMap.forEachValue(node.prevNodes, (parent) => {
     parents.push(parent)
   })
 
   const children: EntityGraphNode[] = []
-  sparseMapForEachValue(node.nextNodes, (child) => {
+  SparseMap.forEachValue(node.nextNodes, (child) => {
     children.push(child)
   })
 
@@ -338,7 +320,7 @@ export function entityGraphNodePrune(
       const parent = parents[j] as EntityGraphNode
       if (vecIsSupersetOf(child.vec, parent.vec)) {
         let hasMoreSpecificSubset = false
-        sparseMapForEachValue(parent.nextNodes, (nextNode) => {
+        SparseMap.forEachValue(parent.nextNodes, (nextNode) => {
           if (vecIsSupersetOf(child.vec, nextNode.vec)) {
             hasMoreSpecificSubset = true
           }
@@ -357,7 +339,7 @@ export function entityGraphNodePrune(
 export type EntityGraph = {
   nextId: number
   readonly byHash: Map<number, EntityGraphNode>
-  readonly byEntity: SparseMap<EntityGraphNode>
+  readonly byEntity: SparseMap.SparseMap<EntityGraphNode>
   readonly root: EntityGraphNode
 }
 
@@ -369,7 +351,7 @@ export function makeEntityGraph(registry: ComponentRegistry): EntityGraph {
   return {
     nextId: 1,
     byHash,
-    byEntity: makeSparseMap<EntityGraphNode>(),
+    byEntity: SparseMap.create<EntityGraphNode>(),
     root,
   }
 }
@@ -390,7 +372,7 @@ export function entityGraphLinkNodesTraverse(
     const isSuperset = vecIsSupersetOf(visited.vec, node.vec)
     if (isSubset) {
       let hasMoreSpecificSubset = false
-      sparseMapForEachValue(visited.nextNodes, (nextNode) => {
+      SparseMap.forEachValue(visited.nextNodes, (nextNode) => {
         if (vecIsSupersetOf(node.vec, nextNode.vec)) {
           hasMoreSpecificSubset = true
         }
@@ -402,7 +384,7 @@ export function entityGraphLinkNodesTraverse(
     }
     if (isSuperset) {
       childrenToLink.push(visited)
-      sparseMapForEachValue(visited.prevNodes, (prevNode) => {
+      SparseMap.forEachValue(visited.prevNodes, (prevNode) => {
         if (vecIsSupersetOf(node.vec, prevNode.vec)) {
           childrenToUnlink.push([visited, prevNode])
         }
@@ -487,7 +469,7 @@ export function entityGraphGetEntityNode(
   graph: EntityGraph,
   entity: Entity,
 ): EntityGraphNode | undefined {
-  return sparseMapGet(graph.byEntity, entity as number)
+  return SparseMap.get(graph.byEntity, entity as number)
 }
 
 export function entityGraphForEachNode(
@@ -503,7 +485,7 @@ export function entityGraphSetEntityNode(
   nextNode: EntityGraphNode,
   index: number,
 ): EntityGraphNode | undefined {
-  const prevNode = sparseMapGet(graph.byEntity, entity as number)
+  const prevNode = SparseMap.get(graph.byEntity, entity as number)
   if (prevNode === nextNode) {
     return prevNode
   }
@@ -512,12 +494,12 @@ export function entityGraphSetEntityNode(
     entityGraphNodeRemoveEntity(prevNode, entity)
   }
   entityGraphNodeAddEntity(nextNode, entity, index)
-  sparseMapSet(graph.byEntity, entity as number, nextNode)
+  SparseMap.set(graph.byEntity, entity as number, nextNode)
   return prevNode
 }
 
 export type EntityGraphBatch = {
-  readonly entities: SparseSet<Entity>
+  readonly entities: SparseSet.SparseSet<Entity>
   nextNode?: EntityGraphNode
   prevNode?: EntityGraphNode
 }
@@ -527,7 +509,7 @@ export function makeEntityGraphBatch(
   nextNode?: EntityGraphNode,
 ): EntityGraphBatch {
   return {
-    entities: makeSparseSet<Entity>(),
+    entities: SparseSet.create<Entity>(),
     nextNode,
     prevNode,
   }
@@ -549,7 +531,7 @@ export function poolGetBatch(
 }
 
 export function poolReturnBatch(batch: EntityGraphBatch) {
-  sparseSetClear(batch.entities)
+  SparseSet.clear(batch.entities)
   batch.prevNode = undefined
   batch.nextNode = undefined
   BATCH_POOL.push(batch)
@@ -559,21 +541,21 @@ export function entityGraphBatchAdd(
   batch: EntityGraphBatch,
   entity: Entity,
 ): void {
-  sparseSetAdd(batch.entities, entity)
+  SparseSet.add(batch.entities, entity)
 }
 
 export function entityGraphBatchDelete(
   batch: EntityGraphBatch,
   entity: Entity,
 ): void {
-  sparseSetDelete(batch.entities, entity)
+  SparseSet.del(batch.entities, entity)
 }
 
 export function entityGraphBatchEach(
   batch: EntityGraphBatch,
   callback: (entity: Entity) => void,
 ): void {
-  sparseSetForEach(batch.entities, callback)
+  SparseSet.forEach(batch.entities, callback)
 }
 
 export const createEntityBatchKey = (prevId: number, nextId: number) => {
@@ -584,7 +566,7 @@ export const emitSpawnedEntities = (batch: EntityGraphBatch) => {
   const target = batch.nextNode
   assertDefined(target)
   entityGraphNodeTraverseLeft(target, (node) => {
-    entityGraphNodeEmitEntitiesIn(node, target, sparseSetValues(batch.entities))
+    entityGraphNodeEmitEntitiesIn(node, target, SparseSet.values(batch.entities))
   })
 }
 
@@ -595,7 +577,7 @@ export const emitDespawnedEntities = (batch: EntityGraphBatch) => {
     entityGraphNodeEmitEntitiesOut(
       node,
       target,
-      sparseSetValues(batch.entities),
+      SparseSet.values(batch.entities),
     )
   })
 }
@@ -616,7 +598,7 @@ export const emitMovedEntities = (
     entityGraphNodeEmitEntitiesIn(
       visit,
       nextNode,
-      sparseSetValues(batch.entities),
+      SparseSet.values(batch.entities),
     )
   })
   entityGraphNodeTraverseLeft(prevNode, (node) => {
@@ -626,7 +608,7 @@ export const emitMovedEntities = (
     entityGraphNodeEmitEntitiesOut(
       node,
       prevNode,
-      sparseSetValues(batch.entities),
+      SparseSet.values(batch.entities),
     )
   })
 }

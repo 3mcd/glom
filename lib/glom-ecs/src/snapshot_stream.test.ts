@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {defineComponent} from "./component"
+import * as Component from "./component"
 import {ByteReader, ByteWriter} from "./lib/binary"
 import {readMessageType, readSnapshot} from "./protocol"
 import {Replicated} from "./replication_config"
@@ -8,11 +8,11 @@ import {
   applySnapshotStreamVersioned,
   writeSnapshot,
 } from "./snapshot_stream"
-import {getComponentValue, makeWorld} from "./world"
+import * as World from "./world"
 import {spawn} from "./world_api"
 
 describe("snapshot streaming", () => {
-  const Position = defineComponent<{x: number; y: number}>("Position", {
+  const Position = Component.define<{x: number; y: number}>("Position", {
     bytesPerElement: 8,
     encode: (val, writer) => {
       writer.writeFloat32(val.x)
@@ -24,8 +24,8 @@ describe("snapshot streaming", () => {
   })
 
   test("capture and apply snapshot via binary round-trip", () => {
-    const worldA = makeWorld({domainId: 1})
-    const worldB = makeWorld({domainId: 2})
+    const worldA = World.create({domainId: 1})
+    const worldB = World.create({domainId: 2})
 
     const e1 = spawn(worldA, Position({x: 10, y: 20}), Replicated)
     const e2 = spawn(worldA, Position({x: 100, y: 200}), Replicated)
@@ -51,13 +51,13 @@ describe("snapshot streaming", () => {
     spawn(worldB, Position({x: 0, y: 0})) // e2 placeholder
     applySnapshotStream(worldB, message)
 
-    expect(getComponentValue(worldB, e1, Position)?.x).toBeCloseTo(10)
-    expect(getComponentValue(worldB, e2, Position)?.x).toBeCloseTo(100)
-    expect(getComponentValue(worldB, e3, Position)).toBeUndefined()
+    expect(World.getComponentValue(worldB, e1, Position)?.x).toBeCloseTo(10)
+    expect(World.getComponentValue(worldB, e2, Position)?.x).toBeCloseTo(100)
+    expect(World.getComponentValue(worldB, e3, Position)).toBeUndefined()
   })
 
   test("authoritative snapshots always overwrite (forceSet)", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     world.tick = 50
     const entity = spawn(world, Position({x: 50, y: 50}), Replicated)
     const posId = world.componentRegistry.getId(Position)
@@ -68,7 +68,7 @@ describe("snapshot streaming", () => {
     writeSnapshot(writer, world, [posId], world.componentRegistry, 40)
     // The snapshot captured the current value (50,50).
     // Overwrite the entity's value so we can test that the older snapshot still applies.
-    const pos = getComponentValue(world, entity, Position)!
+    const pos = World.getComponentValue(world, entity, Position)!
     pos.x = 999
     pos.y = 999
 
@@ -79,11 +79,11 @@ describe("snapshot streaming", () => {
     applySnapshotStream(world, message)
 
     // Authoritative: always overwrites, even with older tick
-    expect(getComponentValue(world, entity, Position)?.x).toBeCloseTo(50)
+    expect(World.getComponentValue(world, entity, Position)?.x).toBeCloseTo(50)
   })
 
   test("versioned snapshots respect LWW (P2P)", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     world.tick = 50
     const entity = spawn(world, Position({x: 50, y: 50}), Replicated)
     const posId = world.componentRegistry.getId(Position)
@@ -92,7 +92,7 @@ describe("snapshot streaming", () => {
     const oldWriter = new ByteWriter()
     writeSnapshot(oldWriter, world, [posId], world.componentRegistry, 40)
     // Mutate the live value so it differs from the snapshot
-    const pos = getComponentValue(world, entity, Position)!
+    const pos = World.getComponentValue(world, entity, Position)!
     pos.x = 999
     pos.y = 999
 
@@ -103,7 +103,7 @@ describe("snapshot streaming", () => {
     applySnapshotStreamVersioned(world, oldMessage)
 
     // Versioned: older tick (40) does NOT overwrite current version (50)
-    expect(getComponentValue(world, entity, Position)?.x).toBeCloseTo(999)
+    expect(World.getComponentValue(world, entity, Position)?.x).toBeCloseTo(999)
 
     // Now capture a "new" snapshot at tick 60
     const newWriter = new ByteWriter()
@@ -116,6 +116,6 @@ describe("snapshot streaming", () => {
     applySnapshotStreamVersioned(world, newMessage)
 
     // Versioned: newer tick (60) overwrites
-    expect(getComponentValue(world, entity, Position)?.x).toBeCloseTo(999)
+    expect(World.getComponentValue(world, entity, Position)?.x).toBeCloseTo(999)
   })
 })

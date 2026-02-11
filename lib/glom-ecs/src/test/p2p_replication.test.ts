@@ -1,17 +1,18 @@
 import {describe, expect, test} from "bun:test"
-import {type ComponentResolver, defineComponent} from "../component"
+import type {ComponentResolver} from "../component"
+import * as Component from "../component"
 import {ByteReader, ByteWriter} from "../lib/binary"
 import type {SetOp, SnapshotMessage, Transaction} from "../net_types"
 import {readMessageType, readSnapshot} from "../protocol"
 import {applyTransaction} from "../replication"
 import {Replicated, ReplicationConfig} from "../replication_config"
 import {applySnapshotStreamVersioned, writeSnapshot} from "../snapshot_stream"
+import * as World from "../world"
 import {
   getComponentValue,
   getVersionDomainId,
   getVersionTick,
   makeVersion,
-  makeWorld,
   setComponentValue,
 } from "../world"
 import {
@@ -49,7 +50,7 @@ function makeSnapshotMessage(
   return {tick, data: w.getBytes()}
 }
 
-const Position = defineComponent<{x: number; y: number}>("Position", {
+const Position = Component.define<{x: number; y: number}>("Position", {
   bytesPerElement: 8,
   encode: (val, writer) => {
     writer.writeFloat32(val.x)
@@ -58,7 +59,7 @@ const Position = defineComponent<{x: number; y: number}>("Position", {
   decode: (reader) => ({x: reader.readFloat32(), y: reader.readFloat32()}),
 })
 
-const Health = defineComponent<number>("Health", {
+const Health = Component.define<number>("Health", {
   bytesPerElement: 4,
   encode: (val, writer) => writer.writeFloat32(val),
   decode: (reader) => reader.readFloat32(),
@@ -94,7 +95,7 @@ describe("composite version utilities", () => {
 
 describe("LWW via setComponentValue", () => {
   test("higher tick wins regardless of arrival order", () => {
-    const world = makeWorld({domainId: 0})
+    const world = World.create({domainId: 0})
     const entity = spawn(world, Position({x: 0, y: 0}), Replicated)
 
     // Write at tick 10
@@ -123,7 +124,7 @@ describe("LWW via setComponentValue", () => {
   })
 
   test("same-tick tiebreaker: higher domainId wins", () => {
-    const world = makeWorld({domainId: 0})
+    const world = World.create({domainId: 0})
     const entity = spawn(world, Position({x: 0, y: 0}), Replicated)
 
     // Peer 0 writes at tick 10
@@ -160,7 +161,7 @@ describe("LWW via setComponentValue", () => {
 
 describe("applySnapshotStreamVersioned", () => {
   test("stale snapshot does not overwrite newer local value", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     const entity = spawn(world, Position({x: 50, y: 50}), Replicated)
     const posId = world.componentRegistry.getId(Position)
 
@@ -184,7 +185,7 @@ describe("applySnapshotStreamVersioned", () => {
   })
 
   test("newer snapshot overwrites older local value", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     const entity = spawn(world, Position({x: 50, y: 50}), Replicated)
     const posId = world.componentRegistry.getId(Position)
 
@@ -206,7 +207,7 @@ describe("applySnapshotStreamVersioned", () => {
 
 describe("emitValueTransactions", () => {
   test("commitTransaction emits set ops when emitValueTransactions is true", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     addResource(world, ReplicationConfig({emitValueTransactions: true}))
 
     const entity = spawn(world, Position({x: 0, y: 0}), Replicated)
@@ -224,7 +225,7 @@ describe("emitValueTransactions", () => {
   })
 
   test("commitTransaction drops set ops when emitValueTransactions is false/unset", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     const entity = spawn(world, Position({x: 0, y: 0}), Replicated)
 
     // Update the position (entity already has Position)
@@ -238,7 +239,7 @@ describe("emitValueTransactions", () => {
   })
 
   test("set ops carry composite version with domainId", () => {
-    const world = makeWorld({domainId: 5})
+    const world = World.create({domainId: 5})
     world.tick = 42
     addResource(world, ReplicationConfig({emitValueTransactions: true}))
 
@@ -258,8 +259,8 @@ describe("emitValueTransactions", () => {
 describe("P2P reconciliation", () => {
   test("two peers with concurrent mutations converge via LWW", () => {
     // Peer A (domainId=1) and Peer B (domainId=2) both have the same entity
-    const peerA = makeWorld({domainId: 1})
-    const peerB = makeWorld({domainId: 2})
+    const peerA = World.create({domainId: 1})
+    const peerB = World.create({domainId: 2})
 
     // Spawn entity on Peer A
     peerA.tick = 10
@@ -344,7 +345,7 @@ describe("P2P reconciliation", () => {
   })
 
   test("versioned snapshot from slower peer does not overwrite faster peer's value", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     world.tick = 20
     const entity = spawn(world, Position({x: 0, y: 0}), Replicated)
     const posId = world.componentRegistry.getId(Position)
@@ -380,8 +381,8 @@ describe("P2P reconciliation", () => {
   })
 
   test("bidirectional snapshot exchange converges", () => {
-    const peerA = makeWorld({domainId: 1})
-    const peerB = makeWorld({domainId: 2})
+    const peerA = World.create({domainId: 1})
+    const peerB = World.create({domainId: 2})
 
     peerA.tick = 10
     peerB.tick = 10

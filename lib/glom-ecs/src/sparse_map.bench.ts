@@ -1,13 +1,8 @@
 import {bench, group, run} from "mitata"
-import {
-  makeSparseMap,
-  sparseMapSet,
-  sparseMapGet,
-  sparseMapDelete,
-} from "./sparse_map"
+import * as SparseMap from "./sparse_map"
 
 const size = 1000
-const sparseMap = makeSparseMap<number>()
+const sparseMap = SparseMap.create<number>()
 const _keys = Array.from({length: size}, (_, i) => i)
 const randomKeys = Array.from({length: size}, () =>
   Math.floor(Math.random() * size * 2),
@@ -15,35 +10,35 @@ const randomKeys = Array.from({length: size}, () =>
 
 group("sparseMap operations", () => {
   bench("sparseMapSet (sequential)", () => {
-    const map = makeSparseMap<number>()
+    const map = SparseMap.create<number>()
     for (let i = 0; i < size; i++) {
-      sparseMapSet(map, i, i)
+      SparseMap.set(map, i, i)
     }
   })
 
   bench("sparseMapSet (random)", () => {
-    const map = makeSparseMap<number>()
+    const map = SparseMap.create<number>()
     for (let i = 0; i < size; i++) {
-      sparseMapSet(map, randomKeys[i]!, i)
+      SparseMap.set(map, randomKeys[i]!, i)
     }
   })
 
   for (let i = 0; i < size; i++) {
-    sparseMapSet(sparseMap, i, i)
+    SparseMap.set(sparseMap, i, i)
   }
 
   bench("sparseMapGet", () => {
     for (let i = 0; i < size; i++) {
-      sparseMapGet(sparseMap, i)
+      SparseMap.get(sparseMap, i)
     }
   })
 
   bench("sparseMapDelete", () => {
-    const map = makeSparseMap<number>()
-    for (let i = 0; i < size; i++) sparseMapSet(map, i, i)
+    const map = SparseMap.create<number>()
+    for (let i = 0; i < size; i++) SparseMap.set(map, i, i)
 
     for (let i = 0; i < size; i++) {
-      sparseMapDelete(map, i)
+      SparseMap.del(map, i)
     }
   })
 })

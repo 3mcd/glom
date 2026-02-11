@@ -7,7 +7,7 @@ import {
 export {Replicated, ReplicationConfig, ReplicationStream}
 
 import {CommandBuffer, type CommandInstance} from "./command"
-import {type Entity, getDomainId, getLocalId} from "./entity"
+import * as Entity from "./entity"
 import {
   entityGraphFindOrCreateNode,
   entityGraphNodeAddEntity,
@@ -32,8 +32,8 @@ import {
   unregisterIncomingRelation,
 } from "./relation_registry"
 import {writeSnapshot} from "./snapshot_stream"
-import {sparseMapDelete, sparseMapGet, sparseMapSet} from "./sparse_map"
-import {defineSystem} from "./system"
+import * as SparseMap from "./sparse_map"
+import * as System from "./system"
 import {makeVec, vecDifference, vecSum} from "./vec"
 import {
   deleteComponentValue,
@@ -64,27 +64,27 @@ export type SpawnComponent = {
 
 export type SpawnOp = {
   type: "spawn"
-  entity: Entity
+  entity: Entity.Entity
   components: SpawnComponent[]
   causalKey?: number
 }
 
-export type DespawnOp = {type: "despawn"; entity: Entity}
+export type DespawnOp = {type: "despawn"; entity: Entity.Entity}
 
 export type SetOp = {
   type: "set"
-  entity: Entity
+  entity: Entity.Entity
   componentId: number
   data: unknown
   version?: number
   rel?: RelationPair
 }
 
-export type RemoveOp = {type: "remove"; entity: Entity; componentId: number}
+export type RemoveOp = {type: "remove"; entity: Entity.Entity; componentId: number}
 
 export type AddOp = {
   type: "add"
-  entity: Entity
+  entity: Entity.Entity
   componentId: number
   data?: unknown
   rel?: RelationPair
@@ -128,28 +128,28 @@ export function makeCausalKey(tick: number, spawnIndex: number): number {
 
 export function rebindEntity(
   world: World,
-  transient: Entity,
-  authoritative: Entity,
+  transient: Entity.Entity,
+  authoritative: Entity.Entity,
 ) {
   if (transient === authoritative) return
 
-  const index = sparseMapGet(world.index.entityToIndex, transient)
+  const index = SparseMap.get(world.index.entityToIndex, transient)
   if (index === undefined) {
     return
   }
 
   removeEntity(world.registry, transient)
 
-  sparseMapSet(world.index.entityToIndex, authoritative, index)
+  SparseMap.set(world.index.entityToIndex, authoritative, index)
   world.index.indexToEntity[index] = authoritative
-  sparseMapDelete(world.index.entityToIndex, transient)
+  SparseMap.del(world.index.entityToIndex, transient)
 
   const node = getEntityNode(world, transient)
   if (node !== undefined) {
     entityGraphNodeRemoveEntity(node, transient)
     entityGraphNodeAddEntity(node, authoritative, index)
-    sparseMapSet(world.graph.byEntity, authoritative as number, node)
-    sparseMapDelete(world.graph.byEntity, transient as number)
+    SparseMap.set(world.graph.byEntity, authoritative as number, node)
+    SparseMap.del(world.graph.byEntity, transient as number)
   }
 
   const incoming = getObjectSubjects(world, transient as number)
@@ -157,14 +157,14 @@ export function rebindEntity(
     const relationsToMove = Array.from(incoming)
     for (let i = 0; i < relationsToMove.length; i++) {
       const {subject, relationId} = relationsToMove[i] as RelationSubject
-      const relation = ((object: Entity) => ({
+      const relation = ((object: Entity.Entity) => ({
         relation: resolveComponent(world, relationId) as Relation,
         object,
-      })) as unknown as (object: Entity) => ComponentLike
+      })) as unknown as (object: Entity.Entity) => ComponentLike
 
-      removeComponent(world, subject as Entity, relation(transient))
+      removeComponent(world, subject as Entity.Entity, relation(transient))
 
-      addComponent(world, subject as Entity, relation(authoritative))
+      addComponent(world, subject as Entity.Entity, relation(authoritative))
     }
     deleteObjectSubjects(world, transient as number)
   }
@@ -215,10 +215,10 @@ export function applyTransaction(world: World, transaction: Transaction) {
         // its entityId counter advanced past this entity's localId.  Without
         // this, a client that later allocates entities in the same domain
         // (e.g. TRANSIENT_DOMAIN) can produce a colliding entity ID.
-        const entityDomainId = getDomainId(op.entity)
+        const entityDomainId = Entity.domainId(op.entity)
         if (entityDomainId !== transaction.domainId) {
           const entityDomain = getDomain(world.registry, entityDomainId)
-          const localId = getLocalId(op.entity)
+          const localId = Entity.localId(op.entity)
           if (entityDomain.entityId <= localId) {
             entityDomain.entityId = localId + 1
           }
@@ -248,7 +248,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
               world,
               op.entity,
               rel.relationId,
-              rel.object as Entity,
+              rel.object as Entity.Entity,
             )
           }
         }
@@ -301,7 +301,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
               world,
               op.entity,
               rel.relationId,
-              rel.object as Entity,
+              rel.object as Entity.Entity,
             )
           }
           deleteComponentValue(world, op.entity, comp)
@@ -338,7 +338,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
             world,
             op.entity,
             op.rel.relationId,
-            op.rel.object as Entity,
+            op.rel.object as Entity.Entity,
           )
         }
 
@@ -398,7 +398,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
             world,
             op.entity,
             relInfo.relationId,
-            relInfo.object as Entity,
+            relInfo.object as Entity.Entity,
           )
         }
 
@@ -444,7 +444,7 @@ export function applyTransaction(world: World, transaction: Transaction) {
             world,
             op.entity,
             op.rel.relationId,
-            op.rel.object as Entity,
+            op.rel.object as Entity.Entity,
           )
         }
 
@@ -489,14 +489,14 @@ export function applyTransaction(world: World, transaction: Transaction) {
   domain.opSeq = transaction.seq + 1
 }
 
-export const commitPendingMutations = defineSystem(
+export const commitPendingMutations = System.define(
   (world: World) => {
     commitTransaction(world)
   },
   {params: [WorldTerm()], name: "commitPendingMutations"},
 )
 
-export const emitSnapshots = defineSystem(
+export const emitSnapshots = System.define(
   (
     config: Read<typeof ReplicationConfig>,
     stream: Write<typeof ReplicationStream>,
@@ -528,7 +528,7 @@ export const emitSnapshots = defineSystem(
   },
 )
 
-export const pruneTemporalBuffers = defineSystem(
+export const pruneTemporalBuffers = System.define(
   (config: Read<typeof ReplicationConfig>, world: World) => {
     const window = config.historyWindow ?? 64
     const minTick = world.tick - window
@@ -542,14 +542,14 @@ export const pruneTemporalBuffers = defineSystem(
   },
 )
 
-export const advanceWorldTick = defineSystem(
+export const advanceWorldTick = System.define(
   (world: World) => {
     advanceTick(world)
   },
   {params: [WorldTerm()], name: "advanceWorldTick"},
 )
 
-export const clearReplicationStream = defineSystem(
+export const clearReplicationStream = System.define(
   (stream: Write<typeof ReplicationStream>) => {
     stream.transactions.length = 0
     stream.snapshots.length = 0

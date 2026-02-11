@@ -13,22 +13,16 @@ import {
   entityGraphNodeRemoveListener,
 } from "../entity_graph"
 import {getObjectSubjects} from "../relation_registry"
-import {sparseMapGet} from "../sparse_map"
-import {
-  makeSparseSet,
-  sparseSetAdd,
-  sparseSetClear,
-  sparseSetDelete,
-  sparseSetValues,
-} from "../sparse_set"
+import * as SparseMap from "../sparse_map"
+import * as SparseSet from "../sparse_set"
 import {getEntityNode, type World} from "../world"
 import {AllRuntime, type TermInfo} from "./all_runtime"
 
 type MonitorMode = "in" | "out"
 
 export class MonitorRuntime extends AllRuntime {
-  readonly added = makeSparseSet<Entity>()
-  readonly removed = makeSparseSet<Entity>()
+  readonly added = SparseSet.create<Entity>()
+  readonly removed = SparseSet.create<Entity>()
   private _mode: MonitorMode
   private _joinListeners: {
     node: EntityGraphNode
@@ -104,8 +98,8 @@ export class MonitorRuntime extends AllRuntime {
       for (let j = 0; j < entities.length; j++) {
         const e = entities[j]!
         if (this.matches(e)) {
-          sparseSetAdd(this.added, e)
-          sparseSetDelete(this.removed, e)
+          SparseSet.add(this.added, e)
+          SparseSet.del(this.removed, e)
         }
       }
     } else {
@@ -123,8 +117,8 @@ export class MonitorRuntime extends AllRuntime {
     if (joinIndex === 0) {
       for (let j = 0; j < entities.length; j++) {
         const e = entities[j]!
-        sparseSetAdd(this.removed, e)
-        sparseSetDelete(this.added, e)
+        SparseSet.add(this.removed, e)
+        SparseSet.del(this.added, e)
       }
     } else {
       this._propagate_relation_change(entities, joinIndex, "out")
@@ -170,11 +164,11 @@ export class MonitorRuntime extends AllRuntime {
       for (let i = 0; i < entities.length; i++) {
         const e = entities[i]!
         if (direction === "in") {
-          sparseSetAdd(this.added, e)
-          sparseSetDelete(this.removed, e)
+          SparseSet.add(this.added, e)
+          SparseSet.del(this.removed, e)
         } else {
-          sparseSetAdd(this.removed, e)
-          sparseSetDelete(this.added, e)
+          SparseSet.add(this.removed, e)
+          SparseSet.del(this.added, e)
         }
       }
     } else {
@@ -239,7 +233,7 @@ export class MonitorRuntime extends AllRuntime {
     if (this._world === undefined) return
 
     const targets = this._mode === "in" ? this.added : this.removed
-    const entities = sparseSetValues(targets)
+    const entities = SparseSet.values(targets)
 
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i]!
@@ -250,7 +244,7 @@ export class MonitorRuntime extends AllRuntime {
         entity,
         node,
         0,
-        new Array(this._term_infos.length),
+        new Array(this._resultTermCount),
       )
     }
   }
@@ -300,9 +294,12 @@ export class MonitorRuntime extends AllRuntime {
     const info = terms[termIdx]!
     const values = this._get_term_values_monitor(entity, info, node)
 
-    const termPos = this._term_infos.indexOf(info)
+    const globalIdx = this._term_infos.indexOf(info)
+    const resultPos = this._termResultIndex[globalIdx]
     if (values.length === 0 && this._mode === "out") {
-      currentResult[termPos] = undefined
+      if (resultPos !== undefined && resultPos >= 0) {
+        currentResult[resultPos] = undefined
+      }
       yield* this._yield_terms_at_level_monitor(
         entity,
         node,
@@ -313,7 +310,9 @@ export class MonitorRuntime extends AllRuntime {
       )
     } else {
       for (const val of values) {
-        currentResult[termPos] = val
+        if (resultPos !== undefined && resultPos >= 0) {
+          currentResult[resultPos] = val
+        }
         yield* this._yield_terms_at_level_monitor(
           entity,
           node,
@@ -373,7 +372,11 @@ export class MonitorRuntime extends AllRuntime {
     if (!yielded && this._mode === "out") {
       const terms = this._term_infos.filter((t) => t.joinIndex === joinLevel)
       for (const t of terms) {
-        currentResult[this._term_infos.indexOf(t)] = undefined
+        const gIdx = this._term_infos.indexOf(t)
+        const rPos = this._termResultIndex[gIdx]
+        if (rPos !== undefined && rPos >= 0) {
+          currentResult[rPos] = undefined
+        }
       }
       const nextJoinLevel = joinLevel + 1
       if (nextJoinLevel < this.joins.length) {
@@ -403,7 +406,7 @@ export class MonitorRuntime extends AllRuntime {
       }
 
       if (info.store === undefined) return [undefined]
-      const index = sparseMapGet(
+      const index = SparseMap.get(
         this._world.index.entityToIndex,
         entity as number,
       )
@@ -443,8 +446,8 @@ export class MonitorRuntime extends AllRuntime {
   }
 
   clear() {
-    sparseSetClear(this.added)
-    sparseSetClear(this.removed)
+    SparseSet.clear(this.added)
+    SparseSet.clear(this.removed)
   }
 
   override teardown(): void {

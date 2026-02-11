@@ -1,37 +1,30 @@
 import {describe, expect, test} from "bun:test"
-import {defineComponent, defineTag} from "../component"
-import {type Entity, getDomainId} from "../entity"
+import * as Component from "../component"
+import * as Entity from "../entity"
 import {getDomain} from "../entity_registry"
-import {defineRelation} from "../relation"
+import * as Relation from "../relation"
 import {
   applyTransaction,
   TRANSIENT_DOMAIN,
   type Transaction,
 } from "../replication"
 import {Replicated, ReplicationStream} from "../replication_config"
-import {sparseMapGet} from "../sparse_map"
-import {addResource, getComponentValue, getResource, makeWorld} from "../world"
-import {
-  addComponent,
-  commitTransaction,
-  despawn,
-  removeComponent,
-  spawn,
-  spawnInDomain,
-} from "../world_api"
+import * as SparseMap from "../sparse_map"
+import * as World from "../world"
+import * as WorldApi from "../world_api"
 
 describe("replication", () => {
-  const Position = defineComponent<{x: number; y: number}>("Position")
-  const Velocity = defineComponent<{dx: number; dy: number}>("Velocity")
-  const IsStatic = defineTag("IsStatic")
-  const ChildOf = defineRelation("ChildOf")
+  const Position = Component.define<{x: number; y: number}>("Position")
+  const Velocity = Component.define<{dx: number; dy: number}>("Velocity")
+  const IsStatic = Component.defineTag("IsStatic")
+  const ChildOf = Relation.define("ChildOf")
   const schema = [Position, Velocity, IsStatic, ChildOf]
 
   function sync(
-    world: ReturnType<typeof makeWorld>,
-    target: ReturnType<typeof makeWorld>,
+    world: World.World,
+    target: World.World,
   ) {
-    const stream = getResource(world, ReplicationStream)
+    const stream = World.getResource(world, ReplicationStream)
     if (stream) {
       for (const tx of stream.transactions) {
         applyTransaction(target, tx)
@@ -41,34 +34,34 @@ describe("replication", () => {
   }
 
   test("basic spawn replication", () => {
-    const worldA = makeWorld({domainId: 1})
-    addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2})
-    addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const entityA = spawn(worldA, Position({x: 10, y: 20}), Replicated)
-    commitTransaction(worldA)
+    const worldA = World.create({domainId: 1})
+    World.addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
+    const worldB = World.create({domainId: 2})
+    World.addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
+    const entityA = WorldApi.spawn(worldA, Position({x: 10, y: 20}), Replicated)
+    WorldApi.commitTransaction(worldA)
     sync(worldA, worldB)
 
-    const posB = getComponentValue(worldB, entityA, Position)
+    const posB = World.getComponentValue(worldB, entityA, Position)
     expect(posB).toBeDefined()
     if (posB) {
       expect(posB.x).toBe(10)
       expect(posB.y).toBe(20)
     }
-    expect(getDomainId(entityA)).toBe(1)
+    expect(Entity.domainId(entityA)).toBe(1)
   })
 
   test("basic component update replication", () => {
-    const worldA = makeWorld({domainId: 1})
-    addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2})
-    addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const entityA = spawn(worldA, Position({x: 10, y: 20}), Replicated)
-    addComponent(worldA, entityA, Position({x: 30, y: 40}))
-    commitTransaction(worldA)
+    const worldA = World.create({domainId: 1})
+    World.addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
+    const worldB = World.create({domainId: 2})
+    World.addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
+    const entityA = WorldApi.spawn(worldA, Position({x: 10, y: 20}), Replicated)
+    WorldApi.addComponent(worldA, entityA, Position({x: 30, y: 40}))
+    WorldApi.commitTransaction(worldA)
     sync(worldA, worldB)
 
-    const posB = getComponentValue(worldB, entityA, Position)
+    const posB = World.getComponentValue(worldB, entityA, Position)
     if (posB) {
       expect(posB.x).toBe(30)
       expect(posB.y).toBe(40)
@@ -76,27 +69,27 @@ describe("replication", () => {
   })
 
   test("tag replication", () => {
-    const worldA = makeWorld({domainId: 1})
-    addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2})
-    addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const entityA = spawn(worldA, IsStatic, Replicated)
-    commitTransaction(worldA)
+    const worldA = World.create({domainId: 1})
+    World.addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
+    const worldB = World.create({domainId: 2})
+    World.addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
+    const entityA = WorldApi.spawn(worldA, IsStatic, Replicated)
+    WorldApi.commitTransaction(worldA)
     sync(worldA, worldB)
 
-    const nodeB = sparseMapGet(worldB.graph.byEntity, entityA as number)
+    const nodeB = SparseMap.get(worldB.graph.byEntity, entityA as number)
     expect(nodeB).toBeDefined()
     expect(nodeB?.vec.ids).toContain(worldB.componentRegistry.getId(IsStatic))
   })
 
   test("relationship replication", () => {
-    const worldA = makeWorld({domainId: 1})
-    addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2})
-    addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const parent = spawn(worldA, Position({x: 10, y: 10}), Replicated)
-    const child = spawn(worldA, ChildOf(parent), Replicated)
-    commitTransaction(worldA)
+    const worldA = World.create({domainId: 1})
+    World.addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
+    const worldB = World.create({domainId: 2})
+    World.addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
+    const parent = WorldApi.spawn(worldA, Position({x: 10, y: 10}), Replicated)
+    const child = WorldApi.spawn(worldA, ChildOf(parent), Replicated)
+    WorldApi.commitTransaction(worldA)
     sync(worldA, worldB)
 
     const incoming = worldB.relations.objectToSubjects.get(parent)
@@ -113,35 +106,35 @@ describe("replication", () => {
   })
 
   test("relationship removal replication", () => {
-    const worldA = makeWorld({domainId: 1})
-    addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2})
-    addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const parent = spawn(worldA, Position({x: 10, y: 10}), Replicated)
-    const child = spawn(worldA, ChildOf(parent), Replicated)
-    commitTransaction(worldA)
+    const worldA = World.create({domainId: 1})
+    World.addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
+    const worldB = World.create({domainId: 2})
+    World.addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
+    const parent = WorldApi.spawn(worldA, Position({x: 10, y: 10}), Replicated)
+    const child = WorldApi.spawn(worldA, ChildOf(parent), Replicated)
+    WorldApi.commitTransaction(worldA)
     sync(worldA, worldB)
 
     expect(worldB.relations.objectToSubjects.has(parent)).toBe(true)
 
-    removeComponent(worldA, child, ChildOf(parent))
-    commitTransaction(worldA)
+    WorldApi.removeComponent(worldA, child, ChildOf(parent))
+    WorldApi.commitTransaction(worldA)
     sync(worldA, worldB)
 
     expect(worldB.relations.objectToSubjects.has(parent)).toBe(false)
   })
 
   test("addComponent replication", () => {
-    const worldA = makeWorld({domainId: 1})
-    addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2})
-    addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const entityA = spawn(worldA, Position({x: 10, y: 20}), Replicated)
-    addComponent(worldA, entityA, Velocity({dx: 1, dy: 1}))
-    commitTransaction(worldA)
+    const worldA = World.create({domainId: 1})
+    World.addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
+    const worldB = World.create({domainId: 2})
+    World.addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
+    const entityA = WorldApi.spawn(worldA, Position({x: 10, y: 20}), Replicated)
+    WorldApi.addComponent(worldA, entityA, Velocity({dx: 1, dy: 1}))
+    WorldApi.commitTransaction(worldA)
     sync(worldA, worldB)
 
-    const velB = getComponentValue(worldB, entityA, Velocity)
+    const velB = World.getComponentValue(worldB, entityA, Velocity)
     expect(velB).toBeDefined()
     if (velB) {
       expect(velB.dx).toBe(1)
@@ -150,51 +143,51 @@ describe("replication", () => {
   })
 
   test("removeComponent replication", () => {
-    const worldA = makeWorld({domainId: 1})
-    addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2})
-    addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const entityA = spawn(
+    const worldA = World.create({domainId: 1})
+    World.addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
+    const worldB = World.create({domainId: 2})
+    World.addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
+    const entityA = WorldApi.spawn(
       worldA,
       Position({x: 10, y: 20}),
       Velocity({dx: 1, dy: 1}),
       Replicated,
     )
-    commitTransaction(worldA)
+    WorldApi.commitTransaction(worldA)
     sync(worldA, worldB)
-    expect(getComponentValue(worldB, entityA, Velocity)).toBeDefined()
+    expect(World.getComponentValue(worldB, entityA, Velocity)).toBeDefined()
 
-    removeComponent(worldA, entityA, Velocity)
-    commitTransaction(worldA)
+    WorldApi.removeComponent(worldA, entityA, Velocity)
+    WorldApi.commitTransaction(worldA)
     sync(worldA, worldB)
 
-    expect(getComponentValue(worldB, entityA, Velocity)).toBeUndefined()
-    expect(getComponentValue(worldB, entityA, Position)).toBeDefined()
+    expect(World.getComponentValue(worldB, entityA, Velocity)).toBeUndefined()
+    expect(World.getComponentValue(worldB, entityA, Position)).toBeDefined()
   })
 
   test("basic despawn replication", () => {
-    const worldA = makeWorld({domainId: 1})
-    addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2})
-    addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const entityA = spawn(worldA, Position({x: 10, y: 20}), Replicated)
-    commitTransaction(worldA)
+    const worldA = World.create({domainId: 1})
+    World.addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
+    const worldB = World.create({domainId: 2})
+    World.addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
+    const entityA = WorldApi.spawn(worldA, Position({x: 10, y: 20}), Replicated)
+    WorldApi.commitTransaction(worldA)
     sync(worldA, worldB)
-    expect(getComponentValue(worldB, entityA, Position)).toBeDefined()
+    expect(World.getComponentValue(worldB, entityA, Position)).toBeDefined()
 
-    despawn(worldA, entityA)
-    commitTransaction(worldA)
+    WorldApi.despawn(worldA, entityA)
+    WorldApi.commitTransaction(worldA)
     sync(worldA, worldB)
-    expect(getComponentValue(worldB, entityA, Position)).toBeUndefined()
+    expect(World.getComponentValue(worldB, entityA, Position)).toBeUndefined()
   })
 
   test("LWW conflict resolution (newer tick wins)", () => {
-    const worldA = makeWorld({domainId: 1})
-    addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2})
-    addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
-    const entity = spawn(worldA, Position({x: 0, y: 0}), Replicated)
-    commitTransaction(worldA)
+    const worldA = World.create({domainId: 1})
+    World.addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
+    const worldB = World.create({domainId: 2})
+    World.addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
+    const entity = WorldApi.spawn(worldA, Position({x: 0, y: 0}), Replicated)
+    WorldApi.commitTransaction(worldA)
     sync(worldA, worldB)
 
     const tx1: Transaction = {
@@ -228,42 +221,42 @@ describe("replication", () => {
     applyTransaction(worldB, tx2)
     applyTransaction(worldB, tx1)
 
-    const posB = getComponentValue(worldB, entity, Position)
+    const posB = World.getComponentValue(worldB, entity, Position)
     if (posB) {
       expect(posB.x).toBe(20)
     }
   })
 
   test("P2P multi-agent replication", () => {
-    const worldA = makeWorld({domainId: 1})
-    addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
-    const worldB = makeWorld({domainId: 2})
-    addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
+    const worldA = World.create({domainId: 1})
+    World.addResource(worldA, ReplicationStream({transactions: [], snapshots: []}))
+    const worldB = World.create({domainId: 2})
+    World.addResource(worldB, ReplicationStream({transactions: [], snapshots: []}))
 
-    const entityA = spawn(worldA, Position({x: 1, y: 1}), Replicated)
-    const entityB = spawn(worldB, Position({x: 2, y: 2}), Replicated)
+    const entityA = WorldApi.spawn(worldA, Position({x: 1, y: 1}), Replicated)
+    const entityB = WorldApi.spawn(worldB, Position({x: 2, y: 2}), Replicated)
 
-    commitTransaction(worldA)
+    WorldApi.commitTransaction(worldA)
     sync(worldA, worldB)
-    commitTransaction(worldB)
+    WorldApi.commitTransaction(worldB)
     sync(worldB, worldA)
 
-    const posA = getComponentValue(worldA, entityB, Position)
+    const posA = World.getComponentValue(worldA, entityB, Position)
     if (posA) {
       expect(posA.x).toBe(2)
     }
 
-    const posBP2P = getComponentValue(worldB, entityA, Position)
+    const posBP2P = World.getComponentValue(worldB, entityA, Position)
     if (posBP2P) {
       expect(posBP2P.x).toBe(1)
     }
   })
 
   test("predictive shadowing and rebinding", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     const causalKey = 12345
 
-    const transientEntity = spawnInDomain(
+    const transientEntity = WorldApi.spawnInDomain(
       world,
       [Position({x: 100, y: 100}), Replicated],
       TRANSIENT_DOMAIN,
@@ -274,12 +267,12 @@ describe("replication", () => {
       tick: world.tick,
     })
 
-    const posTransient = getComponentValue(world, transientEntity, Position)
+    const posTransient = World.getComponentValue(world, transientEntity, Position)
     if (posTransient) {
       expect(posTransient.x).toBe(100)
     }
 
-    const serverEntity = ((0 << 20) | 500) as Entity
+    const serverEntity = ((0 << 20) | 500) as Entity.Entity
     const transaction: Transaction = {
       domainId: 0,
       seq: 1,
@@ -301,9 +294,9 @@ describe("replication", () => {
 
     applyTransaction(world, transaction)
 
-    expect(getComponentValue(world, transientEntity, Position)).toBeUndefined()
+    expect(World.getComponentValue(world, transientEntity, Position)).toBeUndefined()
 
-    const posServer = getComponentValue(world, serverEntity, Position)
+    const posServer = World.getComponentValue(world, serverEntity, Position)
     if (posServer) {
       expect(posServer.x).toBe(105)
     }
@@ -312,9 +305,9 @@ describe("replication", () => {
   })
 
   test("automatic causal key generation and rebinding", () => {
-    const worldClient = makeWorld({domainId: 1})
-    const worldServer = makeWorld({domainId: 0})
-    addResource(
+    const worldClient = World.create({domainId: 1})
+    const worldServer = World.create({domainId: 0})
+    World.addResource(
       worldServer,
       ReplicationStream({transactions: [], snapshots: []}),
     )
@@ -322,21 +315,21 @@ describe("replication", () => {
     worldClient.tick = 100
     worldServer.tick = 100
 
-    const predictedEntity = spawnInDomain(
+    const predictedEntity = WorldApi.spawnInDomain(
       worldClient,
       [Position({x: 1, y: 1}), Replicated],
       TRANSIENT_DOMAIN,
     )
     expect(worldClient.transients.size).toBe(1)
 
-    const authoritativeEntity = spawn(
+    const authoritativeEntity = WorldApi.spawn(
       worldServer,
       Position({x: 2, y: 2}),
       Replicated,
     )
 
-    commitTransaction(worldServer)
-    const serverTransaction = getResource(worldServer, ReplicationStream)
+    WorldApi.commitTransaction(worldServer)
+    const serverTransaction = World.getResource(worldServer, ReplicationStream)
       ?.transactions[0]
 
     expect(serverTransaction).toBeDefined()
@@ -351,9 +344,9 @@ describe("replication", () => {
     }
 
     expect(
-      getComponentValue(worldClient, predictedEntity, Position),
+      World.getComponentValue(worldClient, predictedEntity, Position),
     ).toBeUndefined()
-    const posAuthoritative = getComponentValue(
+    const posAuthoritative = World.getComponentValue(
       worldClient,
       authoritativeEntity,
       Position,
@@ -366,11 +359,11 @@ describe("replication", () => {
   })
 
   test("relationship object rebinding", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     const causalKey = 54321
 
     // A predicted parent entity
-    const transientParent = spawnInDomain(
+    const transientParent = WorldApi.spawnInDomain(
       world,
       [Position({x: 10, y: 10}), Replicated],
       TRANSIENT_DOMAIN,
@@ -381,13 +374,13 @@ describe("replication", () => {
     })
 
     // A child of the predicted parent
-    const child = spawn(world, ChildOf(transientParent), Replicated)
-    commitTransaction(world)
+    const child = WorldApi.spawn(world, ChildOf(transientParent), Replicated)
+    WorldApi.commitTransaction(world)
 
     expect(world.relations.objectToSubjects.has(transientParent)).toBe(true)
 
     // Server sends authoritative parent spawn with same causalKey
-    const authoritativeParent = ((0 << 20) | 99) as Entity
+    const authoritativeParent = ((0 << 20) | 99) as Entity.Entity
     const transaction: Transaction = {
       domainId: 0,
       seq: 1,
@@ -423,10 +416,10 @@ describe("replication", () => {
   })
 
   test("relationship in set op", () => {
-    const world = makeWorld({domainId: 1})
-    const parent = spawn(world, Position({x: 1, y: 1}), Replicated)
-    const child = spawn(world, Position({x: 0, y: 0}), Replicated)
-    commitTransaction(world)
+    const world = World.create({domainId: 1})
+    const parent = WorldApi.spawn(world, Position({x: 1, y: 1}), Replicated)
+    const child = WorldApi.spawn(world, Position({x: 0, y: 0}), Replicated)
+    WorldApi.commitTransaction(world)
 
     const childOfParentId = 1000000 // A virtual ID
 
@@ -455,10 +448,10 @@ describe("replication", () => {
   })
 
   test("relationship cleanup on despawn", () => {
-    const world = makeWorld({domainId: 1})
-    const parent = spawn(world, Position({x: 1, y: 1}), Replicated)
-    const child = spawn(world, ChildOf(parent), Replicated)
-    commitTransaction(world)
+    const world = World.create({domainId: 1})
+    const parent = WorldApi.spawn(world, Position({x: 1, y: 1}), Replicated)
+    const child = WorldApi.spawn(world, ChildOf(parent), Replicated)
+    WorldApi.commitTransaction(world)
 
     expect(world.relations.objectToSubjects.has(parent)).toBe(true)
     const childOfParentId = Array.from(world.relations.virtualToRel.keys())[0]!

@@ -1,9 +1,42 @@
-import * as g from "@glom/ecs"
+import {
+  Component,
+  Command,
+  Entity,
+  Relation,
+  SystemSchedule,
+  World,
+  // Query types
+  type All,
+  type Join,
+  type Write,
+  // Protocol / binary
+  acquireWriter,
+  ByteReader,
+  readMessageType,
+  readSnapshot,
+  readTransaction,
+  writeTransaction,
+  // Replication
+  Replicated,
+  ReplicationConfig,
+  ReplicationStream,
+  IncomingSnapshots,
+  IncomingTransactions,
+  clearReplicationStream,
+  commitPendingMutations,
+  emitSnapshots,
+  advanceWorldTick,
+  pruneTemporalBuffers,
+  receiveSnapshot,
+  receiveTransaction,
+  // Reconciliation
+  applyRemoteTransactions,
+  applyRemoteSnapshots,
+  cleanupGhosts,
+} from "@glom/ecs"
 import * as commands from "@glom/ecs/command"
-import * as reconciliation from "@glom/ecs/reconciliation"
-import * as replication from "@glom/ecs/replication"
 
-const Position = g.defineComponent<{x: number; y: number}>("Position", {
+const Position = Component.define<{x: number; y: number}>("Position", {
   bytesPerElement: 8,
   encode: (val, writer) => {
     writer.writeFloat32(val.x)
@@ -14,7 +47,7 @@ const Position = g.defineComponent<{x: number; y: number}>("Position", {
   },
 })
 
-const Color = g.defineComponent<number>("Color", {
+const Color = Component.define<number>("Color", {
   bytesPerElement: 4,
   encode: (val, writer) => {
     writer.writeUint32(val)
@@ -24,7 +57,7 @@ const Color = g.defineComponent<number>("Color", {
   },
 })
 
-const MoveCommand = g.defineComponent<{dx: number; dy: number}>("MoveCommand", {
+const MoveCommand = Component.define<{dx: number; dy: number}>("MoveCommand", {
   bytesPerElement: 8,
   encode: (val, writer) => {
     writer.writeFloat32(val.dx)
@@ -37,16 +70,16 @@ const MoveCommand = g.defineComponent<{dx: number; dy: number}>("MoveCommand", {
 
 const SPEED = 2
 const CanvasContext =
-  g.defineComponent<CanvasRenderingContext2D>("CanvasContext")
+  Component.define<CanvasRenderingContext2D>("CanvasContext")
 const schema = [Position, Color, MoveCommand, CanvasContext]
 
 const movementSystem = (
-  query: g.Join<
-    g.All<g.Entity, typeof Position>,
-    g.All<typeof MoveCommand>,
-    typeof g.CommandOf
+  query: Join<
+    All<Entity.Entity, typeof Position>,
+    All<typeof MoveCommand>,
+    typeof Command.CommandOf
   >,
-  world: g.World,
+  world: World.World,
 ) => {
   for (const [entity, pos, move] of query) {
     let nextX = pos.x + move.dx * SPEED
@@ -57,13 +90,13 @@ const movementSystem = (
     if (nextY < 0) nextY = 250
     if (nextY > 250) nextY = 0
 
-    g.addComponent(world, entity, Position({x: nextX, y: nextY}))
+    World.addComponent(world, entity, Position({x: nextX, y: nextY}))
   }
 }
 
 const renderSystem = (
-  query: g.All<typeof Position, typeof Color>,
-  ctx: g.Write<typeof CanvasContext>,
+  query: All<typeof Position, typeof Color>,
+  ctx: Write<typeof CanvasContext>,
 ) => {
   ctx.fillStyle = "#0f0f0f" // --bg
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height)
@@ -81,13 +114,13 @@ function createPeer(
 ) {
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement
   const ctx = canvas.getContext("2d") as CanvasRenderingContext2D
-  const world = g.makeWorld({domainId})
-  const schedule = g.makeSystemSchedule()
+  const world = World.create({domainId})
+  const schedule = SystemSchedule.create()
 
-  g.addResource(world, CanvasContext(ctx))
-  g.addResource(
+  World.addResource(world, CanvasContext(ctx))
+  World.addResource(
     world,
-    g.ReplicationConfig({
+    ReplicationConfig({
       historyWindow: 64,
       ghostCleanupWindow: 60,
       snapshotComponents: [
@@ -96,23 +129,23 @@ function createPeer(
       ],
     }),
   )
-  g.addResource(world, g.ReplicationStream({transactions: [], snapshots: []}))
-  g.addResource(world, g.CommandBuffer(new Map()))
-  g.addResource(world, g.IncomingTransactions(new Map()))
-  g.addResource(world, g.IncomingSnapshots(new Map()))
+  World.addResource(world, ReplicationStream({transactions: [], snapshots: []}))
+  World.addResource(world, Command.CommandBuffer(new Map()))
+  World.addResource(world, IncomingTransactions(new Map()))
+  World.addResource(world, IncomingSnapshots(new Map()))
 
-  g.addSystem(schedule, g.clearReplicationStream)
-  g.addSystem(schedule, reconciliation.applyRemoteTransactions)
-  g.addSystem(schedule, reconciliation.applyRemoteSnapshots)
-  g.addSystem(schedule, reconciliation.cleanupGhosts)
-  g.addSystem(schedule, commands.spawnEphemeralCommands)
-  g.addSystem(schedule, movementSystem)
-  g.addSystem(schedule, renderSystem)
-  g.addSystem(schedule, commands.cleanupEphemeralCommands)
-  g.addSystem(schedule, replication.commitPendingMutations)
-  g.addSystem(schedule, replication.emitSnapshots)
-  g.addSystem(schedule, replication.advanceWorldTick)
-  g.addSystem(schedule, replication.pruneTemporalBuffers)
+  SystemSchedule.add(schedule, clearReplicationStream)
+  SystemSchedule.add(schedule, applyRemoteTransactions)
+  SystemSchedule.add(schedule, applyRemoteSnapshots)
+  SystemSchedule.add(schedule, cleanupGhosts)
+  SystemSchedule.add(schedule, commands.spawnEphemeralCommands)
+  SystemSchedule.add(schedule, movementSystem)
+  SystemSchedule.add(schedule, renderSystem)
+  SystemSchedule.add(schedule, commands.cleanupEphemeralCommands)
+  SystemSchedule.add(schedule, commitPendingMutations)
+  SystemSchedule.add(schedule, emitSnapshots)
+  SystemSchedule.add(schedule, advanceWorldTick)
+  SystemSchedule.add(schedule, pruneTemporalBuffers)
 
   const activeKeys = new Set<string>()
   window.addEventListener("keydown", (e) => activeKeys.add(e.code))
@@ -122,14 +155,14 @@ function createPeer(
     world,
     schedule,
     spawnPlayer: () => {
-      return g.spawn(
+      return World.spawn(
         world,
         Position({x: domainId * 60, y: 125}),
         Color(domainId),
-        g.Replicated,
+        Replicated,
       )
     },
-    update: (myEntity: g.Entity) => {
+    update: (myEntity: Entity.Entity) => {
       let dx = 0,
         dy = 0
       if (activeKeys.has(keys.up)) dy -= 1
@@ -138,10 +171,10 @@ function createPeer(
       if (activeKeys.has(keys.right)) dx += 1
 
       if (dx !== 0 || dy !== 0) {
-        g.recordCommand(world, myEntity, MoveCommand({dx, dy}))
+        Command.record(world, myEntity, MoveCommand({dx, dy}))
       }
 
-      g.runSchedule(schedule, world)
+      SystemSchedule.run(schedule, world)
     },
   }
 }
@@ -164,59 +197,59 @@ const peerB = createPeer(2, "canvasB", {
 const entityA = peerA.spawnPlayer()
 const entityB = peerB.spawnPlayer()
 
-const sharedWriter = g.acquireWriter()
+const sharedWriter = acquireWriter()
 
 function loop() {
   peerA.update(entityA)
   peerB.update(entityB)
 
   // Peer A -> Peer B
-  const streamA = g.getResource(peerA.world, g.ReplicationStream)
+  const streamA = World.getResource(peerA.world, ReplicationStream)
   if (streamA) {
     for (const tx of streamA.transactions) {
       sharedWriter.reset()
-      g.writeTransaction(sharedWriter, tx, peerA.world.componentRegistry)
-      const reader = new g.ByteReader(sharedWriter.toBytes())
-      g.readMessageType(reader) // MessageType.Transaction
+      writeTransaction(sharedWriter, tx, peerA.world.componentRegistry)
+      const reader = new ByteReader(sharedWriter.toBytes())
+      readMessageType(reader) // MessageType.Transaction
       const tick = reader.readUint32()
-      const decoded = g.readTransaction(
+      const decoded = readTransaction(
         reader,
         tick,
         peerB.world.componentRegistry,
       )
-      g.receiveTransaction(peerB.world, decoded)
+      receiveTransaction(peerB.world, decoded)
     }
     for (const raw of streamA.snapshots) {
-      const reader = new g.ByteReader(raw)
-      g.readMessageType(reader) // MessageType.Snapshot
+      const reader = new ByteReader(raw)
+      readMessageType(reader) // MessageType.Snapshot
       const tick = reader.readUint32()
-      const decoded = g.readSnapshot(reader, tick)
-      g.receiveSnapshot(peerB.world, decoded)
+      const decoded = readSnapshot(reader, tick)
+      receiveSnapshot(peerB.world, decoded)
     }
   }
 
   // Peer B -> Peer A
-  const streamB = g.getResource(peerB.world, g.ReplicationStream)
+  const streamB = World.getResource(peerB.world, ReplicationStream)
   if (streamB) {
     for (const tx of streamB.transactions) {
       sharedWriter.reset()
-      g.writeTransaction(sharedWriter, tx, peerB.world.componentRegistry)
-      const reader = new g.ByteReader(sharedWriter.toBytes())
-      g.readMessageType(reader) // MessageType.Transaction
+      writeTransaction(sharedWriter, tx, peerB.world.componentRegistry)
+      const reader = new ByteReader(sharedWriter.toBytes())
+      readMessageType(reader) // MessageType.Transaction
       const tick = reader.readUint32()
-      const decoded = g.readTransaction(
+      const decoded = readTransaction(
         reader,
         tick,
         peerA.world.componentRegistry,
       )
-      g.receiveTransaction(peerA.world, decoded)
+      receiveTransaction(peerA.world, decoded)
     }
     for (const raw of streamB.snapshots) {
-      const reader = new g.ByteReader(raw)
-      g.readMessageType(reader) // MessageType.Snapshot
+      const reader = new ByteReader(raw)
+      readMessageType(reader) // MessageType.Snapshot
       const tick = reader.readUint32()
-      const decoded = g.readSnapshot(reader, tick)
-      g.receiveSnapshot(peerA.world, decoded)
+      const decoded = readSnapshot(reader, tick)
+      receiveSnapshot(peerA.world, decoded)
     }
   }
 

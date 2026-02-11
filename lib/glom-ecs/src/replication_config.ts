@@ -1,10 +1,10 @@
-import {defineComponent, defineTag} from "./component"
+import * as Component from "./component"
 import type {SnapshotMessage, Transaction} from "./net_types"
 import type {SystemSchedule} from "./system_schedule"
 
-export const Replicated = defineTag("glom/Replicated")
+export const Replicated = Component.defineTag("glom/Replicated")
 
-export const ReplicationConfig = defineComponent<{
+export const ReplicationConfig = Component.define<{
   historyWindow?: number
   ghostCleanupWindow?: number
   snapshotComponents?: number[]
@@ -22,7 +22,7 @@ export const ReplicationConfig = defineComponent<{
   decode: () => ({}),
 })
 
-export const ReplicationStream = defineComponent<{
+export const ReplicationStream = Component.define<{
   transactions: Transaction[]
   /** Pre-serialized snapshot packets (output of writeSnapshot). */
   snapshots: Uint8Array[]
@@ -32,7 +32,7 @@ export const ReplicationStream = defineComponent<{
   decode: () => ({transactions: [], snapshots: []}),
 })
 
-export const IncomingTransactions = defineComponent<Map<number, Transaction[]>>(
+export const IncomingTransactions = Component.define<Map<number, Transaction[]>>(
   "glom/IncomingTransactions",
   {
     bytesPerElement: 0,
@@ -41,7 +41,7 @@ export const IncomingTransactions = defineComponent<Map<number, Transaction[]>>(
   },
 )
 
-export const IncomingSnapshots = defineComponent<
+export const IncomingSnapshots = Component.define<
   Map<number, SnapshotMessage[]>
 >("glom/IncomingSnapshots", {
   bytesPerElement: 0,

@@ -1,12 +1,12 @@
-import type {Component, ComponentInstance, ComponentLike} from "./component"
-import {defineComponent, defineTag} from "./component"
-import {Entity} from "./entity"
+import * as Component from "./component"
+import type {ComponentInstance, ComponentLike} from "./component"
+import * as Entity from "./entity"
 import {All} from "./query/all"
 import {Has, World as WorldTerm} from "./query/term"
-import {defineRelation} from "./relation"
+import * as Relation from "./relation"
 import {getObjectSubjects} from "./relation_registry"
 import {COMMAND_DOMAIN} from "./replication"
-import {defineSystem} from "./system"
+import * as System from "./system"
 import {getComponentId, resolveComponent, type World} from "./world"
 import {
   addComponent,
@@ -17,10 +17,10 @@ import {
   spawnInDomain,
 } from "./world_api"
 
-export const CommandOf = defineRelation("glom/CommandOf")
-export const CommandEntity = defineTag("glom/CommandEntity")
+export const CommandOf = Relation.define("glom/CommandOf")
+export const CommandEntity = Component.defineTag("glom/CommandEntity")
 
-export const CommandBuffer = defineComponent<Map<number, CommandInstance[]>>(
+export const CommandBuffer = Component.define<Map<number, CommandInstance[]>>(
   "glom/CommandBuffer",
   {
     bytesPerElement: 0,
@@ -29,7 +29,7 @@ export const CommandBuffer = defineComponent<Map<number, CommandInstance[]>>(
   },
 )
 
-export const IntentTick = defineComponent<number>("glom/IntentTick", {
+export const IntentTick = Component.define<number>("glom/IntentTick", {
   bytesPerElement: 4,
   encode: (val, writer) => {
     writer.writeUint32(val)
@@ -40,7 +40,7 @@ export const IntentTick = defineComponent<number>("glom/IntentTick", {
 })
 
 export type Command = {
-  target: Entity
+  target: Entity.Entity
   componentId: number
   data: unknown
 }
@@ -49,9 +49,9 @@ export type CommandInstance = Command & {
   tick: number
 }
 
-export function recordCommand<T>(
+export function record<T>(
   world: World,
-  target: Entity,
+  target: Entity.Entity,
   command:
     | ComponentInstance<T>
     | ComponentLike
@@ -110,7 +110,7 @@ export function pruneCommands(world: World, minTick: number) {
   }
 }
 
-export const spawnEphemeralCommands = defineSystem(
+export const spawnEphemeralCommands = System.define(
   (world: World) => {
     const commandBuffer = getResource(world, CommandBuffer)
     if (commandBuffer === undefined) {
@@ -125,13 +125,13 @@ export const spawnEphemeralCommands = defineSystem(
       if (component === undefined) {
         continue
       }
-      let commandEntity: Entity
+      let commandEntity: Entity.Entity
       const baseComponents = [IntentTick(command.tick), CommandEntity]
       if (command.data !== undefined) {
         commandEntity = spawnInDomain(
           world,
           [
-            {component: component as Component<unknown>, value: command.data},
+            {component: component as Component.Component<unknown>, value: command.data},
             ...baseComponents,
           ],
           COMMAND_DOMAIN,
@@ -149,15 +149,15 @@ export const spawnEphemeralCommands = defineSystem(
   {params: [WorldTerm()], name: "spawnEphemeralCommands"},
 )
 
-export const cleanupEphemeralCommands = defineSystem(
-  (query: All<Entity, Has<typeof CommandEntity>>, world: World) => {
+export const cleanupEphemeralCommands = System.define(
+  (query: All<Entity.Entity, Has<typeof CommandEntity>>, world: World) => {
     for (const [cmdEnt] of query) {
       const incoming = getObjectSubjects(world, cmdEnt)
       if (incoming !== undefined) {
         const commandOfId = getComponentId(world, CommandOf)
         for (const {subject, relationId} of Array.from(incoming)) {
           if (relationId === commandOfId) {
-            removeComponent(world, subject as Entity, CommandOf(cmdEnt))
+            removeComponent(world, subject as Entity.Entity, CommandOf(cmdEnt))
           }
         }
       }
@@ -165,7 +165,7 @@ export const cleanupEphemeralCommands = defineSystem(
     }
   },
   {
-    params: [All(Entity, Has(CommandEntity)), WorldTerm()],
+    params: [All(Entity.Entity, Has(CommandEntity)), WorldTerm()],
     name: "cleanupEphemeralCommands",
   },
 )

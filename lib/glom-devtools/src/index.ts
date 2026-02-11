@@ -1,8 +1,9 @@
-import type {ComponentLike, Entity, EntityGraphNode, World} from "@glom/ecs"
+import type {ComponentLike, EntityGraphNode} from "@glom/ecs"
 import {
+  type Entity,
   entityGraphGetEntityNode,
-  getComponentValue,
-  sparseSetValues,
+  SparseSet,
+  World,
 } from "@glom/ecs"
 import htm from "htm"
 import type {VNode} from "preact"
@@ -40,17 +41,17 @@ export type Devtools = {
 type PanelState = {
   isOpen: boolean
   activeTab: "entities" | "commands"
-  selectedEntity: Entity | null
+  selectedEntity: Entity.Entity | null
 }
 
-function componentIdToName(world: World, componentId: number): string {
+function componentIdToName(world: World.World, componentId: number): string {
   const comp = world.componentRegistry.getComponent(componentId)
   if (comp?.name) return comp.name
   if (componentId >= 1000000) return `Virtual(${componentId})`
   return `Component(${componentId})`
 }
 
-function componentRefToName(world: World, comp: ComponentLike): string {
+function componentRefToName(world: World.World, comp: ComponentLike): string {
   if (comp.name) return comp.name
   const id = world.componentRegistry.getId(comp)
   if (id >= 1000000) return `Virtual(${id})`
@@ -58,14 +59,14 @@ function componentRefToName(world: World, comp: ComponentLike): string {
 }
 
 type EntityInfo = {
-  entity: Entity
+  entity: Entity.Entity
   components: {comp: ComponentLike; id: number; name: string}[]
 }
 
-function collectEntities(world: World): EntityInfo[] {
+function collectEntities(world: World.World): EntityInfo[] {
   const entities: EntityInfo[] = []
-  world.entityGraph.byHash.forEach((node: EntityGraphNode) => {
-    const ents = sparseSetValues(node.entities)
+  world.graph.byHash.forEach((node: EntityGraphNode) => {
+    const ents = SparseSet.values(node.entities)
     for (let i = 0; i < ents.length; i++) {
       const entity = ents[i]!
       const components: EntityInfo["components"] = []
@@ -85,7 +86,7 @@ function collectEntities(world: World): EntityInfo[] {
 }
 
 function sniffCommands(
-  world: World,
+  world: World.World,
   log: CommandLogEntry[],
   seenTicks: Set<number>,
   maxEntries: number,
@@ -93,7 +94,7 @@ function sniffCommands(
   const cbComp = world.componentRegistry.getComponent(11) // CommandBuffer id=11
   if (!cbComp) return false
   const RESOURCE_ENTITY = 2147483647
-  const cbValue = getComponentValue<Map<number, unknown[]>>(
+  const cbValue = World.getComponentValue<Map<number, unknown[]>>(
     world,
     RESOURCE_ENTITY,
     cbComp,
@@ -290,9 +291,9 @@ function EntityRow({
   components,
   onSelect,
 }: {
-  entity: Entity
+  entity: Entity.Entity
   components: EntityInfo["components"]
-  onSelect: (e: Entity) => void
+  onSelect: (e: Entity.Entity) => void
 }) {
   return html`
     <div class="gd-er" onClick=${() => onSelect(entity)}>
@@ -311,8 +312,8 @@ function EntityListView({
   world,
   onSelect,
 }: {
-  world: World
-  onSelect: (e: Entity) => void
+  world: World.World
+  onSelect: (e: Entity.Entity) => void
 }) {
   const entities = collectEntities(world)
   return html`
@@ -340,11 +341,11 @@ function ComponentValueView({
   entity,
   comp,
 }: {
-  world: World
-  entity: Entity
+  world: World.World
+  entity: Entity.Entity
   comp: ComponentLike
 }) {
-  const value = getComponentValue(world, entity as number, comp)
+  const value = World.getComponentValue(world, entity as number, comp)
   return html`<div class="gd-cv">${formatValue(value)}</div>`
 }
 
@@ -353,11 +354,11 @@ function InspectorView({
   entity,
   onBack,
 }: {
-  world: World
-  entity: Entity
+  world: World.World
+  entity: Entity.Entity
   onBack: () => void
 }) {
-  const node = entityGraphGetEntityNode(world.entityGraph, entity)
+  const node = entityGraphGetEntityNode(world.graph, entity)
   if (!node) return html`<div class="gd-em">Entity not found</div>`
 
   return html`
@@ -412,7 +413,7 @@ function App({
   state,
   setState,
 }: {
-  world: World
+  world: World.World
   commandLog: CommandLogEntry[]
   state: PanelState
   setState: (partial: Partial<PanelState>) => void
@@ -450,7 +451,7 @@ function App({
                     />`
                   : html`<${EntityListView}
                       world=${world}
-                      onSelect=${(e: Entity) => setState({selectedEntity: e})}
+                      onSelect=${(e: Entity.Entity) => setState({selectedEntity: e})}
                     />`
                 : html`<${CommandLogView} commandLog=${commandLog} />`
             }
@@ -466,7 +467,7 @@ function App({
 }
 
 export function createDevtools(
-  world: World,
+  world: World.World,
   options: DevtoolsOptions = {},
 ): Devtools {
   const {
@@ -496,10 +497,7 @@ export function createDevtools(
   function doRender() {
     // Auto-deselect if entity no longer exists
     if (state.selectedEntity !== null) {
-      const node = entityGraphGetEntityNode(
-        world.entityGraph,
-        state.selectedEntity,
-      )
+      const node = entityGraphGetEntityNode(world.graph, state.selectedEntity)
       if (!node) state.selectedEntity = null
     }
 

@@ -1,13 +1,8 @@
 import {bench, group, run} from "mitata"
-import {
-  makeSparseSet,
-  sparseSetAdd,
-  sparseSetDelete,
-  sparseSetHas,
-} from "./sparse_set"
+import * as SparseSet from "./sparse_set"
 
 const size = 1000
-const sparseSet = makeSparseSet()
+const sparseSet = SparseSet.create()
 const _keys = Array.from({length: size}, (_, i) => i)
 const randomKeys = Array.from({length: size}, () =>
   Math.floor(Math.random() * size * 2),
@@ -15,35 +10,35 @@ const randomKeys = Array.from({length: size}, () =>
 
 group("sparseSet operations", () => {
   bench("sparseSetAdd (sequential)", () => {
-    const set = makeSparseSet()
+    const set = SparseSet.create()
     for (let i = 0; i < size; i++) {
-      sparseSetAdd(set, i)
+      SparseSet.add(set, i)
     }
   })
 
   bench("sparseSetAdd (random)", () => {
-    const set = makeSparseSet()
+    const set = SparseSet.create()
     for (let i = 0; i < size; i++) {
-      sparseSetAdd(set, randomKeys[i]!)
+      SparseSet.add(set, randomKeys[i]!)
     }
   })
 
   for (let i = 0; i < size; i++) {
-    sparseSetAdd(sparseSet, i)
+    SparseSet.add(sparseSet, i)
   }
 
   bench("sparseSetHas", () => {
     for (let i = 0; i < size; i++) {
-      sparseSetHas(sparseSet, i)
+      SparseSet.has(sparseSet, i)
     }
   })
 
   bench("sparseSetDelete", () => {
-    const set = makeSparseSet()
-    for (let i = 0; i < size; i++) sparseSetAdd(set, i)
+    const set = SparseSet.create()
+    for (let i = 0; i < size; i++) SparseSet.add(set, i)
 
     for (let i = 0; i < size; i++) {
-      sparseSetDelete(set, i)
+      SparseSet.del(set, i)
     }
   })
 })

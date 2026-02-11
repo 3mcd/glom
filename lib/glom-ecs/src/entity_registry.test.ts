@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {getDomainId, getLocalId} from "./entity"
+import * as Entity from "./entity"
 import {allocEntity, makeEntityRegistry, removeEntity} from "./entity_registry"
 
 describe("entityRegistry", () => {
@@ -15,8 +15,8 @@ describe("entityRegistry", () => {
     const domainId = 2
     const entity = allocEntity(registry, domainId)
 
-    expect(getDomainId(entity)).toBe(domainId)
-    expect(getLocalId(entity)).toBe(1)
+    expect(Entity.domainId(entity)).toBe(domainId)
+    expect(Entity.localId(entity)).toBe(1)
     expect(registry.domains[domainId]).toBeDefined()
     expect(registry.domains[domainId]?.entityCount).toBe(1)
   })
@@ -27,10 +27,10 @@ describe("entityRegistry", () => {
     const e1 = allocEntity(registry, domainId)
     const e2 = allocEntity(registry, domainId)
 
-    expect(getDomainId(e1)).toBe(domainId)
-    expect(getLocalId(e1)).toBe(1)
-    expect(getDomainId(e2)).toBe(domainId)
-    expect(getLocalId(e2)).toBe(2)
+    expect(Entity.domainId(e1)).toBe(domainId)
+    expect(Entity.localId(e1)).toBe(1)
+    expect(Entity.domainId(e2)).toBe(domainId)
+    expect(Entity.localId(e2)).toBe(2)
     expect(registry.domains[domainId]?.entityCount).toBe(2)
   })
 
@@ -39,8 +39,8 @@ describe("entityRegistry", () => {
     const e1 = allocEntity(registry, 1)
     const e2 = allocEntity(registry, 2)
 
-    expect(getDomainId(e1)).toBe(1)
-    expect(getDomainId(e2)).toBe(2)
+    expect(Entity.domainId(e1)).toBe(1)
+    expect(Entity.domainId(e2)).toBe(2)
     expect(registry.domains[1]?.entityCount).toBe(1)
     expect(registry.domains[2]?.entityCount).toBe(1)
   })
@@ -79,6 +79,6 @@ describe("entityRegistry", () => {
 
     const e3 = allocEntity(registry, domainId)
     expect(e3).not.toBe(e2)
-    expect(getLocalId(e3)).not.toBe(getLocalId(e2))
+    expect(Entity.localId(e3)).not.toBe(Entity.localId(e2))
   })
 })

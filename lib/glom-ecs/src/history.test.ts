@@ -1,19 +1,11 @@
 import {describe, expect, test} from "bun:test"
-import {defineComponent} from "./component"
-import {
-  applyUndoLog,
-  captureCheckpoint,
-  HistoryBuffer,
-  makeHistoryBuffer,
-  pushCheckpoint,
-  restoreCheckpoint,
-  rollbackToTick,
-  type UndoEntry,
-} from "./history"
+import * as Component from "./component"
+import * as History from "./history"
+import {HistoryBuffer} from "./history"
 import {resimulateWithTransactions} from "./reconciliation"
-import {defineRelation} from "./relation"
-import {sparseMapGet} from "./sparse_map"
-import {getComponentValue, makeWorld} from "./world"
+import * as Relation from "./relation"
+import * as SparseMap from "./sparse_map"
+import * as World from "./world"
 import {
   addComponent,
   addResource,
@@ -25,10 +17,10 @@ import {
 } from "./world_api"
 
 describe("history", () => {
-  const Position = defineComponent<{x: number; y: number}>("Position")
+  const Position = Component.define<{x: number; y: number}>("Position")
 
   test("capture and restore checkpoint component data", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     const history = {
       checkpoints: [] as any[],
       undoLog: [] as any[],
@@ -36,7 +28,7 @@ describe("history", () => {
       checkpointInterval: 1,
     }
     addResource(world, HistoryBuffer(history))
-    pushCheckpoint(world, history)
+    History.push(world, history)
 
     const entity = spawn(world, Position({x: 0, y: 0}))
     commitTransaction(world)
@@ -46,19 +38,19 @@ describe("history", () => {
     commitTransaction(world)
     advanceTick(world)
 
-    expect(getComponentValue(world, entity, Position)?.x).toBe(10)
+    expect(World.getComponentValue(world, entity, Position)?.x).toBe(10)
 
-    const success = rollbackToTick(world, HistoryBuffer, 0)
+    const success = History.rollback(world, HistoryBuffer, 0)
     expect(success).toBe(true)
     expect(world.tick).toBe(0)
-    const pos0 = getComponentValue(world, entity, Position)
+    const pos0 = World.getComponentValue(world, entity, Position)
     if (pos0) {
       expect(pos0.x).toBe(0)
     }
   })
 
   test("rollback entity spawn", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     const history = {
       checkpoints: [] as any[],
       undoLog: [] as any[],
@@ -66,21 +58,21 @@ describe("history", () => {
       checkpointInterval: 1,
     }
     addResource(world, HistoryBuffer(history))
-    pushCheckpoint(world, history)
+    History.push(world, history)
 
     const entity = spawn(world, Position({x: 10, y: 10}))
     commitTransaction(world)
     advanceTick(world)
 
-    expect(getComponentValue(world, entity, Position)).toBeDefined()
+    expect(World.getComponentValue(world, entity, Position)).toBeDefined()
 
-    rollbackToTick(world, HistoryBuffer, 0)
+    History.rollback(world, HistoryBuffer, 0)
     expect(world.tick).toBe(0)
-    expect(getComponentValue(world, entity, Position)).toBeUndefined()
+    expect(World.getComponentValue(world, entity, Position)).toBeUndefined()
   })
 
   test("rollback entity despawn", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     const history = {
       checkpoints: [] as any[],
       undoLog: [] as any[],
@@ -91,25 +83,25 @@ describe("history", () => {
 
     const entity = spawn(world, Position({x: 10, y: 10}))
     commitTransaction(world)
-    pushCheckpoint(world, history)
+    History.push(world, history)
 
     despawn(world, entity)
     commitTransaction(world)
     advanceTick(world)
 
-    expect(getComponentValue(world, entity, Position)).toBeUndefined()
+    expect(World.getComponentValue(world, entity, Position)).toBeUndefined()
 
-    rollbackToTick(world, HistoryBuffer, 0)
+    History.rollback(world, HistoryBuffer, 0)
     expect(world.tick).toBe(0)
-    expect(getComponentValue(world, entity, Position)).toBeDefined()
-    const posRolled = getComponentValue(world, entity, Position)
+    expect(World.getComponentValue(world, entity, Position)).toBeDefined()
+    const posRolled = World.getComponentValue(world, entity, Position)
     if (posRolled) {
       expect(posRolled.x).toBe(10)
     }
   })
 
   test("resimulate forward after rollback", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     const history = {
       checkpoints: [] as any[],
       undoLog: [] as any[],
@@ -121,7 +113,7 @@ describe("history", () => {
     const entity = spawn(world, Position({x: 0, y: 0}))
     commitTransaction(world)
 
-    pushCheckpoint(world, history)
+    History.push(world, history)
 
     addComponent(world, entity, Position({x: 1, y: 1}))
     commitTransaction(world)
@@ -131,17 +123,17 @@ describe("history", () => {
     commitTransaction(world)
     advanceTick(world)
 
-    expect(getComponentValue(world, entity, Position)?.x).toBe(2)
+    expect(World.getComponentValue(world, entity, Position)?.x).toBe(2)
 
-    rollbackToTick(world, HistoryBuffer, 0)
+    History.rollback(world, HistoryBuffer, 0)
     expect(world.tick).toBe(0)
-    const posRolledResim = getComponentValue(world, entity, Position)
+    const posRolledResim = World.getComponentValue(world, entity, Position)
     if (posRolledResim) {
       expect(posRolledResim.x).toBe(0)
     }
 
     resimulateWithTransactions(world, 2, (w) => {
-      const pos = getComponentValue(w, entity, Position)
+      const pos = World.getComponentValue(w, entity, Position)
       if (pos) {
         addComponent(
           w,
@@ -152,44 +144,44 @@ describe("history", () => {
     })
 
     expect(world.tick).toBe(2)
-    const pos2 = getComponentValue(world, entity, Position)
+    const pos2 = World.getComponentValue(world, entity, Position)
     if (pos2) {
       expect(pos2.x).toBe(2)
     }
   })
 
   test("makeHistoryBuffer", () => {
-    const buffer = makeHistoryBuffer(100)
+    const buffer = History.create(100)
     expect(buffer.maxSize).toBe(100)
     expect(buffer.checkpoints).toEqual([])
     expect(buffer.undoLog).toEqual([])
   })
 
   test("capture and restore checkpoint relations", () => {
-    const ChildOf = defineRelation("ChildOf")
-    const world = makeWorld({domainId: 1})
+    const ChildOf = Relation.define("ChildOf")
+    const world = World.create({domainId: 1})
 
     const parent = spawn(world, Position({x: 0, y: 0}))
     const child = spawn(world, ChildOf(parent))
     commitTransaction(world)
 
-    const checkpoint = captureCheckpoint(world)
+    const checkpoint = History.capture(world)
     expect(checkpoint.relations.objectToSubjects.has(parent)).toBe(true)
 
     despawn(world, child)
     commitTransaction(world)
     expect(world.relations.objectToSubjects.has(parent)).toBe(false)
 
-    restoreCheckpoint(world, checkpoint)
+    History.restore(world, checkpoint)
     expect(world.relations.objectToSubjects.has(parent)).toBe(true)
 
-    const node = sparseMapGet(world.graph.byEntity, parent as number)
+    const node = SparseMap.get(world.graph.byEntity, parent as number)
     expect(node?.relMaps[world.componentRegistry.getId(ChildOf)]).toBeDefined()
   })
 
   test("restoreCheckpoint restores missing domain", () => {
-    const world = makeWorld({domainId: 1})
-    const checkpoint = captureCheckpoint(world)
+    const world = World.create({domainId: 1})
+    const checkpoint = History.capture(world)
 
     // Simulate a checkpoint from another world or a world that had an extra domain
     const extraDomain = {
@@ -208,7 +200,7 @@ describe("history", () => {
     }
     modifiedCheckpoint.registryDomains[5] = extraDomain
 
-    restoreCheckpoint(world, modifiedCheckpoint)
+    History.restore(world, modifiedCheckpoint)
 
     expect(world.registry.domains[5]).toBeDefined()
     expect(world.registry.domains[5]?.domainId).toBe(5)
@@ -217,18 +209,18 @@ describe("history", () => {
 })
 
 describe("undo log", () => {
-  const Position = defineComponent<{x: number; y: number}>("Position")
-  const Health = defineComponent<{hp: number}>("Health")
+  const Position = Component.define<{x: number; y: number}>("Position")
+  const Health = Component.define<{hp: number}>("Health")
 
   test("makeHistoryBuffer initializes undoLog", () => {
-    const buffer = makeHistoryBuffer(50)
+    const buffer = History.create(50)
     expect(buffer.undoLog).toEqual([])
     expect(buffer.checkpointInterval).toBe(1)
   })
 
   test("advanceTick records undo entries for spawns", () => {
-    const world = makeWorld({domainId: 1})
-    const history = makeHistoryBuffer(10)
+    const world = World.create({domainId: 1})
+    const history = History.create(10)
     addResource(world, HistoryBuffer(history))
 
     spawn(world, Position({x: 1, y: 2}))
@@ -243,8 +235,8 @@ describe("undo log", () => {
   })
 
   test("advanceTick records undo entries for despawns", () => {
-    const world = makeWorld({domainId: 1})
-    const history = makeHistoryBuffer(10)
+    const world = World.create({domainId: 1})
+    const history = History.create(10)
     addResource(world, HistoryBuffer(history))
 
     const entity = spawn(world, Position({x: 1, y: 2}))
@@ -262,8 +254,8 @@ describe("undo log", () => {
   })
 
   test("advanceTick records undo entries for addComponent", () => {
-    const world = makeWorld({domainId: 1})
-    const history = makeHistoryBuffer(10)
+    const world = World.create({domainId: 1})
+    const history = History.create(10)
     addResource(world, HistoryBuffer(history))
 
     const entity = spawn(world, Position({x: 0, y: 0}))
@@ -281,8 +273,8 @@ describe("undo log", () => {
   })
 
   test("advanceTick records undo entries for removeComponent", () => {
-    const world = makeWorld({domainId: 1})
-    const history = makeHistoryBuffer(10)
+    const world = World.create({domainId: 1})
+    const history = History.create(10)
     addResource(world, HistoryBuffer(history))
 
     const entity = spawn(world, Position({x: 0, y: 0}), Health({hp: 100}))
@@ -304,21 +296,21 @@ describe("undo log", () => {
   })
 
   test("pushCheckpoint populates checkpoints", () => {
-    const world = makeWorld({domainId: 1})
-    const history = makeHistoryBuffer(10)
+    const world = World.create({domainId: 1})
+    const history = History.create(10)
     addResource(world, HistoryBuffer(history))
 
     spawn(world, Position({x: 5, y: 10}))
     commitTransaction(world)
 
-    pushCheckpoint(world, history)
+    History.push(world, history)
     expect(history.checkpoints.length).toBe(1)
     expect(history.checkpoints[0]!.tick).toBe(0)
   })
 
   test("advanceTick captures checkpoints at checkpointInterval", () => {
-    const world = makeWorld({domainId: 1})
-    const history = makeHistoryBuffer(10)
+    const world = World.create({domainId: 1})
+    const history = History.create(10)
     history.checkpointInterval = 3
     addResource(world, HistoryBuffer(history))
 
@@ -336,8 +328,8 @@ describe("undo log", () => {
   })
 
   test("rollbackToTick restores state to nearest checkpoint", () => {
-    const world = makeWorld({domainId: 1})
-    const history = makeHistoryBuffer(10)
+    const world = World.create({domainId: 1})
+    const history = History.create(10)
     addResource(world, HistoryBuffer(history))
 
     const entity = spawn(world, Position({x: 0, y: 0}))
@@ -352,18 +344,18 @@ describe("undo log", () => {
     commitTransaction(world)
     advanceTick(world) // tick becomes 3; snapshot captures state x=20
 
-    expect(getComponentValue(world, entity, Position)?.x).toBe(20)
+    expect(World.getComponentValue(world, entity, Position)?.x).toBe(20)
 
     // Rollback to tick 2 — snapshot at tick 2 captured x=10
-    const success = rollbackToTick(world, history, 2)
+    const success = History.rollback(world, history, 2)
     expect(success).toBe(true)
     expect(world.tick).toBe(2)
-    expect(getComponentValue(world, entity, Position)?.x).toBe(10)
+    expect(World.getComponentValue(world, entity, Position)?.x).toBe(10)
   })
 
   test("rollbackToTick truncates checkpoints and undo log", () => {
-    const world = makeWorld({domainId: 1})
-    const history = makeHistoryBuffer(10)
+    const world = World.create({domainId: 1})
+    const history = History.create(10)
     addResource(world, HistoryBuffer(history))
 
     const entity = spawn(world, Position({x: 0, y: 0}))
@@ -381,7 +373,7 @@ describe("undo log", () => {
     expect(history.checkpoints.length).toBe(3)
     expect(history.undoLog.length).toBe(3)
 
-    rollbackToTick(world, history, 2)
+    History.rollback(world, history, 2)
 
     // Checkpoints should be truncated to tick <= 2
     expect(history.checkpoints.length).toBe(2)
@@ -392,31 +384,31 @@ describe("undo log", () => {
   })
 
   test("applyUndoLog reverses a spawn", () => {
-    const world = makeWorld({domainId: 1})
-    const history = makeHistoryBuffer(10)
+    const world = World.create({domainId: 1})
+    const history = History.create(10)
     addResource(world, HistoryBuffer(history))
 
     // Checkpoint at tick 0 (empty world)
-    pushCheckpoint(world, history)
+    History.push(world, history)
 
     const entity = spawn(world, Position({x: 5, y: 5}))
     commitTransaction(world)
     advanceTick(world) // tick 1
 
-    expect(getComponentValue(world, entity, Position)).toBeDefined()
+    expect(World.getComponentValue(world, entity, Position)).toBeDefined()
 
     // Rollback to checkpoint at tick 0
-    restoreCheckpoint(world, history.checkpoints[0]!)
+    History.restore(world, history.checkpoints[0]!)
 
     // Apply undo log to reverse spawn
-    applyUndoLog(world, history.undoLog, 0)
+    History.applyUndoLog(world, history.undoLog, 0)
 
-    expect(getComponentValue(world, entity, Position)).toBeUndefined()
+    expect(World.getComponentValue(world, entity, Position)).toBeUndefined()
   })
 
   test("applyUndoLog reverses a despawn", () => {
-    const world = makeWorld({domainId: 1})
-    const history = makeHistoryBuffer(10)
+    const world = World.create({domainId: 1})
+    const history = History.create(10)
     addResource(world, HistoryBuffer(history))
 
     const entity = spawn(world, Position({x: 7, y: 3}))
@@ -424,27 +416,27 @@ describe("undo log", () => {
     advanceTick(world) // tick 1
 
     // Checkpoint at tick 1 (entity exists)
-    pushCheckpoint(world, history)
+    History.push(world, history)
 
     despawn(world, entity)
     commitTransaction(world)
     advanceTick(world) // tick 2
 
-    expect(getComponentValue(world, entity, Position)).toBeUndefined()
+    expect(World.getComponentValue(world, entity, Position)).toBeUndefined()
 
     // Rollback to checkpoint at tick 1
-    restoreCheckpoint(world, history.checkpoints[1]!)
+    History.restore(world, history.checkpoints[1]!)
 
     // Apply undo log to reverse despawn (entry at tick 1)
-    applyUndoLog(world, history.undoLog, 1)
+    History.applyUndoLog(world, history.undoLog, 1)
 
-    expect(getComponentValue(world, entity, Position)).toBeDefined()
-    expect(getComponentValue(world, entity, Position)?.x).toBe(7)
+    expect(World.getComponentValue(world, entity, Position)).toBeDefined()
+    expect(World.getComponentValue(world, entity, Position)?.x).toBe(7)
   })
 
   test("applyUndoLog reverses addComponent", () => {
-    const world = makeWorld({domainId: 1})
-    const history = makeHistoryBuffer(10)
+    const world = World.create({domainId: 1})
+    const history = History.create(10)
     addResource(world, HistoryBuffer(history))
 
     const entity = spawn(world, Position({x: 0, y: 0}))
@@ -455,21 +447,21 @@ describe("undo log", () => {
     commitTransaction(world)
     advanceTick(world) // tick 2
 
-    expect(getComponentValue(world, entity, Health)).toBeDefined()
+    expect(World.getComponentValue(world, entity, Health)).toBeDefined()
 
     // Rollback to checkpoint at tick 1
-    restoreCheckpoint(world, history.checkpoints[0]!)
+    History.restore(world, history.checkpoints[0]!)
 
     // Apply undo log to reverse addComponent at tick 1
-    applyUndoLog(world, history.undoLog, 1)
+    History.applyUndoLog(world, history.undoLog, 1)
 
-    expect(getComponentValue(world, entity, Health)).toBeUndefined()
-    expect(getComponentValue(world, entity, Position)).toBeDefined()
+    expect(World.getComponentValue(world, entity, Health)).toBeUndefined()
+    expect(World.getComponentValue(world, entity, Position)).toBeDefined()
   })
 
   test("applyUndoLog reverses removeComponent and restores data", () => {
-    const world = makeWorld({domainId: 1})
-    const history = makeHistoryBuffer(10)
+    const world = World.create({domainId: 1})
+    const history = History.create(10)
     addResource(world, HistoryBuffer(history))
 
     const entity = spawn(world, Position({x: 0, y: 0}), Health({hp: 75}))
@@ -480,22 +472,22 @@ describe("undo log", () => {
     commitTransaction(world)
     advanceTick(world) // tick 2
 
-    expect(getComponentValue(world, entity, Health)).toBeUndefined()
+    expect(World.getComponentValue(world, entity, Health)).toBeUndefined()
 
     // Rollback to checkpoint at tick 1
-    restoreCheckpoint(world, history.checkpoints[0]!)
+    History.restore(world, history.checkpoints[0]!)
 
     // Apply undo log to reverse removeComponent at tick 1
-    applyUndoLog(world, history.undoLog, 1)
+    History.applyUndoLog(world, history.undoLog, 1)
 
-    expect(getComponentValue(world, entity, Health)).toBeDefined()
-    expect(getComponentValue(world, entity, Health)?.hp).toBe(75)
-    expect(getComponentValue(world, entity, Position)).toBeDefined()
+    expect(World.getComponentValue(world, entity, Health)).toBeDefined()
+    expect(World.getComponentValue(world, entity, Health)?.hp).toBe(75)
+    expect(World.getComponentValue(world, entity, Position)).toBeDefined()
   })
 
   test("rollbackToTick finds nearest checkpoint at or before target tick", () => {
-    const world = makeWorld({domainId: 1})
-    const history = makeHistoryBuffer(10)
+    const world = World.create({domainId: 1})
+    const history = History.create(10)
     addResource(world, HistoryBuffer(history))
 
     const entity = spawn(world, Position({x: 0, y: 0}))
@@ -511,18 +503,18 @@ describe("undo log", () => {
     advanceTick(world) // tick becomes 3; snapshot captures state x=99
 
     expect(world.tick).toBe(3)
-    expect(getComponentValue(world, entity, Position)?.x).toBe(99)
+    expect(World.getComponentValue(world, entity, Position)?.x).toBe(99)
 
     // rollbackToTick should find snapshot at tick 2 with x=50
-    const success = rollbackToTick(world, history, 2)
+    const success = History.rollback(world, history, 2)
     expect(success).toBe(true)
     expect(world.tick).toBe(2)
-    expect(getComponentValue(world, entity, Position)?.x).toBe(50)
+    expect(World.getComponentValue(world, entity, Position)?.x).toBe(50)
   })
 
   test("undo log entries are not recorded for command-domain entities", () => {
-    const world = makeWorld({domainId: 1})
-    const history = makeHistoryBuffer(10)
+    const world = World.create({domainId: 1})
+    const history = History.create(10)
     addResource(world, HistoryBuffer(history))
 
     // Spawn a normal entity
@@ -536,8 +528,8 @@ describe("undo log", () => {
   })
 
   test("checkpoint interval > 1 only captures at multiples", () => {
-    const world = makeWorld({domainId: 1})
-    const history = makeHistoryBuffer(10)
+    const world = World.create({domainId: 1})
+    const history = History.create(10)
     history.checkpointInterval = 5
     addResource(world, HistoryBuffer(history))
 

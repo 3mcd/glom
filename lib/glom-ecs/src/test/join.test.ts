@@ -2,20 +2,20 @@ import {describe, expect, test} from "bun:test"
 import * as g from "../index"
 
 describe("join query", () => {
-  const Position = g.defineComponent<{x: number}>("Position")
-  const ChildOf = g.defineRelation("ChildOf")
-  const Name = g.defineComponent<string>("Name")
+  const Position = g.Component.define<{x: number}>("Position")
+  const ChildOf = g.Relation.define("ChildOf")
+  const Name = g.Component.define<string>("Name")
   const schema = [Position, ChildOf, Name]
 
   test("Cartesian product join (no relation)", () => {
-    const world = g.makeWorld({domainId: 0})
-    g.spawn(world, Position({x: 1}))
-    g.spawn(world, Position({x: 2}))
-    g.spawn(world, Name("A"))
-    g.spawn(world, Name("B"))
+    const world = g.World.create({domainId: 0})
+    g.World.spawn(world, Position({x: 1}))
+    g.World.spawn(world, Position({x: 2}))
+    g.World.spawn(world, Name("A"))
+    g.World.spawn(world, Name("B"))
 
     const results: [{x: number}, string][] = []
-    const system = g.defineSystem(
+    const system = g.System.define(
       (query: g.Join<g.All<typeof Position>, g.All<typeof Name>>) => {
         for (const [pos, name] of query) {
           results.push([pos, name])
@@ -26,9 +26,9 @@ describe("join query", () => {
       },
     )
 
-    const schedule = g.makeSystemSchedule()
-    g.addSystem(schedule, system)
-    g.runSchedule(schedule, world)
+    const schedule = g.SystemSchedule.create()
+    g.SystemSchedule.add(schedule, system)
+    g.SystemSchedule.run(schedule, world)
 
     // 2 positions * 2 names = 4 combinations
     expect(results.length).toBe(4)
@@ -43,15 +43,15 @@ describe("join query", () => {
   })
 
   test("Join with relation", () => {
-    const world = g.makeWorld({domainId: 0})
-    const parent1 = g.spawn(world, Name("Parent1"))
-    const parent2 = g.spawn(world, Name("Parent2"))
+    const world = g.World.create({domainId: 0})
+    const parent1 = g.World.spawn(world, Name("Parent1"))
+    const parent2 = g.World.spawn(world, Name("Parent2"))
 
-    g.spawn(world, Position({x: 1}), ChildOf(parent1))
-    g.spawn(world, Position({x: 2}), ChildOf(parent2))
+    g.World.spawn(world, Position({x: 1}), ChildOf(parent1))
+    g.World.spawn(world, Position({x: 2}), ChildOf(parent2))
 
     const results: [{x: number}, string][] = []
-    const system = g.defineSystem(
+    const system = g.System.define(
       (
         query: g.Join<
           g.All<typeof Position>,
@@ -68,9 +68,9 @@ describe("join query", () => {
       },
     )
 
-    const schedule = g.makeSystemSchedule()
-    g.addSystem(schedule, system)
-    g.runSchedule(schedule, world)
+    const schedule = g.SystemSchedule.create()
+    g.SystemSchedule.add(schedule, system)
+    g.SystemSchedule.run(schedule, world)
 
     expect(results.length).toBe(2)
 
@@ -82,13 +82,13 @@ describe("join query", () => {
   })
 
   test("Reactive Join (partial In)", () => {
-    const Tag = g.defineTag("Tag")
-    const world = g.makeWorld({domainId: 0})
-    const parent1 = g.spawn(world, Name("Parent1"))
-    const parent2 = g.spawn(world, Name("Parent2"))
+    const Tag = g.Component.defineTag("Tag")
+    const world = g.World.create({domainId: 0})
+    const parent1 = g.World.spawn(world, Name("Parent1"))
+    const parent2 = g.World.spawn(world, Name("Parent2"))
 
     const results: [{x: number}, string][] = []
-    const system = g.defineSystem(
+    const system = g.System.define(
       (
         query: g.Join<
           g.In<typeof Position>,
@@ -109,42 +109,42 @@ describe("join query", () => {
       },
     )
 
-    const schedule = g.makeSystemSchedule()
-    g.addSystem(schedule, system)
+    const schedule = g.SystemSchedule.create()
+    g.SystemSchedule.add(schedule, system)
 
     // Initial run - nothing happens
-    g.runSchedule(schedule, world)
+    g.SystemSchedule.run(schedule, world)
     expect(results.length).toBe(0)
 
     // Spawn child for parent1
-    g.spawn(world, Position({x: 10}), ChildOf(parent1))
-    g.flushGraphChanges(world)
+    g.World.spawn(world, Position({x: 10}), ChildOf(parent1))
+    g.World.flushGraphChanges(world)
 
-    g.runSchedule(schedule, world)
+    g.SystemSchedule.run(schedule, world)
     expect(results.length).toBe(1)
     expect(results[0]).toEqual([{x: 10}, "Parent1"])
 
     results.length = 0
     // Change parent2 - shouldn't trigger because level 1 is not reactive
-    g.addComponent(world, parent2, Tag)
-    g.flushGraphChanges(world)
-    g.runSchedule(schedule, world)
+    g.World.addComponent(world, parent2, Tag)
+    g.World.flushGraphChanges(world)
+    g.SystemSchedule.run(schedule, world)
     expect(results.length).toBe(0)
 
     // Spawn child for parent2
-    g.spawn(world, Position({x: 20}), ChildOf(parent2))
-    g.flushGraphChanges(world)
-    g.runSchedule(schedule, world)
+    g.World.spawn(world, Position({x: 20}), ChildOf(parent2))
+    g.World.flushGraphChanges(world)
+    g.SystemSchedule.run(schedule, world)
     expect(results.length).toBe(1)
     expect(results[0]).toEqual([{x: 20}, "Parent2"])
   })
 
   test("Reactive Join (partial Out)", () => {
-    const world = g.makeWorld({domainId: 0})
-    const parent1 = g.spawn(world, Name("Parent1"))
+    const world = g.World.create({domainId: 0})
+    const parent1 = g.World.spawn(world, Name("Parent1"))
 
     const results: [{x: number}, string][] = []
-    const system = g.defineSystem(
+    const system = g.System.define(
       (
         query: g.Join<
           g.Out<typeof Position>,
@@ -165,19 +165,19 @@ describe("join query", () => {
       },
     )
 
-    const schedule = g.makeSystemSchedule()
-    g.addSystem(schedule, system)
+    const schedule = g.SystemSchedule.create()
+    g.SystemSchedule.add(schedule, system)
 
-    const child = g.spawn(world, Position({x: 10}), ChildOf(parent1))
-    g.flushGraphChanges(world)
-    g.runSchedule(schedule, world) // Clear In monitor if it was one, but this is Out
+    const child = g.World.spawn(world, Position({x: 10}), ChildOf(parent1))
+    g.World.flushGraphChanges(world)
+    g.SystemSchedule.run(schedule, world) // Clear In monitor if it was one, but this is Out
     results.length = 0
 
     // Remove position from child
-    g.removeComponent(world, child, Position)
-    g.flushGraphChanges(world)
+    g.World.removeComponent(world, child, Position)
+    g.World.flushGraphChanges(world)
 
-    g.runSchedule(schedule, world)
+    g.SystemSchedule.run(schedule, world)
     expect(results.length).toBe(1)
     expect(results[0]).toEqual([{x: 10}, "Parent1"])
   })

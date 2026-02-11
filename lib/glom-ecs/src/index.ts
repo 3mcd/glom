@@ -1,48 +1,47 @@
 export {assert, assertDefined} from "./assert"
-export {
-  CommandBuffer,
-  CommandEntity,
-  CommandOf,
-  cleanupEphemeralCommands,
-  IntentTick,
-  recordCommand,
-  spawnEphemeralCommands,
-} from "./command"
-export {
-  type Component,
-  type ComponentInstance,
-  type ComponentLike,
-  type ComponentResolver,
-  type ComponentSerde,
-  defineComponent,
-  defineTag,
-} from "./component"
-export {Entity, getDomainId, getLocalId} from "./entity"
+
+// Namespace module re-exports
+export * as Command from "./command"
+export * as Component from "./component"
+export * as Entity from "./entity"
+export * as History from "./history"
+export * as Relation from "./relation"
+export * as SparseMap from "./sparse_map"
+export * as SparseSet from "./sparse_set"
+export * as System from "./system"
+export * as SystemSchedule from "./system_schedule"
+export * as Timestep from "./timestep"
+export * as World from "./world_api"
+
+// Re-export types that don't collide with namespace names
+export type {ComponentInstance, ComponentLike, ComponentResolver, ComponentSerde} from "./component"
+export type {Checkpoint, UndoEntry, UndoOp} from "./history"
+export type {Relationship} from "./relation"
+export type {SystemDescriptor} from "./system_descriptor"
+export type {WorldOptions} from "./world"
+
+// Entity graph
 export {
   type EntityGraph,
   type EntityGraphNode,
   entityGraphGetEntityNode,
 } from "./entity_graph"
+
+// Entity registry
 export {getDomain} from "./entity_registry"
-export {
-  applyUndoLog,
-  type Checkpoint,
-  captureCheckpoint,
-  HistoryBuffer,
-  makeHistoryBuffer,
-  pushCheckpoint,
-  restoreCheckpoint,
-  rollbackToTick,
-  type UndoEntry,
-  type UndoOp,
-} from "./history"
+
+// Binary utilities
 export {
   acquireWriter,
   ByteReader,
   ByteWriter,
   releaseWriter,
 } from "./lib/binary"
+
+// Net types
 export type {AddOp, SnapshotMessage} from "./net_types"
+
+// Protocol
 export {
   type Clocksync,
   type HandshakeClient,
@@ -61,6 +60,8 @@ export {
   writeHandshakeServer,
   writeTransaction,
 } from "./protocol"
+
+// Query
 export {All, In, Join, Out, Unique} from "./query/all"
 export {
   Add,
@@ -73,6 +74,8 @@ export {
   World as WorldTerm,
   Write,
 } from "./query/term"
+
+// Reconciliation
 export {
   applyRemoteSnapshots,
   applyRemoteSnapshotsVersioned,
@@ -88,15 +91,14 @@ export {
   reconcileTransaction,
   resimulateWithTransactions,
 } from "./reconciliation"
+
+// Registry
 export {
   ComponentRegistry,
   makeComponentRegistry,
 } from "./registry"
-export {
-  defineRelation,
-  type Relation,
-  type Relationship,
-} from "./relation"
+
+// Relation registry
 export {
   deleteObjectSubjects,
   getObjectSubjects,
@@ -109,6 +111,8 @@ export {
   type RelationSubject,
   setRelationPair,
 } from "./relation_registry"
+
+// Replication
 export {
   advanceWorldTick,
   applyTransaction,
@@ -128,83 +132,13 @@ export {
   ReplicationConfig,
   ReplicationStream,
 } from "./replication_config"
+
+// Snapshot stream
 export {
   applySnapshotStream,
   applySnapshotStreamVersioned,
   writeSnapshot,
 } from "./snapshot_stream"
-export {
-  makeSparseMap,
-  sparseMapClear,
-  sparseMapDelete,
-  sparseMapForEach,
-  sparseMapGet,
-  sparseMapHas,
-  sparseMapSet,
-  sparseMapSize,
-} from "./sparse_map"
-export {
-  makeSparseSet,
-  sparseSetAdd,
-  sparseSetClear,
-  sparseSetDelete,
-  sparseSetForEach,
-  sparseSetHas,
-  sparseSetSize,
-  sparseSetValues,
-} from "./sparse_set"
-export type {System} from "./system"
-export {defineSystem} from "./system"
-export type {SystemDescriptor} from "./system_descriptor"
-export {
-  addSystem,
-  makeSystemSchedule,
-  runSchedule,
-  type SystemSchedule,
-} from "./system_schedule"
+
+// Monitors
 export {GlomMonitors} from "./systems/monitors"
-export {
-  advanceTimestep,
-  makeTimestep,
-  type Timestep,
-  timestepSetOffset,
-} from "./timestep"
-export {
-  addResource,
-  allocVirtualComponentId,
-  deleteComponentValue,
-  forceSetComponentValue,
-  forceSetComponentValueById,
-  getComponentId,
-  getComponentSerde,
-  getComponentValue,
-  getComponentValueById,
-  getEntityNode,
-  getResource,
-  getVersionDomainId,
-  getVersionTick,
-  makeVersion,
-  makeWorld,
-  resolveComponent,
-  resolveVirtualComponent,
-  setComponentValue,
-  setComponentValueById,
-  type World,
-  type WorldOptions,
-} from "./world"
-export {
-  addClockSample,
-  addComponent,
-  advanceTick,
-  commitTransaction,
-  despawn,
-  flushDeletions,
-  flushGraphChanges,
-  getClockOffset,
-  getClockRtt,
-  removeComponent,
-  setDomainId,
-  setTick,
-  spawn,
-  spawnInDomain,
-} from "./world_api"

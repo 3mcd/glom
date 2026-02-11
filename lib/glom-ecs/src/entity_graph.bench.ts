@@ -1,5 +1,5 @@
 import {bench, group, run} from "mitata"
-import {defineComponent} from "./component"
+import * as Component from "./component"
 import type {Entity} from "./entity"
 import {
   type EntityGraphNode,
@@ -14,7 +14,7 @@ import {makeVec} from "./vec"
 import {makeComponentRegistry} from "./registry"
 
 const componentCount = 200
-const components = Array.from({length: componentCount}, (_, i) => defineComponent(`bench_comp_${i}`))
+const components = Array.from({length: componentCount}, (_, i) => Component.define(`bench_comp_${i}`))
 const componentRegistry = makeComponentRegistry()
 const nodeCount = 100
 const nodes: EntityGraphNode[] = []

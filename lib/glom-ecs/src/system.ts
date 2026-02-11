@@ -7,7 +7,7 @@ export type DefinedSystem<T extends SystemArgument[]> = {
   readonly [systemDescriptorKey]: SystemDescriptor<T>
 } & System<T>
 
-export function defineSystem<T extends SystemArgument[]>(
+export function define<T extends SystemArgument[]>(
   system: System<T>,
   systemDescriptor: SystemDescriptor<T>,
 ): DefinedSystem<T> {

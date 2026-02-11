@@ -1,6 +1,8 @@
 import {describe, expect, test} from "bun:test"
-import {type ComponentResolver, defineComponent} from "../component"
-import {HistoryBuffer, pushCheckpoint} from "../history"
+import * as Component from "../component"
+import {type ComponentResolver} from "../component"
+import * as History from "../history"
+import {HistoryBuffer} from "../history"
 import {ByteWriter} from "../lib/binary"
 import type {SnapshotMessage} from "../net_types"
 import {All} from "../query/all"
@@ -19,9 +21,10 @@ import {
   IncomingSnapshots,
   IncomingTransactions,
 } from "../replication_config"
-import {defineSystem} from "../system"
-import {addSystem, makeSystemSchedule, runSchedule} from "../system_schedule"
-import {getComponentValue, makeWorld} from "../world"
+import * as System from "../system"
+import * as SystemSchedule from "../system_schedule"
+import * as World from "../world"
+import {getComponentValue} from "../world"
 import {
   addComponent,
   addResource,
@@ -58,7 +61,7 @@ function makeSnapshotMessage(
 }
 
 describe("reconciliation", () => {
-  const Position = defineComponent<{x: number; y: number}>("Position", {
+  const Position = Component.define<{x: number; y: number}>("Position", {
     bytesPerElement: 16,
     encode: (val, writer) => {
       writer.writeFloat64(val.x)
@@ -68,7 +71,7 @@ describe("reconciliation", () => {
   })
 
   test("reconcile late arriving transaction", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     const history = {
       checkpoints: [] as any[],
       undoLog: [] as any[],
@@ -78,7 +81,7 @@ describe("reconciliation", () => {
     addResource(world, HistoryBuffer(history))
     addResource(world, IncomingTransactions(new Map()))
 
-    pushCheckpoint(world, history)
+    History.push(world, history)
 
     const entity = spawn(world, Position({x: 0, y: 0}))
     commitTransaction(world)
@@ -130,7 +133,7 @@ describe("reconciliation", () => {
   })
 
   test("prune buffers", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     const history = {
       checkpoints: [] as any[],
       undoLog: [] as any[],
@@ -161,7 +164,7 @@ describe("reconciliation", () => {
   })
 
   test("cleanup rejected transient entities (ghosts)", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
 
     world.tick = 10
     const entity = spawnInDomain(
@@ -180,7 +183,7 @@ describe("reconciliation", () => {
   })
 
   test("receive and apply remote snapshots", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     addResource(world, IncomingSnapshots(new Map()))
 
     const entity = spawn(world)
@@ -211,7 +214,7 @@ describe("reconciliation", () => {
   })
 
   test("apply remote transactions", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     addResource(world, IncomingTransactions(new Map()))
 
     const entity = spawn(world)
@@ -244,7 +247,7 @@ describe("reconciliation", () => {
   })
 
   test("performBatchReconciliation re-simulates multiple ticks", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     const history = {
       checkpoints: [] as any[],
       undoLog: [] as any[],
@@ -255,7 +258,7 @@ describe("reconciliation", () => {
     const incomingTransactions = new Map<number, Transaction[]>()
     addResource(world, IncomingTransactions(incomingTransactions))
 
-    const moveSystem = defineSystem(
+    const moveSystem = System.define(
       (q: any, update: any) => {
         for (const [entity, pos] of q) {
           update(entity, {x: pos.x + 1, y: pos.y})
@@ -267,22 +270,22 @@ describe("reconciliation", () => {
       },
     )
 
-    const schedule = makeSystemSchedule()
-    addSystem(schedule, moveSystem)
+    const schedule = SystemSchedule.create()
+    SystemSchedule.add(schedule, moveSystem)
 
     // Tick 0
     const entity = spawn(world, Position({x: 0, y: 0}))
-    runSchedule(schedule, world) // x -> 1
+    SystemSchedule.run(schedule, world) // x -> 1
     commitTransaction(world)
     advanceTick(world) // world.tick = 1, pushes snapshot of state at START of tick 1 (x=1)
 
     // Tick 1
-    runSchedule(schedule, world) // x -> 2
+    SystemSchedule.run(schedule, world) // x -> 2
     commitTransaction(world)
     advanceTick(world) // world.tick = 2, pushes snapshot of state at START of tick 2 (x=2)
 
     // Tick 2
-    runSchedule(schedule, world) // x -> 3
+    SystemSchedule.run(schedule, world) // x -> 3
     commitTransaction(world)
     advanceTick(world) // world.tick = 3, pushes snapshot of state at START of tick 3 (x=3)
 
@@ -324,7 +327,7 @@ describe("reconciliation", () => {
   })
 
   test("performBatchReconciliation handles transactions older than history", () => {
-    const world = makeWorld({domainId: 1})
+    const world = World.create({domainId: 1})
     const history = {
       checkpoints: [] as any[],
       undoLog: [] as any[],
@@ -367,7 +370,7 @@ describe("reconciliation", () => {
     }
     incomingTransactions.set(0, [oldTx])
 
-    const schedule = makeSystemSchedule()
+    const schedule = SystemSchedule.create()
     performBatchReconciliation(world, schedule)
 
     // The transaction should be applied directly because it's too old to rollback

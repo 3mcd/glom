@@ -3,21 +3,21 @@ export type SparseSet<T extends number = number> = {
   sparse: Map<number, number>
 }
 
-export function makeSparseSet<T extends number = number>(): SparseSet<T> {
+export function create<T extends number = number>(): SparseSet<T> {
   return {
     dense: [],
     sparse: new Map(),
   }
 }
 
-export function sparseSetHas<T extends number>(
+export function has<T extends number>(
   set: SparseSet<T>,
   val: T,
 ): boolean {
   return set.sparse.has(val)
 }
 
-export function sparseSetAdd<T extends number>(
+export function add<T extends number>(
   set: SparseSet<T>,
   val: T,
 ): number {
@@ -30,21 +30,21 @@ export function sparseSetAdd<T extends number>(
   return newDenseIndex
 }
 
-export function sparseSetAt<T extends number>(
+export function at<T extends number>(
   set: SparseSet<T>,
   denseIndex: number,
 ): T {
   return set.dense[denseIndex] as T
 }
 
-export function sparseSetIndexOf<T extends number>(
+export function indexOf<T extends number>(
   set: SparseSet<T>,
   val: T,
 ): number {
   return set.sparse.get(val) ?? -1
 }
 
-export function sparseSetDelete<T extends number>(
+export function del<T extends number>(
   set: SparseSet<T>,
   val: T,
 ): void {
@@ -59,20 +59,20 @@ export function sparseSetDelete<T extends number>(
   set.sparse.delete(val)
 }
 
-export function sparseSetClear<T extends number>(set: SparseSet<T>): void {
+export function clear<T extends number>(set: SparseSet<T>): void {
   set.dense.length = 0
   set.sparse.clear()
 }
 
-export function sparseSetValues<T extends number>(set: SparseSet<T>): T[] {
+export function values<T extends number>(set: SparseSet<T>): T[] {
   return set.dense
 }
 
-export function sparseSetSize<T extends number>(set: SparseSet<T>): number {
+export function size<T extends number>(set: SparseSet<T>): number {
   return set.dense.length
 }
 
-export function sparseSetForEach<T extends number>(
+export function forEach<T extends number>(
   set: SparseSet<T>,
   iteratee: (val: T) => void,
 ): void {

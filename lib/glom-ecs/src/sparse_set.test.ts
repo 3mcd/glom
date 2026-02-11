@@ -1,95 +1,84 @@
 import {describe, expect, test} from "bun:test"
-import {
-  makeSparseSet,
-  sparseSetAdd,
-  sparseSetAt,
-  sparseSetClear,
-  sparseSetDelete,
-  sparseSetForEach,
-  sparseSetHas,
-  sparseSetIndexOf,
-  sparseSetSize,
-  sparseSetValues,
-} from "./sparse_set"
+import * as SparseSet from "./sparse_set"
 
 describe("sparseSet", () => {
   test("add and has", () => {
-    const set = makeSparseSet<number>()
-    sparseSetAdd(set, 10)
-    sparseSetAdd(set, 20)
+    const set = SparseSet.create<number>()
+    SparseSet.add(set, 10)
+    SparseSet.add(set, 20)
 
-    expect(sparseSetHas(set, 10)).toBe(true)
-    expect(sparseSetHas(set, 20)).toBe(true)
-    expect(sparseSetHas(set, 30)).toBe(false)
+    expect(SparseSet.has(set, 10)).toBe(true)
+    expect(SparseSet.has(set, 20)).toBe(true)
+    expect(SparseSet.has(set, 30)).toBe(false)
   })
 
   test("add returns index", () => {
-    const set = makeSparseSet<number>()
-    expect(sparseSetAdd(set, 10)).toBe(0)
-    expect(sparseSetAdd(set, 20)).toBe(1)
-    expect(sparseSetAdd(set, 10)).toBe(0)
+    const set = SparseSet.create<number>()
+    expect(SparseSet.add(set, 10)).toBe(0)
+    expect(SparseSet.add(set, 20)).toBe(1)
+    expect(SparseSet.add(set, 10)).toBe(0)
   })
 
   test("at", () => {
-    const set = makeSparseSet<number>()
-    sparseSetAdd(set, 10)
-    sparseSetAdd(set, 20)
-    expect(sparseSetAt(set, 0)).toBe(10)
-    expect(sparseSetAt(set, 1)).toBe(20)
+    const set = SparseSet.create<number>()
+    SparseSet.add(set, 10)
+    SparseSet.add(set, 20)
+    expect(SparseSet.at(set, 0)).toBe(10)
+    expect(SparseSet.at(set, 1)).toBe(20)
   })
 
   test("indexOf", () => {
-    const set = makeSparseSet<number>()
-    sparseSetAdd(set, 10)
-    expect(sparseSetIndexOf(set, 10)).toBe(0)
-    expect(sparseSetIndexOf(set, 20)).toBe(-1)
+    const set = SparseSet.create<number>()
+    SparseSet.add(set, 10)
+    expect(SparseSet.indexOf(set, 10)).toBe(0)
+    expect(SparseSet.indexOf(set, 20)).toBe(-1)
   })
 
   test("delete", () => {
-    const set = makeSparseSet<number>()
-    sparseSetAdd(set, 1)
-    sparseSetAdd(set, 2)
-    sparseSetAdd(set, 3)
+    const set = SparseSet.create<number>()
+    SparseSet.add(set, 1)
+    SparseSet.add(set, 2)
+    SparseSet.add(set, 3)
 
-    sparseSetDelete(set, 2)
-    expect(sparseSetHas(set, 2)).toBe(false)
-    expect(sparseSetSize(set)).toBe(2)
+    SparseSet.del(set, 2)
+    expect(SparseSet.has(set, 2)).toBe(false)
+    expect(SparseSet.size(set)).toBe(2)
 
-    expect(sparseSetAt(set, 0)).toBe(1)
-    expect(sparseSetAt(set, 1)).toBe(3)
-    expect(sparseSetIndexOf(set, 3)).toBe(1)
+    expect(SparseSet.at(set, 0)).toBe(1)
+    expect(SparseSet.at(set, 1)).toBe(3)
+    expect(SparseSet.indexOf(set, 3)).toBe(1)
   })
 
   test("clear", () => {
-    const set = makeSparseSet<number>()
-    sparseSetAdd(set, 1)
-    sparseSetAdd(set, 2)
-    sparseSetClear(set)
-    expect(sparseSetSize(set)).toBe(0)
-    expect(sparseSetHas(set, 1)).toBe(false)
-    expect(sparseSetHas(set, 2)).toBe(false)
+    const set = SparseSet.create<number>()
+    SparseSet.add(set, 1)
+    SparseSet.add(set, 2)
+    SparseSet.clear(set)
+    expect(SparseSet.size(set)).toBe(0)
+    expect(SparseSet.has(set, 1)).toBe(false)
+    expect(SparseSet.has(set, 2)).toBe(false)
   })
 
   test("values", () => {
-    const set = makeSparseSet<number>()
-    sparseSetAdd(set, 1)
-    sparseSetAdd(set, 2)
-    expect(sparseSetValues(set)).toEqual([1, 2])
+    const set = SparseSet.create<number>()
+    SparseSet.add(set, 1)
+    SparseSet.add(set, 2)
+    expect(SparseSet.values(set)).toEqual([1, 2])
   })
 
   test("size", () => {
-    const set = makeSparseSet<number>()
-    expect(sparseSetSize(set)).toBe(0)
-    sparseSetAdd(set, 1)
-    expect(sparseSetSize(set)).toBe(1)
+    const set = SparseSet.create<number>()
+    expect(SparseSet.size(set)).toBe(0)
+    SparseSet.add(set, 1)
+    expect(SparseSet.size(set)).toBe(1)
   })
 
   test("forEach", () => {
-    const set = makeSparseSet<number>()
-    sparseSetAdd(set, 1)
-    sparseSetAdd(set, 2)
+    const set = SparseSet.create<number>()
+    SparseSet.add(set, 1)
+    SparseSet.add(set, 2)
     const results: number[] = []
-    sparseSetForEach(set, (v) => results.push(v))
+    SparseSet.forEach(set, (v) => results.push(v))
 
     expect(results).toEqual([2, 1])
   })

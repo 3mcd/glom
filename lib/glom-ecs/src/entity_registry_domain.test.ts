@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {type Entity, getDomainId, getLocalId} from "./entity"
+import * as Entity from "./entity"
 import {
   allocDomainEntity,
   makeEntityRegistryDomain,
@@ -21,9 +21,9 @@ describe("entityRegistryDomain", () => {
 
     expect(domain.entityCount).toBe(1)
     expect(domain.dense[0]).toBe(entity)
-    expect(domain.sparse.get(getLocalId(entity))).toBe(0)
-    expect(getDomainId(entity)).toBe(10)
-    expect(getLocalId(entity)).toBe(1)
+    expect(domain.sparse.get(Entity.localId(entity))).toBe(0)
+    expect(Entity.domainId(entity)).toBe(10)
+    expect(Entity.localId(entity)).toBe(1)
   })
 
   test("addEntity and removeEntity", () => {
@@ -39,14 +39,14 @@ describe("entityRegistryDomain", () => {
 
     expect(domain.entityCount).toBe(1)
     expect(domain.dense[0]).toBe(e2)
-    expect(domain.sparse.get(getLocalId(e2))).toBe(0)
-    expect(domain.sparse.get(getLocalId(e1))).toBeUndefined()
+    expect(domain.sparse.get(Entity.localId(e2))).toBe(0)
+    expect(domain.sparse.get(Entity.localId(e1))).toBeUndefined()
   })
 
   test("remove non-existent entity", () => {
     const domain = makeEntityRegistryDomain(1)
     const e1 = allocDomainEntity(domain)
-    removeDomainEntity(domain, 999 as Entity)
+    removeDomainEntity(domain, 999 as Entity.Entity)
     expect(domain.entityCount).toBe(1)
     expect(domain.dense[0]).toBe(e1)
   })

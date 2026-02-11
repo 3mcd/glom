@@ -9,7 +9,7 @@ export type Timestep = {
   initialized: boolean
 }
 
-export function makeTimestep(
+export function create(
   hz: number,
   maxDrift = 1000,
   maxTicksPerUpdate = 240,
@@ -26,7 +26,7 @@ export function makeTimestep(
   }
 }
 
-export function advanceTimestep(
+export function advance(
   timestep: Timestep,
   nowLocal: number,
   onTick: (dt: number) => void,
@@ -66,6 +66,6 @@ export function advanceTimestep(
   }
 }
 
-export function timestepSetOffset(timestep: Timestep, offset: number) {
+export function setOffset(timestep: Timestep, offset: number) {
   timestep.offset = offset
 }

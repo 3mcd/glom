@@ -1,39 +1,34 @@
 import {describe, expect, test} from "bun:test"
 import {assertDefined} from "./assert"
-import {
-  CommandBuffer,
-  CommandOf,
-  cleanupEphemeralCommands,
-  pruneCommands,
-  recordCommand,
-  spawnEphemeralCommands,
-} from "./command"
+import * as Command from "./command"
+import {CommandBuffer, CommandOf} from "./command"
 import type {ComponentSerde} from "./component"
-import {type ComponentResolver, defineComponent, defineTag} from "./component"
+import {type ComponentResolver} from "./component"
+import * as Component from "./component"
 import type {Entity} from "./entity"
 import {ByteReader, ByteWriter} from "./lib/binary"
 import {readCommands, readMessageType, writeCommands} from "./protocol"
 import {World as WorldTerm} from "./query/term"
-import {sparseMapGet} from "./sparse_map"
-import {defineSystem} from "./system"
-import {addSystem, makeSystemSchedule, runSchedule} from "./system_schedule"
+import * as SparseMap from "./sparse_map"
+import * as System from "./system"
+import * as SystemSchedule from "./system_schedule"
 import type {World} from "./world"
-import {getComponentValue, getResource, makeWorld} from "./world"
+import * as W from "./world"
 import {spawn} from "./world_api"
 
 describe("command api", () => {
-  const Jump = defineTag("Jump")
-  const Move = defineComponent<{x: number; y: number}>("Move")
+  const Jump = Component.defineTag("Jump")
+  const Move = Component.define<{x: number; y: number}>("Move")
   const schema = [Jump, Move]
 
   test("record and execute relational commands", () => {
-    const world = makeWorld({domainId: 1})
+    const world = W.create({domainId: 1})
     const player = spawn(world)
 
-    recordCommand(world, player, Jump, 10)
-    recordCommand(world, player, Move({x: 5, y: 10}), 10)
+    Command.record(world, player, Jump, 10)
+    Command.record(world, player, Move({x: 5, y: 10}), 10)
 
-    const commandBuffer = getResource(world, CommandBuffer)
+    const commandBuffer = W.getResource(world, CommandBuffer)
     expect(commandBuffer?.get(10)?.length).toBe(2)
 
     let jumpFound = false
@@ -41,12 +36,12 @@ describe("command api", () => {
 
     world.tick = 10
 
-    const schedule = makeSystemSchedule()
-    addSystem(schedule, spawnEphemeralCommands)
+    const schedule = SystemSchedule.create()
+    SystemSchedule.add(schedule, Command.spawnEphemeralCommands)
 
-    const checkSystem = defineSystem(
+    const checkSystem = System.define(
       (_world: World) => {
-        const node = sparseMapGet(world.graph.byEntity, player as number)
+        const node = SparseMap.get(world.graph.byEntity, player as number)
         expect(node).toBeDefined()
         if (node) {
           for (const comp of node.vec.elements) {
@@ -58,7 +53,7 @@ describe("command api", () => {
             ) {
               const cmdEnt = rel.object
 
-              const cmdNode = sparseMapGet(
+              const cmdNode = SparseMap.get(
                 world.graph.byEntity,
                 cmdEnt as number,
               )
@@ -71,7 +66,7 @@ describe("command api", () => {
                 jumpFound = true
               }
 
-              const move = getComponentValue(world, cmdEnt as Entity, Move)
+              const move = W.getComponentValue(world, cmdEnt as Entity, Move)
               if (move !== undefined) moveVal = move
             }
           }
@@ -80,16 +75,16 @@ describe("command api", () => {
       {params: [WorldTerm()], name: "check"},
     )
 
-    addSystem(schedule, checkSystem)
-    addSystem(schedule, cleanupEphemeralCommands)
+    SystemSchedule.add(schedule, checkSystem)
+    SystemSchedule.add(schedule, Command.cleanupEphemeralCommands)
 
-    runSchedule(schedule, world)
+    SystemSchedule.run(schedule, world)
 
     expect(jumpFound).toBe(true)
     expect(moveVal).toEqual({x: 5, y: 10})
 
     expect(
-      sparseMapGet(world.graph.byEntity, player as number)?.vec.elements.length,
+      SparseMap.get(world.graph.byEntity, player as number)?.vec.elements.length,
     ).toBe(0)
   })
 
@@ -139,14 +134,14 @@ describe("command api", () => {
   })
 
   test("pruning", () => {
-    const world = makeWorld({domainId: 1})
+    const world = W.create({domainId: 1})
     const player = spawn(world)
-    recordCommand(world, player, Jump, 10)
-    recordCommand(world, player, Jump, 20)
+    Command.record(world, player, Jump, 10)
+    Command.record(world, player, Jump, 20)
 
-    pruneCommands(world, 15)
+    Command.pruneCommands(world, 15)
 
-    const commandBuffer = getResource(world, CommandBuffer)
+    const commandBuffer = W.getResource(world, CommandBuffer)
     expect(commandBuffer?.has(10)).toBe(false)
     expect(commandBuffer?.has(20)).toBe(true)
   })

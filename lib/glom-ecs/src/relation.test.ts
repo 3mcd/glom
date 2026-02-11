@@ -1,31 +1,29 @@
 import {describe, expect, test} from "bun:test"
 import {
   All,
-  defineComponent,
-  defineRelation,
-  despawn,
+  Component,
   Entity,
   Has,
-  makeWorld,
   Read,
-  type Relation,
+  Relation,
   type Relationship,
-  spawn,
+  System,
+  SystemSchedule,
+  World,
 } from "./index"
-import {defineSystem} from "./system"
-import {addSystem, makeSystemSchedule, runSchedule} from "./system_schedule"
+import {despawn, spawn} from "./world_api"
 
 describe("relation", () => {
-  const ChildOf = defineRelation("ChildOf")
-  const Name = defineComponent<string>("Name")
+  const ChildOf = Relation.define("ChildOf")
+  const Name = Component.define<string>("Name")
 
   test("all relation features", () => {
     const schema = [Name, ChildOf]
-    const world = makeWorld({domainId: 0})
+    const world = World.create({domainId: 0})
     const parent = spawn(world, Name("Parent"))
 
     let childName = ""
-    const system1 = defineSystem(
+    const system1 = System.define(
       (query: All<typeof Name, Has<Relationship>>) => {
         for (const [name] of query) {
           childName = name
@@ -35,45 +33,45 @@ describe("relation", () => {
         params: [All(Read(Name), Has(ChildOf(parent)))],
       },
     )
-    const schedule1 = makeSystemSchedule()
-    addSystem(schedule1, system1)
+    const schedule1 = SystemSchedule.create()
+    SystemSchedule.add(schedule1, system1)
 
     spawn(world, Name("Child"), ChildOf(parent))
-    runSchedule(schedule1, world)
+    SystemSchedule.run(schedule1, world)
 
     expect(childName).toBe("Child")
 
     const children: string[] = []
-    const system2 = defineSystem(
-      (query: All<Entity, typeof Name, Has<Relation>>) => {
+    const system2 = System.define(
+      (query: All<Entity.Entity, typeof Name, Has<Relation.Relation>>) => {
         for (const [_, name] of query) {
           children.push(name)
         }
       },
       {
-        params: [All(Entity, Read(Name), Has(ChildOf))],
+        params: [All(Entity.Entity, Read(Name), Has(ChildOf))],
       },
     )
-    const schedule2 = makeSystemSchedule()
-    addSystem(schedule2, system2)
-    runSchedule(schedule2, world)
+    const schedule2 = SystemSchedule.create()
+    SystemSchedule.add(schedule2, system2)
+    SystemSchedule.run(schedule2, world)
     expect(children).toContain("Child")
 
     despawn(world, parent)
     const childrenAfter = [] as string[]
-    const system3 = defineSystem(
-      (query: All<Entity, typeof Name, Has<Relation>>) => {
+    const system3 = System.define(
+      (query: All<Entity.Entity, typeof Name, Has<Relation.Relation>>) => {
         for (const [_, name] of query) {
           childrenAfter.push(name)
         }
       },
       {
-        params: [All(Entity, Read(Name), Has(ChildOf))],
+        params: [All(Entity.Entity, Read(Name), Has(ChildOf))],
       },
     )
-    const schedule3 = makeSystemSchedule()
-    addSystem(schedule3, system3)
-    runSchedule(schedule3, world)
+    const schedule3 = SystemSchedule.create()
+    SystemSchedule.add(schedule3, system3)
+    SystemSchedule.run(schedule3, world)
     expect(childrenAfter).toEqual([])
   })
 })
